@@ -60,6 +60,8 @@ enum ProofKitDictationLanguagePreference: String, CaseIterable, Identifiable {
 }
 
 struct GlobalSettingsView: View {
+    let onSignedOut: () -> Void
+
     @Environment(\.openURL) private var openURL
     @Environment(\.proofKitServices) private var services
 
@@ -78,6 +80,10 @@ struct GlobalSettingsView: View {
     @State private var isSigningOut = false
     @State private var showingPlans = false
     @State private var showingAbout = false
+
+    init(onSignedOut: @escaping () -> Void = {}) {
+        self.onSignedOut = onSignedOut
+    }
 
     private var appearancePreference: ProofKitAppearancePreference {
         ProofKitAppearancePreference(rawValue: appearanceRawValue) ?? .system
@@ -405,9 +411,10 @@ struct GlobalSettingsView: View {
         do {
             try await services.account.signOut()
             accountSession = nil
+            onSignedOut()
             settingsNotice = SettingsNotice(
                 title: "Signed Out",
-                message: "This device has been signed out. Local cases and proof files remain on this device."
+                message: "This device has been signed out. This account’s local cases, vault files, OCR text, packets, and evidence are hidden until the same account signs in again."
             )
         } catch {
             settingsNotice = SettingsNotice(
@@ -954,9 +961,9 @@ private enum SettingsConfirmation: String, Identifiable {
         case .clearCache:
             "This removes temporary ProofKit cache folders only. It does not delete cases, proof files, OCR text, notes, or exported PDFs."
         case .deleteAccount:
-            "ProofKit will check account state. Local cases and proof files will not be deleted by this action."
+            "ProofKit will check account state. This account’s local cases, vault files, OCR text, packets, and evidence are not shown to other signed-in accounts."
         case .signOut:
-            "This signs out the connected account on this device. Local cases and proof files remain on this device."
+            "This signs out the connected account on this device. This account’s local workspace remains on this device but is hidden until the same account signs in again."
         }
     }
 

@@ -17,6 +17,7 @@ xcuserdata/
 # Local secrets/configuration
 .env
 .env.*
+Config/ProofKit.local.xcconfig
 *.mobileprovision
 *.p8
 *.p12

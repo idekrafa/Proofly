@@ -2,8 +2,14 @@ import SwiftData
 import SwiftUI
 
 struct ContentView: View {
+    let onSignOut: () -> Void
+
     @State private var selectedTab: ProofKitRootTab = .overview
     @AppStorage(ProofKitSettingsStorageKeys.appearance) private var appearanceRawValue = ProofKitAppearancePreference.system.rawValue
+
+    init(onSignOut: @escaping () -> Void = {}) {
+        self.onSignOut = onSignOut
+    }
 
     private var preferredColorScheme: ColorScheme? {
         (ProofKitAppearancePreference(rawValue: appearanceRawValue) ?? .system).colorScheme
@@ -31,7 +37,7 @@ struct ContentView: View {
             }
             .tag(ProofKitRootTab.vault)
 
-            GlobalSettingsView()
+            GlobalSettingsView(onSignedOut: onSignOut)
             .tabItem {
                 Label("Settings", systemImage: selectedTab == .settings ? "gearshape.fill" : "gearshape")
             }

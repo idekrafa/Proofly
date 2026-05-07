@@ -19,15 +19,7 @@ struct SupabaseConfiguration: Equatable {
         bundle: Bundle = .main,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> SupabaseConfiguration? {
-        guard let projectURLString = firstNonEmptyString(
-            keys: [
-                "PROOFKIT_SUPABASE_URL",
-                "SUPABASE_URL"
-            ],
-            bundle: bundle,
-            environment: environment
-        ),
-        let projectURL = URL(string: projectURLString),
+        guard let projectURL = projectURL(bundle: bundle, environment: environment),
         let publishableKey = firstNonEmptyString(
             keys: [
                 "PROOFKIT_SUPABASE_PUBLISHABLE_KEY",
@@ -74,6 +66,36 @@ struct SupabaseConfiguration: Equatable {
         }
 
         return nil
+    }
+
+    private static func projectURL(
+        bundle: Bundle,
+        environment: [String: String]
+    ) -> URL? {
+        if let projectURLString = firstNonEmptyString(
+            keys: [
+                "PROOFKIT_SUPABASE_URL",
+                "SUPABASE_URL"
+            ],
+            bundle: bundle,
+            environment: environment
+        ),
+        let projectURL = URL(string: projectURLString) {
+            return projectURL
+        }
+
+        guard let projectRef = firstNonEmptyString(
+            keys: [
+                "PROOFKIT_SUPABASE_PROJECT_REF",
+                "SUPABASE_PROJECT_REF"
+            ],
+            bundle: bundle,
+            environment: environment
+        ) else {
+            return nil
+        }
+
+        return URL(string: "https://\(projectRef).supabase.co")
     }
 }
 
@@ -137,6 +159,7 @@ struct SupabaseFunctionNames: Equatable {
 private extension String {
     var proofKitNonEmptyConfigurationValue: String? {
         let cleaned = trimmingCharacters(in: .whitespacesAndNewlines)
-        return cleaned.isEmpty ? nil : cleaned
+        guard !cleaned.isEmpty, !cleaned.contains("$(") else { return nil }
+        return cleaned
     }
 }

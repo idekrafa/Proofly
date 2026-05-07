@@ -12,11 +12,25 @@
 
 /* Begin PBXFileReference section */
 		9E4370192FAB8198000BF1B2 /* ProofKit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ProofKit.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E10C0DEF0000000000000005 /* ProofKit.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/ProofKit.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E10C0DEF0000000000000004 /* Exceptions for "ProofKit" folder in "ProofKit" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 9E4370182FAB8198000BF1B2 /* ProofKit */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		9E43701B2FAB8198000BF1B2 /* ProofKit */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E10C0DEF0000000000000004 /* Exceptions for "ProofKit" folder in "ProofKit" target */,
+			);
 			path = ProofKit;
 			sourceTree = "<group>";
 		};
@@ -37,6 +51,7 @@
 		9E4370102FAB8198000BF1B2 = {
 			isa = PBXGroup;
 			children = (
+				E10C0DEF0000000000000005 /* ProofKit.xcconfig */,
 				9E43701B2FAB8198000BF1B2 /* ProofKit */,
 				9E43701A2FAB8198000BF1B2 /* Products */,
 			);
@@ -257,6 +272,7 @@
 		};
 		9E4370272FAB819B000BF1B2 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = E10C0DEF0000000000000005 /* ProofKit.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -264,13 +280,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = D2T9K4A9VL;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ProofKit/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -278,6 +289,8 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mobile.ProofKit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROOFKIT_SUPABASE_AUTH_REDIRECT_URL = "proofkit://auth/callback";
+				PROOFKIT_SUPABASE_PROJECT_REF = zvwixgdclmrhopsbuqld;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -290,6 +303,7 @@
 		};
 		9E4370282FAB819B000BF1B2 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = E10C0DEF0000000000000005 /* ProofKit.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -297,13 +311,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = D2T9K4A9VL;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ProofKit/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -311,6 +320,8 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mobile.ProofKit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROOFKIT_SUPABASE_AUTH_REDIRECT_URL = "proofkit://auth/callback";
+				PROOFKIT_SUPABASE_PROJECT_REF = zvwixgdclmrhopsbuqld;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;

@@ -32,6 +32,23 @@ struct ServiceContainer {
         ai: TextOnlyAIPlaceholderService(),
         evidenceCase: EvidenceCaseService()
     )
+
+    func scoped(to session: ProofKitAccountSession) throws -> ServiceContainer {
+        ServiceContainer(
+            localStorage: LocalStorageService(baseDirectory: try AccountScopedLocalData.localFilesDirectory(for: session)),
+            ocr: ocr,
+            dateCandidateExtractor: dateCandidateExtractor,
+            pdfExporter: pdfExporter,
+            account: account,
+            aiCredits: aiCredits,
+            aiProxy: aiProxy,
+            purchaseEntitlements: purchaseEntitlements,
+            paywall: paywall,
+            aiRouter: aiRouter,
+            ai: ai,
+            evidenceCase: evidenceCase
+        )
+    }
 }
 
 private struct ServiceContainerKey: EnvironmentKey {

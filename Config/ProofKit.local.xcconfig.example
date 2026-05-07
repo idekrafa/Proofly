@@ -1,0 +1,7 @@
+// Copy this file to Config/ProofKit.local.xcconfig and fill in local values.
+// Config/ProofKit.local.xcconfig is git-ignored.
+//
+// Never commit Supabase publishable keys, anon keys, service-role keys, or
+// other credentials to tracked source.
+
+PROOFKIT_SUPABASE_PUBLISHABLE_KEY = <your-supabase-publishable-key>

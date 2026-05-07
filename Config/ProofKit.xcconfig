@@ -1,0 +1,6 @@
+// Shared ProofKit build configuration.
+//
+// Do not put Supabase publishable or secret keys in this tracked file.
+// Create Config/ProofKit.local.xcconfig locally for machine-specific values.
+
+#include? "ProofKit.local.xcconfig"

@@ -1,9 +1,18 @@
 import Foundation
 
+enum ProofKitOAuthProvider: String, CaseIterable, Identifiable {
+    case apple
+    case google
+
+    var id: String { rawValue }
+}
+
 protocol AccountServicing {
     var isConfigured: Bool { get }
     func currentSession() async throws -> ProofKitAccountSession?
     func signInWithPassword(email: String, password: String) async throws -> ProofKitAccountSession
+    func signUpWithPassword(email: String, password: String) async throws -> ProofKitAccountSession
+    func signInWithOAuth(_ provider: ProofKitOAuthProvider) async throws -> ProofKitAccountSession
     func sendMagicLink(email: String) async throws
     func signOut() async throws
     func handleAuthCallback(_ url: URL)

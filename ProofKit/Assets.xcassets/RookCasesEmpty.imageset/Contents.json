@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "rook-cases-empty.png",
+      "filename" : "RookCaseEmptyNew.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "rook-cases-empty@2x.png",
+      "filename" : "RookCaseEmptyNew 1.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "rook-cases-empty@3x.png",
+      "filename" : "RookCaseEmptyNew 2.png",
       "idiom" : "universal",
       "scale" : "3x"
     }

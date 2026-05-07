@@ -402,8 +402,8 @@ private struct CasesFallbackThumbnail: View {
 }
 
 private struct CasesEmptyState: View {
+    private let mascotHeroWidth: CGFloat = 300
     private let mascotHeroHeight: CGFloat = 240
-    private let mascotHeroMaxWidth: CGFloat = 340
 
     let title: String
     let message: String
@@ -417,9 +417,9 @@ private struct CasesEmptyState: View {
                 Image(mascotImageName)
                     .resizable()
                     .interpolation(.high)
-                    .scaledToFit()
-                    .frame(maxWidth: mascotHeroMaxWidth)
-                    .frame(height: mascotHeroHeight)
+                    .scaledToFill()
+                    .frame(width: mascotHeroWidth, height: mascotHeroHeight)
+                    .clipped()
                     .frame(maxWidth: .infinity, alignment: .center)
                     .accessibilityHidden(true)
                     .shadow(color: CasesPalette.mascotShadow, radius: 14, x: 0, y: 10)

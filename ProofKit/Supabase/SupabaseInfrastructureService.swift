@@ -61,11 +61,40 @@ extension SupabaseInfrastructureService: AccountServicing {
     func signInWithPassword(email: String, password: String) async throws -> ProofKitAccountSession {
         #if canImport(Supabase)
         let session = try await configuredClient.auth.signIn(email: email, password: password)
-        return ProofKitAccountSession(
-            userID: session.user.id,
-            email: session.user.email,
-            accessTokenExpiresAt: Date(timeIntervalSince1970: session.expiresAt)
+        return Self.accountSession(from: session)
+        #else
+        throw ProofKitError.supabaseSDKUnavailable
+        #endif
+    }
+
+    func signUpWithPassword(email: String, password: String) async throws -> ProofKitAccountSession {
+        #if canImport(Supabase)
+        let response = try await configuredClient.auth.signUp(
+            email: email,
+            password: password,
+            redirectTo: configuration?.authRedirectURL
         )
+
+        guard let session = response.session else {
+            throw ProofKitError.remotePolicyViolation(
+                "Check your email to confirm your account, then return to ProofKit to open your private workspace."
+            )
+        }
+
+        return Self.accountSession(from: session)
+        #else
+        throw ProofKitError.supabaseSDKUnavailable
+        #endif
+    }
+
+    func signInWithOAuth(_ provider: ProofKitOAuthProvider) async throws -> ProofKitAccountSession {
+        #if canImport(Supabase)
+        let session = try await configuredClient.auth.signInWithOAuth(
+            provider: provider.supabaseProvider,
+            redirectTo: configuration?.authRedirectURL
+        )
+
+        return Self.accountSession(from: session)
         #else
         throw ProofKitError.supabaseSDKUnavailable
         #endif
@@ -213,6 +242,16 @@ private extension SupabaseInfrastructureService {
         return formatter
     }()
 
+    #if canImport(Supabase)
+    static func accountSession(from session: Session) -> ProofKitAccountSession {
+        ProofKitAccountSession(
+            userID: session.user.id,
+            email: session.user.email,
+            accessTokenExpiresAt: Date(timeIntervalSince1970: session.expiresAt)
+        )
+    }
+    #endif
+
     static func validateTextOnlyAIRequest(_ request: AIProxyTextRequest) throws {
         guard request.userTriggered else {
             throw ProofKitError.localOnlyViolation("AI proxy calls must be explicitly triggered by the user.")
@@ -267,3 +306,16 @@ private extension SupabaseInfrastructureService {
         }
     }
 }
+
+#if canImport(Supabase)
+private extension ProofKitOAuthProvider {
+    var supabaseProvider: Provider {
+        switch self {
+        case .apple:
+            .apple
+        case .google:
+            .google
+        }
+    }
+}
+#endif
