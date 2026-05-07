@@ -1,18 +1,17 @@
-//
-//  ProofKitApp.swift
-//  ProofKit
-//
-//  Created by Rafael Ribeiro on 5/6/26.
-//
-
 import SwiftUI
 import SwiftData
 
 @main
 struct ProofKitApp: App {
+    private let services = ServiceContainer.live
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            CaseFile.self,
+            EvidenceItem.self,
+            Attachment.self,
+            ExportPacket.self,
+            AIResultCache.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -26,6 +25,10 @@ struct ProofKitApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(\.proofKitServices, services)
+                .onOpenURL { url in
+                    services.account.handleAuthCallback(url)
+                }
         }
         .modelContainer(sharedModelContainer)
     }

@@ -1,0 +1,26 @@
+.DS_Store
+
+# Xcode user/build artifacts
+DerivedData/
+.tmp/
+*.xcresult
+*.xcactivitylog
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+xcuserdata/
+
+# Swift Package Manager local state
+.build/
+.swiftpm/
+
+# Local secrets/configuration
+.env
+.env.*
+*.mobileprovision
+*.p8
+*.p12
+*.cer
+
+# Local Codex/task notes
+tasks/

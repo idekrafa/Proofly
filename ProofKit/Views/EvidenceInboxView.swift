@@ -1,0 +1,711 @@
+import SwiftData
+import SwiftUI
+import UIKit
+
+struct EvidenceInboxView: View {
+    @Environment(\.modelContext) private var modelContext
+
+    let caseFile: CaseFile
+
+    @State private var skippedEvidenceIDs: Set<UUID> = []
+
+    private var reviewItems: [EvidenceItem] {
+        caseFile.sortedEvidenceItems.filter { evidenceItem in
+            evidenceItem.needsReview && !skippedEvidenceIDs.contains(evidenceItem.id)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            reviewHeader
+
+            if caseFile.evidenceItems.isEmpty {
+                PlaceholderPanel(
+                    systemImage: "tray",
+                    title: "Inbox is empty",
+                    message: "When you add proof, new imported items can appear here first so you can confirm the details before they join the timeline.",
+                    steps: [
+                        PlaceholderStep(
+                            systemImage: "photo.on.rectangle",
+                            title: "Import or write",
+                            detail: "Add a photo, screenshot, PDF, document, or note."
+                        ),
+                        PlaceholderStep(
+                            systemImage: "checkmark.circle",
+                            title: "Confirm what matters",
+                            detail: "Review the title, date, category, and notes at your own pace."
+                        )
+                    ],
+                    footnote: "Manual notes and imported files remain editable later."
+                )
+            } else if reviewItems.isEmpty {
+                PlaceholderPanel(
+                    systemImage: "checkmark.circle",
+                    title: "Review queue is clear",
+                    message: "Everything currently added has been reviewed or skipped for now.",
+                    steps: [
+                        PlaceholderStep(
+                            systemImage: "plus",
+                            title: "Continue collecting",
+                            detail: "Use Add Proof when you have another record to include."
+                        ),
+                        PlaceholderStep(
+                            systemImage: "calendar",
+                            title: "Check the timeline",
+                            detail: "Reviewed records are organized chronologically."
+                        )
+                    ]
+                )
+            } else {
+                VStack(spacing: ProofKitVisual.cardSpacing) {
+                    ForEach(Array(reviewItems.enumerated()), id: \.element.id) { index, evidenceItem in
+                        EvidenceReviewCard(
+                            evidenceItem: evidenceItem,
+                            onConfirm: {
+                                confirm(evidenceItem)
+                            },
+                            onSkip: {
+                                skip(evidenceItem)
+                            }
+                        )
+                        .transition(ProofKitMotion.compactInsertion)
+                        .proofKitAppear(delay: min(Double(index) * 0.025, 0.12))
+                    }
+                }
+                .animation(ProofKitMotion.standard, value: reviewItems.map(\.id))
+            }
+        }
+        .padding(.top, 8)
+        .padding(.bottom, 88)
+    }
+
+    private var reviewHeader: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(reviewTitle)
+                .font(.title2.weight(.bold))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(reviewSubtitle)
+                .font(.subheadline)
+                .foregroundStyle(ProofKitVisual.helperText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var reviewTitle: String {
+        "Review new proof"
+    }
+
+    private var reviewSubtitle: String {
+        if caseFile.evidenceItems.isEmpty {
+            return "This is a quiet holding area for proof you have not reviewed yet."
+        }
+
+        if reviewItems.isEmpty {
+            return "No action is needed here right now."
+        }
+
+        let count = reviewItems.count
+        if count == 1 {
+            return "1 item needs confirmation before it appears in your timeline."
+        }
+
+        return "\(count) items need confirmation before they appear in your timeline."
+    }
+
+    private func confirm(_ evidenceItem: EvidenceItem) {
+        let now = Date()
+        withAnimation(ProofKitMotion.standard) {
+            evidenceItem.isReviewed = true
+            evidenceItem.reviewedAt = now
+            evidenceItem.updatedAt = now
+            evidenceItem.caseFile?.updatedAt = now
+        }
+
+        do {
+            try modelContext.save()
+        } catch {
+            // Keep the card visible if a local save fails.
+            withAnimation(ProofKitMotion.standard) {
+                evidenceItem.isReviewed = false
+                evidenceItem.reviewedAt = nil
+            }
+        }
+    }
+
+    private func skip(_ evidenceItem: EvidenceItem) {
+        withAnimation(ProofKitMotion.standard) {
+            _ = skippedEvidenceIDs.insert(evidenceItem.id)
+        }
+    }
+}
+
+private struct EvidenceReviewCard: View {
+    let evidenceItem: EvidenceItem
+    let onConfirm: () -> Void
+    let onSkip: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                ReviewQueueThumbnail(evidenceItem: evidenceItem)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    metadataLine
+
+                    Text(displayTitle)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let ocrLine {
+                        Text(ocrLine.text)
+                            .font(.subheadline)
+                            .foregroundStyle(ocrLine.isPreview ? ProofKitVisual.helperText : ProofKitVisual.subduedText)
+                            .lineLimit(ocrLine.isPreview ? 2 : 1)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if evidenceItem.isIncompleteForReview {
+                Label("Needs a little attention before it is complete", systemImage: "exclamationmark.circle")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(ProofKitVisual.helperText)
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    onConfirm()
+                } label: {
+                    ReviewActionLabel(
+                        title: "Confirm",
+                        foreground: ProofKitVisual.primaryActionForeground,
+                        background: ProofKitVisual.primaryActionBackground
+                    )
+                }
+                .buttonStyle(ProofKitCardButtonStyle())
+
+                NavigationLink {
+                    EvidenceDetailEditView(evidenceItem: evidenceItem)
+                } label: {
+                    ReviewActionLabel(
+                        title: "Edit",
+                        foreground: ProofKitVisual.accent,
+                        background: ProofKitVisual.accent.opacity(0.12)
+                    )
+                }
+                .buttonStyle(ProofKitCardButtonStyle())
+
+                Button {
+                    onSkip()
+                } label: {
+                    ReviewActionLabel(
+                        title: "Skip",
+                        foreground: ProofKitVisual.helperText,
+                        background: ProofKitVisual.quietFill
+                    )
+                }
+                .buttonStyle(ProofKitCardButtonStyle())
+            }
+            .font(.caption.weight(.semibold))
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: ProofKitVisual.cardCornerRadius, style: .continuous)
+                .fill(ProofKitVisual.cardBackground)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: ProofKitVisual.cardCornerRadius, style: .continuous)
+                .stroke(ProofKitVisual.cardBorder, lineWidth: 1)
+        }
+    }
+
+    private var metadataLine: some View {
+        HStack(alignment: .center, spacing: 8) {
+            Text(detectedDateText)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(ProofKitVisual.helperText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.88)
+
+            Text(evidenceItem.category.displayName)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(ProofKitVisual.helperText)
+                .lineLimit(1)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background {
+                    Capsule(style: .continuous)
+                        .fill(ProofKitVisual.quietFill)
+                }
+
+            if evidenceItem.userMarkedImportant {
+                Image(systemName: "star.fill")
+                    .font(.caption)
+                    .foregroundStyle(.tint)
+                    .accessibilityLabel("Important")
+            }
+        }
+    }
+
+    private var detectedDateText: String {
+        if let detectedEventDate = evidenceItem.detectedEventDate {
+            return "Detected \(ProofKitDateFormatting.shortDate(detectedEventDate))"
+        }
+
+        if let eventDate = evidenceItem.eventDate {
+            return "Date \(ProofKitDateFormatting.shortDate(eventDate))"
+        }
+
+        return "No date detected"
+    }
+
+    private var displayTitle: String {
+        let userTitle = evidenceItem.userTitle.reviewCleanedText
+        if !userTitle.isGenericReviewTitle {
+            return userTitle
+        }
+
+        if let inferredTitle = evidenceItem.inferredReviewTitle {
+            return inferredTitle
+        }
+
+        if let filenameTitle = evidenceItem.primaryReviewFilenameTitle {
+            return filenameTitle
+        }
+
+        switch evidenceItem.category {
+        case .photo:
+            return "Evidence photo"
+        case .screenshot:
+            return "Evidence screenshot"
+        case .message:
+            return "Message screenshot"
+        case .email:
+            return "Email record"
+        case .receipt:
+            return "Receipt"
+        case .document, .contract:
+            return "Document"
+        case .note:
+            return "Case note"
+        case .uncategorized, .other:
+            return "Evidence item"
+        }
+    }
+
+    private var ocrLine: ReviewOCRLine? {
+        let previewText = evidenceItem.originalOCRText.reviewPreviewText
+        if !previewText.isEmpty {
+            return ReviewOCRLine(text: previewText, isPreview: true)
+        }
+
+        guard evidenceItem.shouldShowOCRStatus else {
+            return nil
+        }
+
+        if evidenceItem.ocrHasFinished {
+            return ReviewOCRLine(text: "No text detected", isPreview: false)
+        }
+
+        return ReviewOCRLine(text: "OCR pending", isPreview: false)
+    }
+}
+
+private struct ReviewOCRLine {
+    let text: String
+    let isPreview: Bool
+}
+
+private struct ReviewActionLabel: View {
+    let title: String
+    let foreground: Color
+    let background: Color
+
+    var body: some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .allowsTightening(true)
+            .foregroundStyle(foreground)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .padding(.horizontal, 8)
+            .background {
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .fill(background)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+    }
+}
+
+private struct ReviewQueueThumbnail: View {
+    let evidenceItem: EvidenceItem
+
+    private var primaryAttachment: Attachment? {
+        evidenceItem.sortedAttachments.first { attachment in
+            attachment.thumbnailLocalFilePath != nil
+        } ?? evidenceItem.sortedAttachments.first
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            previewContent
+
+            if evidenceItem.attachments.count > 1 {
+                Text("+\(evidenceItem.attachments.count - 1)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 3)
+                    .background {
+                        Capsule(style: .continuous)
+                            .fill(ProofKitVisual.imageBadgeBackground)
+                    }
+                    .padding(4)
+            }
+        }
+        .frame(width: 58, height: 58)
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var previewContent: some View {
+        if
+            let thumbnailPath = primaryAttachment?.thumbnailLocalFilePath,
+            let image = UIImage(contentsOfFile: thumbnailPath)
+        {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 58, height: 58)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else {
+            EvidenceLikeThumbnail(kind: evidenceItem.reviewThumbnailKind)
+        }
+    }
+
+}
+
+private struct EvidenceLikeThumbnail: View {
+    let kind: ReviewThumbnailKind
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(kind.background)
+
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(kind.tint.opacity(0.18), lineWidth: 1)
+                .padding(7)
+
+            Image(systemName: kind.systemImage)
+                .font(.system(size: 23, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(kind.tint)
+        }
+        .frame(width: 58, height: 58)
+    }
+}
+
+private enum ReviewThumbnailKind {
+    case leak
+    case wallDamage
+    case receipt
+    case screenshot
+    case message
+    case email
+    case document
+    case photo
+    case note
+    case other
+
+    var systemImage: String {
+        switch self {
+        case .leak:
+            return "drop.fill"
+        case .wallDamage:
+            return "exclamationmark.triangle.fill"
+        case .receipt:
+            return "receipt.fill"
+        case .screenshot:
+            return "rectangle.on.rectangle"
+        case .message:
+            return "message.fill"
+        case .email:
+            return "envelope.fill"
+        case .document:
+            return "doc.text.fill"
+        case .photo:
+            return "photo.fill"
+        case .note:
+            return "note.text"
+        case .other:
+            return "paperclip"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .leak:
+            return ProofKitVisual.accent
+        case .wallDamage:
+            return Color(red: 0.64, green: 0.38, blue: 0.16)
+        case .receipt:
+            return Color(red: 0.18, green: 0.50, blue: 0.32)
+        case .screenshot, .message, .email:
+            return ProofKitVisual.accent
+        case .document:
+            return Color(red: 0.40, green: 0.36, blue: 0.72)
+        case .photo:
+            return Color(red: 0.12, green: 0.42, blue: 0.62)
+        case .note, .other:
+            return ProofKitVisual.helperText
+        }
+    }
+
+    var background: Color {
+        switch self {
+        case .leak:
+            return ProofKitVisual.accent.opacity(0.12)
+        case .wallDamage:
+            return Color(red: 0.64, green: 0.38, blue: 0.16).opacity(0.13)
+        case .receipt:
+            return Color(red: 0.18, green: 0.50, blue: 0.32).opacity(0.12)
+        case .screenshot, .message, .email:
+            return ProofKitVisual.accent.opacity(0.11)
+        case .document:
+            return Color(red: 0.40, green: 0.36, blue: 0.72).opacity(0.11)
+        case .photo:
+            return Color(red: 0.12, green: 0.42, blue: 0.62).opacity(0.11)
+        case .note, .other:
+            return ProofKitVisual.fieldBackground
+        }
+    }
+}
+
+private extension String {
+    var reviewPreviewText: String {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        guard trimmed.count > 180 else {
+            return trimmed
+        }
+
+        return String(trimmed.prefix(177)) + "…"
+    }
+
+    var reviewCleanedText: String {
+        trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+    }
+
+    var isGenericReviewTitle: Bool {
+        let normalized = reviewCleanedText.lowercased()
+
+        if normalized.isEmpty {
+            return true
+        }
+
+        if normalized == "untitled proof" || normalized == "imported image" || normalized == "evidence item" {
+            return true
+        }
+
+        return normalized.range(
+            of: #"^proofkit image\s+\d+$"#,
+            options: .regularExpression
+        ) != nil
+    }
+}
+
+private extension EvidenceItem {
+    var primaryReviewAttachment: Attachment? {
+        sortedAttachments.first
+    }
+
+    var primaryReviewFilenameTitle: String? {
+        guard let filename = primaryReviewAttachment?.originalFilename.reviewFilenameTitle else {
+            return nil
+        }
+
+        return filename.isGenericReviewTitle ? nil : filename
+    }
+
+    var inferredReviewTitle: String? {
+        let searchableText = reviewSearchableText
+
+        if searchableText.containsAnyReviewTerm(["ceiling", "leak", "water", "drip", "mold"]) {
+            return "Ceiling leak photo"
+        }
+
+        if searchableText.containsAnyReviewTerm(["wall", "damage", "crack", "hole", "paint"]) {
+            return "Wall damage photo"
+        }
+
+        if searchableText.containsAnyReviewTerm(["receipt", "invoice", "paid", "repair", "$"]) || category == .receipt {
+            return "Repair receipt"
+        }
+
+        if searchableText.containsAnyReviewTerm(["landlord", "message", "text", "sms", "conversation"]) || category == .message {
+            return "Landlord message screenshot"
+        }
+
+        if searchableText.containsAnyReviewTerm(["email", "from:", "subject:"]) || category == .email {
+            return "Email thread"
+        }
+
+        return nil
+    }
+
+    var reviewThumbnailKind: ReviewThumbnailKind {
+        let searchableText = reviewSearchableText
+
+        if searchableText.containsAnyReviewTerm(["ceiling", "leak", "water", "drip", "mold"]) {
+            return .leak
+        }
+
+        if searchableText.containsAnyReviewTerm(["wall", "damage", "crack", "hole", "paint"]) {
+            return .wallDamage
+        }
+
+        if searchableText.containsAnyReviewTerm(["receipt", "invoice", "paid", "repair", "$"]) || category == .receipt {
+            return .receipt
+        }
+
+        if searchableText.containsAnyReviewTerm(["landlord", "message", "text", "sms", "conversation"]) || category == .message {
+            return .message
+        }
+
+        if searchableText.containsAnyReviewTerm(["email", "from:", "subject:"]) || category == .email {
+            return .email
+        }
+
+        if category == .screenshot || primaryReviewAttachment?.attachmentType == .screenshot {
+            return .screenshot
+        }
+
+        if category == .document || category == .contract || primaryReviewAttachment?.attachmentType == .document || primaryReviewAttachment?.attachmentType == .pdf {
+            return .document
+        }
+
+        if category == .note || primaryReviewAttachment?.attachmentType == .textNote {
+            return .note
+        }
+
+        if category == .photo || primaryReviewAttachment?.attachmentType == .photo {
+            return .photo
+        }
+
+        return .other
+    }
+
+    var shouldShowOCRStatus: Bool {
+        guard originalOCRText.reviewPreviewText.isEmpty else {
+            return false
+        }
+
+        if primaryReviewAttachment?.attachmentType == .textNote || category == .note {
+            return false
+        }
+
+        return category == .photo ||
+            category == .screenshot ||
+            category == .receipt ||
+            category == .document ||
+            category == .email ||
+            primaryReviewAttachment?.attachmentType == .photo ||
+            primaryReviewAttachment?.attachmentType == .screenshot ||
+            primaryReviewAttachment?.attachmentType == .pdf ||
+            primaryReviewAttachment?.attachmentType == .document
+    }
+
+    var ocrHasFinished: Bool {
+        originalOCRCompletedAt != nil ||
+            primaryReviewAttachment?.originalOCRCompletedAt != nil
+    }
+
+    private var reviewSearchableText: String {
+        [
+            userTitle,
+            originalOCRText,
+            primaryReviewAttachment?.originalFilename ?? ""
+        ]
+            .joined(separator: " ")
+            .lowercased()
+    }
+}
+
+private extension String {
+    var reviewFilenameTitle: String {
+        URL(filePath: self)
+            .deletingPathExtension()
+            .lastPathComponent
+            .replacingOccurrences(of: "[-_]+", with: " ", options: .regularExpression)
+            .reviewCleanedText
+    }
+
+    func containsAnyReviewTerm(_ terms: [String]) -> Bool {
+        terms.contains { contains($0) }
+    }
+}
+
+#Preview {
+    EvidenceInboxView(
+        caseFile: CaseFile(
+            caseType: .tenantLandlord,
+            userTitle: "Ceiling leak case",
+            evidenceItems: [
+                EvidenceItem(
+                    category: .photo,
+                    userTitle: "Ceiling leak photo",
+                    detectedEventDate: .now,
+                    detectedDateSource: .visionOCR,
+                    originalOCRText: "",
+                    originalOCRCompletedAt: .now
+                ),
+                EvidenceItem(
+                    category: .message,
+                    userTitle: "Landlord message screenshot",
+                    originalOCRText: "I will send someone next week. Please stop texting about the leak.",
+                    originalOCRCompletedAt: .now
+                ),
+                EvidenceItem(
+                    category: .receipt,
+                    userTitle: "Repair receipt",
+                    originalOCRText: "Emergency plumbing visit paid $185.00 on May 6, 2026.",
+                    originalOCRCompletedAt: .now
+                ),
+                EvidenceItem(
+                    category: .photo,
+                    userTitle: "Wall damage photo",
+                    originalOCRText: "",
+                    originalOCRCompletedAt: .now
+                ),
+                EvidenceItem(
+                    category: .screenshot,
+                    userTitle: "Maintenance portal screenshot",
+                    originalOCRText: "Ticket #4182 Status: open Submitted May 4",
+                    originalOCRCompletedAt: .now
+                ),
+                EvidenceItem(
+                    category: .email,
+                    userTitle: "Property manager email",
+                    originalOCRText: "Subject: Re: bedroom ceiling leak",
+                    originalOCRCompletedAt: .now
+                ),
+                EvidenceItem(
+                    category: .document,
+                    userTitle: "Contractor estimate",
+                    originalOCRText: "",
+                    originalOCRCompletedAt: nil
+                )
+            ]
+        )
+    )
+    .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self, AIResultCache.self], inMemory: true)
+}
