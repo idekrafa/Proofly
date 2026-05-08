@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "rook_transparent_no_platform_v3.png",
+      "filename" : "RookExportReady.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "rook_transparent_no_platform_v3 1.png",
+      "filename" : "RookExportReady@2x.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "rook_transparent_no_platform_v3 2.png",
+      "filename" : "RookExportReady@3x.png",
       "idiom" : "universal",
       "scale" : "3x"
     }
