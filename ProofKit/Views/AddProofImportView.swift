@@ -112,12 +112,12 @@ struct AddProofImportView: View {
 
     private var intro: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("What would you like to add?")
+            Text("What proof are you adding?")
                 .font(.title2.weight(.bold))
                 .foregroundStyle(.primary)
                 .kerning(-0.35)
 
-            Text("Imports stay local. OCR runs on device before anything uses AI.")
+            Text("Imports stay local. OCR runs on your device first.")
                 .font(.subheadline)
                 .foregroundStyle(ProofKitVisual.helperText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -133,9 +133,9 @@ struct AddProofImportView: View {
                 photoLibrary: .shared()
             ) {
                 AddProofOptionRow(
-                    systemImage: "photo.on.rectangle",
-                    title: "Photos or Screenshots",
-                    subtitle: "Import images from your library. OCR runs locally."
+                    emoji: "📸",
+                    title: "Photos or screenshots",
+                    subtitle: "Add messages, damage photos, receipts, or proof."
                 )
             }
             .buttonStyle(AddProofOptionButtonStyle())
@@ -145,9 +145,9 @@ struct AddProofImportView: View {
                 isDocumentImporterPresented = true
             } label: {
                 AddProofOptionRow(
-                    systemImage: "doc",
-                    title: "PDF or Document",
-                    subtitle: "Add leases, receipts, letters, or forms."
+                    emoji: "📄",
+                    title: "PDF or document",
+                    subtitle: "Add leases, forms, letters, or official files."
                 )
             }
             .buttonStyle(AddProofOptionButtonStyle())
@@ -157,9 +157,9 @@ struct AddProofImportView: View {
                 onManualEntryRequested()
             } label: {
                 AddProofOptionRow(
-                    systemImage: "square.and.pencil",
-                    title: "Manual Record",
-                    subtitle: "Create a note, event, or timeline entry."
+                    emoji: "✍️",
+                    title: "Timeline note",
+                    subtitle: "Write what happened when there’s no file."
                 )
             }
             .buttonStyle(AddProofOptionButtonStyle())
@@ -180,7 +180,7 @@ struct AddProofImportView: View {
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(remainingCount == 0 ? Color.orange : Color.green)
 
-                Text("\(currentCount) of \(evidenceItemLimit) evidence items used")
+                Text("\(currentCount) of \(evidenceItemLimit) proof items used")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -632,21 +632,20 @@ private struct AddProofMediumSheetDetent: CustomPresentationDetent {
 }
 
 private struct AddProofOptionRow: View {
-    let systemImage: String
+    let emoji: String
     let title: String
     let subtitle: String
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
-            Image(systemName: systemImage)
-                .font(.system(size: 18, weight: .semibold))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(.tint)
+            Text(emoji)
+                .font(.system(size: 24))
                 .frame(width: 42, height: 42)
                 .background {
                     Circle()
                         .fill(Color.accentColor.opacity(0.10))
                 }
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(title)

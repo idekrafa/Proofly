@@ -72,7 +72,7 @@ final class PlaceholderPaywallService: PaywallServicing {
             if remainingCount == 0 {
                 message = "\(entitlement.plan.displayName) includes \(entitlement.limits.evidenceItemLimitText). Upgrade to Paid Urgent Export or Pro to add more proof."
             } else {
-                message = "You can add \(remainingCount) more evidence item\(remainingCount == 1 ? "" : "s") on \(entitlement.plan.displayName). Select fewer files or upgrade for a higher limit."
+                message = "You can add \(remainingCount) more proof item\(remainingCount == 1 ? "" : "s") on \(entitlement.plan.displayName). Select fewer files or upgrade for a higher limit."
             }
 
             return PaywallAccessDecision(

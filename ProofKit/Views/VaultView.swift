@@ -907,6 +907,7 @@ private struct VaultSearchField: View {
         .foregroundStyle(.primary)
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(VaultPalette.searchField)
@@ -1235,9 +1236,6 @@ private struct VaultFallbackThumbnail: View {
 }
 
 private struct VaultEmptyState<PrimaryAction: View>: View {
-    private let mascotHeroHeight: CGFloat = 240
-    private let mascotHeroMaxWidth: CGFloat = 340
-
     let title: String
     let message: String
     var footnote: String? = nil
@@ -1245,20 +1243,15 @@ private struct VaultEmptyState<PrimaryAction: View>: View {
     @ViewBuilder let primaryAction: PrimaryAction
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: ProofKitEmptyCardMetrics.contentSpacing) {
             if let mascotImageName {
-                Image(mascotImageName)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-                    .frame(maxWidth: mascotHeroMaxWidth)
-                    .frame(height: mascotHeroHeight)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .accessibilityHidden(true)
-                    .shadow(color: VaultPalette.mascotShadow, radius: 14, x: 0, y: 10)
+                ProofKitEmptyMascotImage(
+                    imageName: mascotImageName,
+                    shadowColor: VaultPalette.mascotShadow
+                )
             }
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: ProofKitEmptyCardMetrics.textSpacing) {
                 Text(title)
                     .font(.title3.weight(.bold))
                     .foregroundStyle(.primary)
@@ -1278,17 +1271,20 @@ private struct VaultEmptyState<PrimaryAction: View>: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(20)
+        .padding(ProofKitEmptyCardMetrics.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: ProofKitEmptyCardMetrics.cornerRadius, style: .continuous)
                 .fill(VaultPalette.card)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: ProofKitEmptyCardMetrics.cornerRadius, style: .continuous)
                 .stroke(VaultPalette.hairline, lineWidth: 1)
         }
-        .vaultSoftShadow(radius: 18, y: 9)
+        .vaultSoftShadow(
+            radius: ProofKitEmptyCardMetrics.shadowRadius,
+            y: ProofKitEmptyCardMetrics.shadowY
+        )
     }
 }
 

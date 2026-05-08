@@ -9,10 +9,19 @@ enum ProofKitOAuthProvider: String, CaseIterable, Identifiable {
 
 protocol AccountServicing {
     var isConfigured: Bool { get }
-    func currentSession() async throws -> ProofKitAccountSession?
-    func signInWithPassword(email: String, password: String) async throws -> ProofKitAccountSession
-    func signUpWithPassword(email: String, password: String) async throws -> ProofKitAccountSession
-    func signInWithOAuth(_ provider: ProofKitOAuthProvider) async throws -> ProofKitAccountSession
+    func currentSession(onboardingCategory: String?, onboardingDisplayName: String?) async throws -> ProofKitAccountAuthResult?
+    func signInWithPassword(email: String, password: String) async throws -> ProofKitAccountAuthResult
+    func signUpWithPassword(
+        email: String,
+        password: String,
+        onboardingCategory: String?,
+        onboardingDisplayName: String?
+    ) async throws -> ProofKitAccountAuthResult
+    func signInWithOAuth(
+        _ provider: ProofKitOAuthProvider,
+        onboardingCategory: String?,
+        onboardingDisplayName: String?
+    ) async throws -> ProofKitAccountAuthResult
     func sendMagicLink(email: String) async throws
     func signOut() async throws
     func handleAuthCallback(_ url: URL)

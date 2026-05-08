@@ -10,6 +10,21 @@ struct CaseDetailView: View {
     @State private var sectionTransitionDirection: CaseDetailSectionTransitionDirection = .forward
     @State private var activeAddProofSheet: AddProofSheet?
     @State private var paywallNotice: PaywallAccessDecision?
+    @State private var skippedReadinessEvidenceIDs: Set<UUID> = []
+    @State private var subscriptionTier = "unknown"
+    @State private var hasLoadedAnalyticsContext = false
+    @State private var lastTrackedReadinessSignature: String?
+
+    private var readiness: CaseReadinessResult {
+        CaseReadinessCalculator.calculate(
+            for: caseFile,
+            skippedEvidenceIDs: skippedReadinessEvidenceIDs
+        )
+    }
+
+    private var readinessAnalyticsSignature: String {
+        "\(readiness.analyticsSignature)|\(subscriptionTier)"
+    }
 
     var body: some View {
         ScrollView {
@@ -63,6 +78,12 @@ struct CaseDetailView: View {
                 message: Text(notice.message),
                 dismissButton: .default(Text("OK"))
             )
+        }
+        .task {
+            await loadReadinessAnalyticsContext()
+        }
+        .onChange(of: readinessAnalyticsSignature) { _, _ in
+            trackReadinessIfReady()
         }
     }
 
@@ -133,28 +154,7 @@ struct CaseDetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 7) {
-                    Text(caseFile.caseDetailDisplayTitle)
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    metadataPills
-                }
-
-                Spacer(minLength: 12)
-
-                Button {
-                    Task { await showAddProofOptions() }
-                } label: {
-                    Label("Add Evidence", systemImage: "plus")
-                        .font(.footnote.weight(.semibold))
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-            }
+            titleActionLayout
 
             if !caseFile.caseDetailSummaryText.isEmpty {
                 Text(caseFile.caseDetailSummaryText)
@@ -165,9 +165,7 @@ struct CaseDetailView: View {
             }
 
             CaseWorkspaceProgressSummary(
-                progress: caseFile.caseDetailWorkspaceProgress,
-                currentStep: selectedSection.title,
-                missingItems: caseFile.caseDetailMissingItems
+                readiness: readiness
             )
         }
         .padding(18)
@@ -180,20 +178,71 @@ struct CaseDetailView: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(ProofKitVisual.cardBorder, lineWidth: 1)
         }
+        .shadow(color: ProofKitVisual.elevatedShadow.opacity(0.85), radius: 18, x: 0, y: 10)
         .proofKitAppear()
+    }
+
+    private var titleActionLayout: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 18) {
+                titleAndMetadata
+                    .layoutPriority(1)
+
+                Spacer(minLength: 14)
+
+                addProofButton
+                    .padding(.top, 1)
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                titleAndMetadata
+                addProofButton
+            }
+        }
+    }
+
+    private var titleAndMetadata: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(caseFile.caseDetailDisplayTitle)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.92)
+                .fixedSize(horizontal: false, vertical: true)
+
+            metadataPills
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var addProofButton: some View {
+        Button {
+            Task { await showAddProofOptions() }
+        } label: {
+            Label("Add Proof", systemImage: "plus")
+                .font(.footnote.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.88)
+                .allowsTightening(true)
+        }
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityHint("Opens proof import options.")
     }
 
     private var metadataPills: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
-                MetadataPill(text: caseFile.caseType.displayName)
+                MetadataPill(text: readiness.category.displayName)
                 MetadataPill(text: caseFile.status.displayName)
                 MetadataPill(text: caseFile.evidenceItems.count.evidenceItemCountText)
             }
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    MetadataPill(text: caseFile.caseType.displayName)
+                    MetadataPill(text: readiness.category.displayName)
                     MetadataPill(text: caseFile.status.displayName)
                 }
 
@@ -210,9 +259,17 @@ struct CaseDetailView: View {
             case .timeline:
                 TimelineView(caseFile: caseFile)
             case .inbox:
-                EvidenceInboxView(caseFile: caseFile)
+                EvidenceInboxView(
+                    caseFile: caseFile,
+                    skippedEvidenceIDs: $skippedReadinessEvidenceIDs
+                )
             case .export:
-                ExportPreviewView(caseFile: caseFile)
+                ExportPreviewView(
+                    caseFile: caseFile,
+                    skippedEvidenceIDs: skippedReadinessEvidenceIDs
+                ) {
+                    Task { await showAddProofOptions() }
+                }
             case .settings:
                 CaseSettingsView(caseFile: caseFile)
             }
@@ -220,6 +277,33 @@ struct CaseDetailView: View {
         .id(selectedSection)
         .transition(sectionContentTransition)
         .clipped()
+    }
+
+    @MainActor
+    private func loadReadinessAnalyticsContext() async {
+        guard !hasLoadedAnalyticsContext else { return }
+        let entitlement = await services.paywall.currentEntitlement()
+        subscriptionTier = entitlement.plan.rawValue
+        hasLoadedAnalyticsContext = true
+        trackReadinessIfReady()
+    }
+
+    @MainActor
+    private func trackReadinessIfReady() {
+        guard hasLoadedAnalyticsContext else { return }
+
+        let signature = readinessAnalyticsSignature
+        guard signature != lastTrackedReadinessSignature else { return }
+        lastTrackedReadinessSignature = signature
+
+        services.analytics.trackCaseReadinessCalculated(
+            readiness.analyticsPayload(
+                caseIDHash: AnalyticsHashing.sha256(caseFile.id.uuidString),
+                userIDHash: services.analytics.currentUserIDHash,
+                subscriptionTier: subscriptionTier,
+                createdAtAgeDays: caseFile.createdAt.caseReadinessAgeInDays
+            )
+        )
     }
 }
 
@@ -278,20 +362,27 @@ private struct MetadataPill: View {
 }
 
 private struct CaseWorkspaceProgressSummary: View {
-    let progress: Double
-    let currentStep: String
-    let missingItems: [String]
+    let readiness: CaseReadinessResult
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text("\(percentage)%")
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("\(readiness.score)% ready")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
 
-                Text("Current step: \(currentStep)")
+                Text("·")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(ProofKitVisual.subduedText)
+                    .accessibilityHidden(true)
+
+                Text(readiness.nextStepLabel)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(ProofKitVisual.helperText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.86)
+                    .allowsTightening(true)
 
                 Spacer(minLength: 8)
             }
@@ -303,14 +394,14 @@ private struct CaseWorkspaceProgressSummary: View {
 
                     Capsule(style: .continuous)
                         .fill(ProofKitVisual.accentGradient)
-                        .frame(width: proxy.size.width * min(max(progress, 0), 1))
+                        .frame(width: proxy.size.width * min(max(readiness.progress, 0), 1))
                 }
             }
-            .frame(height: 5)
+            .frame(height: 6)
             .accessibilityHidden(true)
 
-            if !missingItems.isEmpty {
-                Text("Missing: \(missingItems.joined(separator: ", "))")
+            if !readiness.blockers.isEmpty {
+                Text("Improve: \(readiness.blockers.joined(separator: ", "))")
                     .font(.caption)
                     .foregroundStyle(ProofKitVisual.helperText)
                     .lineLimit(2)
@@ -319,16 +410,12 @@ private struct CaseWorkspaceProgressSummary: View {
         }
         .padding(.top, 2)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Case progress")
-        .accessibilityValue("\(percentage) percent complete. Current step: \(currentStep). \(missingAccessibilityText)")
-    }
-
-    private var percentage: Int {
-        Int((min(max(progress, 0), 1) * 100).rounded())
+        .accessibilityLabel("Case readiness")
+        .accessibilityValue("\(readiness.score) percent ready. \(readiness.nextStepLabel). \(missingAccessibilityText)")
     }
 
     private var missingAccessibilityText: String {
-        missingItems.isEmpty ? "No missing evidence items." : "Missing \(missingItems.joined(separator: ", "))."
+        readiness.blockers.isEmpty ? "No immediate readiness blockers." : "Improve \(readiness.blockers.joined(separator: ", "))."
     }
 }
 
@@ -339,142 +426,23 @@ private extension CaseFile {
     }
 
     var caseDetailSummaryText: String {
-        userSummary.caseDetailTrimmedText
-    }
-
-    var caseDetailWorkspaceProgress: Double {
-        if status == .exported {
-            return 1
+        if caseReadinessCategory.isSchool {
+            return "Deadlines, emails, essays, documents, and confirmations — organized into one timeline."
         }
 
-        let evidenceCount = evidenceItems.count
-        let datedRatio = evidenceCount == 0 ? 0 : Double(evidenceItems.filter { $0.eventDate != nil }.count) / Double(evidenceCount)
-        var score = 0.0
-
-        if !userTitle.caseDetailTrimmedText.isEmpty {
-            score += 0.12
-        }
-
-        if caseType != .general {
-            score += 0.06
-        }
-
-        score += min(Double(evidenceCount), 4) / 4 * 0.34
-        score += datedRatio * 0.20
-
-        if !userSummary.caseDetailTrimmedText.isEmpty || !userNotes.caseDetailTrimmedText.isEmpty {
-            score += 0.08
-        }
-
-        if status == .active {
-            score += 0.05
-        }
-
-        if status == .readyForExport {
-            score = max(score, 0.90)
-        }
-
-        score -= min(Double(caseDetailMissingItems.count) * 0.025, 0.10)
-
-        let cappedScore: Double
-        switch status {
-        case .draft:
-            cappedScore = min(score, 0.82)
-        case .active:
-            cappedScore = min(score, 0.96)
-        case .readyForExport:
-            cappedScore = min(score, 0.98)
-        case .exported:
-            cappedScore = 1
-        case .archived:
-            cappedScore = min(score, 0.90)
-        }
-
-        let clampedScore = min(max(cappedScore, 0), 1)
-        return (clampedScore * 20).rounded() / 20
-    }
-
-    var caseDetailMissingItems: [String] {
-        if status == .exported || status == .readyForExport {
-            return []
-        }
-
-        if evidenceItems.isEmpty {
-            return ["evidence items"]
-        }
-
-        var missingItems: [String] = []
-
-        if caseType.caseDetailNeedsLandlordResponse, !caseDetailHasLandlordResponse {
-            missingItems.append("landlord response")
-        }
-
-        if caseType.caseDetailNeedsRepairPhoto, !caseDetailHasRepairPhoto {
-            missingItems.append("repair photo")
-        }
-
-        if evidenceItems.contains(where: { $0.eventDate == nil }) {
-            missingItems.append("timeline dates")
-        }
-
-        if userTitle.caseDetailTrimmedText.isEmpty {
-            missingItems.append("case title")
-        }
-
-        return Array(missingItems.prefix(3))
-    }
-
-    private var caseDetailHasLandlordResponse: Bool {
-        evidenceItems.contains { evidenceItem in
-            let text = evidenceItem.caseDetailSearchText
-            let mentionsLandlord = text.contains("landlord") || text.contains("property manager") || text.contains("building manager")
-            let suggestsResponse = text.contains("response") || text.contains("responded") || text.contains("replied") || text.contains("reply") || text.contains("from landlord") || text.contains("from property manager")
-            return mentionsLandlord && suggestsResponse
-        }
-    }
-
-    private var caseDetailHasRepairPhoto: Bool {
-        evidenceItems.contains { evidenceItem in
-            let hasPhotoAttachment = evidenceItem.category == .photo || evidenceItem.attachments.contains { attachment in
-                attachment.attachmentType == .photo || attachment.attachmentType == .screenshot
-            }
-            let text = evidenceItem.caseDetailSearchText
-            return hasPhotoAttachment && (text.contains("repair") || text.contains("fixed") || text.contains("after"))
-        }
-    }
-}
-
-private extension EvidenceItem {
-    var caseDetailSearchText: String {
-        [userTitle, userNotes, userCleanedNote, userWhyThisMatters, originalOCRText]
-            .joined(separator: " ")
-            .lowercased()
-    }
-}
-
-private extension CaseType {
-    var caseDetailNeedsLandlordResponse: Bool {
-        switch self {
-        case .apartmentIssue, .tenantLandlord:
-            true
-        default:
-            false
-        }
-    }
-
-    var caseDetailNeedsRepairPhoto: Bool {
-        switch self {
-        case .apartmentIssue, .tenantLandlord, .insuranceIssue, .insurance:
-            true
-        default:
-            false
-        }
+        return userSummary.caseDetailTrimmedText
     }
 }
 
 private extension String {
     var caseDetailTrimmedText: String {
         trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+private extension Date {
+    var caseReadinessAgeInDays: Int {
+        max(0, Calendar.current.dateComponents([.day], from: self, to: .now).day ?? 0)
     }
 }
 

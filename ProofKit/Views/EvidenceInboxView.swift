@@ -6,8 +6,15 @@ struct EvidenceInboxView: View {
     @Environment(\.modelContext) private var modelContext
 
     let caseFile: CaseFile
+    @Binding private var skippedEvidenceIDs: Set<UUID>
 
-    @State private var skippedEvidenceIDs: Set<UUID> = []
+    init(
+        caseFile: CaseFile,
+        skippedEvidenceIDs: Binding<Set<UUID>> = .constant([])
+    ) {
+        self.caseFile = caseFile
+        _skippedEvidenceIDs = skippedEvidenceIDs
+    }
 
     private var reviewItems: [EvidenceItem] {
         caseFile.sortedEvidenceItems.filter { evidenceItem in
@@ -39,23 +46,7 @@ struct EvidenceInboxView: View {
                     footnote: "Manual notes and imported files remain editable later."
                 )
             } else if reviewItems.isEmpty {
-                PlaceholderPanel(
-                    systemImage: "checkmark.circle",
-                    title: "Review queue is clear",
-                    message: "Everything currently added has been reviewed or skipped for now.",
-                    steps: [
-                        PlaceholderStep(
-                            systemImage: "plus",
-                            title: "Continue collecting",
-                            detail: "Use Add Proof when you have another record to include."
-                        ),
-                        PlaceholderStep(
-                            systemImage: "calendar",
-                            title: "Check the timeline",
-                            detail: "Reviewed records are organized chronologically."
-                        )
-                    ]
-                )
+                InboxEmptyStateCard(imageName: "RookInboxEmpty")
             } else {
                 VStack(spacing: ProofKitVisual.cardSpacing) {
                     ForEach(Array(reviewItems.enumerated()), id: \.element.id) { index, evidenceItem in
@@ -138,6 +129,122 @@ struct EvidenceInboxView: View {
         withAnimation(ProofKitMotion.standard) {
             _ = skippedEvidenceIDs.insert(evidenceItem.id)
         }
+    }
+}
+
+private struct InboxEmptyStateCard: View {
+    let imageName: String
+
+    private let actions = [
+        InboxEmptyAction(
+            systemImage: "plus",
+            title: "Add more proof",
+            detail: "Use Add Proof when you have another screenshot, file, or note."
+        ),
+        InboxEmptyAction(
+            systemImage: "calendar",
+            title: "Check the timeline",
+            detail: "Reviewed proof is organized by date."
+        )
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 10) {
+                    copy
+                        .frame(minWidth: 140, maxWidth: .infinity, alignment: .leading)
+
+                    mascot(width: 195, height: 130)
+                        .layoutPriority(1)
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    mascot(width: 218, height: 146)
+                        .frame(maxWidth: .infinity, alignment: .center)
+
+                    copy
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(spacing: 0) {
+                ForEach(actions) { action in
+                    InboxEmptyActionRow(action: action)
+
+                    if action.id != actions.last?.id {
+                        Divider()
+                            .padding(.leading, 34)
+                    }
+                }
+            }
+            .padding(.top, 2)
+        }
+        .proofKitCard(cornerRadius: ProofKitVisual.panelCornerRadius)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var copy: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Review queue is clear")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("Everything you added has been reviewed or skipped for now.")
+                .font(.subheadline)
+                .foregroundStyle(ProofKitVisual.helperText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func mascot(width: CGFloat, height: CGFloat) -> some View {
+        Image(imageName)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFit()
+            .frame(width: width, height: height)
+            .accessibilityHidden(true)
+            .shadow(color: ProofKitVisual.accentSecondary.opacity(0.18), radius: 12, x: 0, y: 7)
+    }
+}
+
+private struct InboxEmptyAction: Identifiable {
+    let systemImage: String
+    let title: String
+    let detail: String
+
+    var id: String { "\(systemImage)-\(title)" }
+}
+
+private struct InboxEmptyActionRow: View {
+    let action: InboxEmptyAction
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: action.systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(ProofKitVisual.helperText)
+                .frame(width: 22, height: 22)
+                .background {
+                    Circle()
+                        .fill(ProofKitVisual.fieldBackground)
+                }
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(action.title)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text(action.detail)
+                    .font(.caption)
+                    .foregroundStyle(ProofKitVisual.helperText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 9)
     }
 }
 
@@ -281,9 +388,9 @@ private struct EvidenceReviewCard: View {
 
         switch evidenceItem.category {
         case .photo:
-            return "Evidence photo"
+            return "Proof photo"
         case .screenshot:
-            return "Evidence screenshot"
+            return "Proof screenshot"
         case .message:
             return "Message screenshot"
         case .email:
@@ -295,7 +402,7 @@ private struct EvidenceReviewCard: View {
         case .note:
             return "Case note"
         case .uncategorized, .other:
-            return "Evidence item"
+            return "Proof item"
         }
     }
 

@@ -63,7 +63,7 @@ final class AITaskRouter: AITaskRoutingServicing {
         userTriggered: Bool
     ) async throws -> AITaskRouteResult {
         guard !taskType.isCaseLevelTask else {
-            throw ProofKitError.remotePolicyViolation("\(taskType.displayName) requires a case, not a single evidence item.")
+            throw ProofKitError.remotePolicyViolation("\(taskType.displayName) requires a case, not a single proof item.")
         }
 
         guard userTriggered else {
@@ -81,7 +81,7 @@ final class AITaskRouter: AITaskRoutingServicing {
         userTriggered: Bool
     ) async throws -> AITaskRouteResult {
         guard taskType.isCaseLevelTask else {
-            throw ProofKitError.remotePolicyViolation("\(taskType.displayName) requires a single evidence item.")
+            throw ProofKitError.remotePolicyViolation("\(taskType.displayName) requires a single proof item.")
         }
 
         guard userTriggered else {
@@ -371,7 +371,7 @@ private extension AITaskRouter {
         case .classifyEvidence:
             "Choose the best evidence category from the allowed categories using only the provided text and metadata."
         case .summarizeItem:
-            "Summarize this evidence item in neutral, concise language. Do not add facts. Do not give legal advice."
+            "Summarize this proof item in neutral, concise language. Do not add facts. Do not give legal advice."
         case .summarizeTimeline:
             "Summarize the local timeline chronologically using only provided evidence excerpts and metadata."
         case .finalCaseNarrative:
@@ -408,7 +408,7 @@ private extension AITaskRouter {
         caseFile.sortedEvidenceItems.map { item in
             let note = item.userCleanedNote.aiRoutingTrimmedText.isEmpty ? item.userNotes : item.userCleanedNote
             return """
-            Evidence item
+            Proof item
             id: \(item.id.uuidString)
             date: \(formattedDate(item.eventDate))
             category: \(item.category.rawValue)

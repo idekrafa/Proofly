@@ -43,31 +43,62 @@ final class SupabaseInfrastructureService {
 }
 
 extension SupabaseInfrastructureService: AccountServicing {
-    func currentSession() async throws -> ProofKitAccountSession? {
+    func currentSession(
+        onboardingCategory: String?,
+        onboardingDisplayName: String?
+    ) async throws -> ProofKitAccountAuthResult? {
         #if canImport(Supabase)
         guard let client else { return nil }
         guard let session = client.auth.currentSession else { return nil }
 
-        return ProofKitAccountSession(
-            userID: session.user.id,
-            email: session.user.email,
-            accessTokenExpiresAt: Date(timeIntervalSince1970: session.expiresAt)
+        let profileRegistration = try? await registerProfile(
+            for: session,
+            onboardingCategory: onboardingCategory,
+            onboardingDisplayName: onboardingDisplayName
+        )
+        let hasPendingOnboarding = onboardingCategory?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        let isNewAccount = hasPendingOnboarding && (
+            profileRegistration?.isNewProfile ?? Self.isLikelyNewAccount(session.user)
+        )
+
+        return ProofKitAccountAuthResult(
+            session: Self.accountSession(
+                from: session,
+                profileDisplayName: profileRegistration?.profileDisplayName ?? onboardingDisplayName
+            ),
+            isNewAccount: isNewAccount
         )
         #else
         return nil
         #endif
     }
 
-    func signInWithPassword(email: String, password: String) async throws -> ProofKitAccountSession {
+    func signInWithPassword(email: String, password: String) async throws -> ProofKitAccountAuthResult {
         #if canImport(Supabase)
         let session = try await configuredClient.auth.signIn(email: email, password: password)
-        return Self.accountSession(from: session)
+        let profileRegistration = try? await registerProfile(
+            for: session,
+            onboardingCategory: nil,
+            onboardingDisplayName: nil
+        )
+        return ProofKitAccountAuthResult(
+            session: Self.accountSession(
+                from: session,
+                profileDisplayName: profileRegistration?.profileDisplayName
+            ),
+            isNewAccount: false
+        )
         #else
         throw ProofKitError.supabaseSDKUnavailable
         #endif
     }
 
-    func signUpWithPassword(email: String, password: String) async throws -> ProofKitAccountSession {
+    func signUpWithPassword(
+        email: String,
+        password: String,
+        onboardingCategory: String?,
+        onboardingDisplayName: String?
+    ) async throws -> ProofKitAccountAuthResult {
         #if canImport(Supabase)
         let response = try await configuredClient.auth.signUp(
             email: email,
@@ -81,20 +112,47 @@ extension SupabaseInfrastructureService: AccountServicing {
             )
         }
 
-        return Self.accountSession(from: session)
+        let profileRegistration = try? await registerProfile(
+            for: session,
+            onboardingCategory: onboardingCategory,
+            onboardingDisplayName: onboardingDisplayName
+        )
+
+        return ProofKitAccountAuthResult(
+            session: Self.accountSession(
+                from: session,
+                profileDisplayName: profileRegistration?.profileDisplayName ?? onboardingDisplayName
+            ),
+            isNewAccount: profileRegistration?.isNewProfile ?? true
+        )
         #else
         throw ProofKitError.supabaseSDKUnavailable
         #endif
     }
 
-    func signInWithOAuth(_ provider: ProofKitOAuthProvider) async throws -> ProofKitAccountSession {
+    func signInWithOAuth(
+        _ provider: ProofKitOAuthProvider,
+        onboardingCategory: String?,
+        onboardingDisplayName: String?
+    ) async throws -> ProofKitAccountAuthResult {
         #if canImport(Supabase)
         let session = try await configuredClient.auth.signInWithOAuth(
             provider: provider.supabaseProvider,
             redirectTo: configuration?.authRedirectURL
         )
+        let profileRegistration = try? await registerProfile(
+            for: session,
+            onboardingCategory: onboardingCategory,
+            onboardingDisplayName: onboardingDisplayName
+        )
 
-        return Self.accountSession(from: session)
+        return ProofKitAccountAuthResult(
+            session: Self.accountSession(
+                from: session,
+                profileDisplayName: profileRegistration?.profileDisplayName ?? onboardingDisplayName
+            ),
+            isNewAccount: (profileRegistration?.isNewProfile ?? true) && Self.isLikelyNewAccount(session.user)
+        )
         #else
         throw ProofKitError.supabaseSDKUnavailable
         #endif
@@ -195,6 +253,29 @@ private extension SupabaseInfrastructureService {
             return client
         }
     }
+
+    func registerProfile(
+        for session: Session,
+        onboardingCategory: String?,
+        onboardingDisplayName: String?
+    ) async throws -> ProofKitProfileRegistrationResult {
+        let request = ProofKitRegisterProfileRequest(
+            email: session.user.email,
+            onboardingCategory: onboardingCategory,
+            onboardingDisplayName: onboardingDisplayName
+        )
+
+        let results: [ProofKitProfileRegistrationResult] = try await configuredClient
+            .rpc("proofkit_register_profile", params: request)
+            .execute()
+            .value
+
+        guard let result = results.first else {
+            throw ProofKitError.remotePolicyViolation("Profile registration returned no result.")
+        }
+
+        return result
+    }
     #endif
 
     var configuredFunctionNames: SupabaseFunctionNames {
@@ -243,12 +324,81 @@ private extension SupabaseInfrastructureService {
     }()
 
     #if canImport(Supabase)
-    static func accountSession(from session: Session) -> ProofKitAccountSession {
-        ProofKitAccountSession(
+    static func accountSession(
+        from session: Session,
+        profileDisplayName: String? = nil
+    ) -> ProofKitAccountSession {
+        let explicitFirstName = metadataString(
+            from: session.user,
+            keys: [
+                "first_name",
+                "firstName",
+                "given_name",
+                "givenName"
+            ]
+        )
+        let metadataDisplayName = metadataString(
+            from: session.user,
+            keys: [
+                "display_name",
+                "displayName",
+                "full_name",
+                "fullName",
+                "name",
+                "preferred_username",
+                "user_name",
+                "username"
+            ]
+        )
+        let displayName = UserDisplayName.displayName(profileDisplayName) ?? metadataDisplayName
+
+        return ProofKitAccountSession(
             userID: session.user.id,
             email: session.user.email,
-            accessTokenExpiresAt: Date(timeIntervalSince1970: session.expiresAt)
+            accessTokenExpiresAt: Date(timeIntervalSince1970: session.expiresAt),
+            profileFirstName: UserDisplayName.firstName(
+                explicitFirstName: explicitFirstName,
+                displayName: displayName
+            ),
+            profileDisplayName: displayName
         )
+    }
+
+    static func metadataString(from user: User, keys: [String]) -> String? {
+        for key in keys {
+            if let value = metadataString(from: user.userMetadata, key: key) {
+                return value
+            }
+        }
+
+        for identity in user.identities ?? [] {
+            for key in keys {
+                if let value = metadataString(from: identity.identityData, key: key) {
+                    return value
+                }
+            }
+        }
+
+        return nil
+    }
+
+    static func metadataString(from metadata: [String: AnyJSON]?, key: String) -> String? {
+        guard let rawValue = metadata?[key]?.stringValue else { return nil }
+
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !value.isEmpty {
+            return value
+        }
+
+        return nil
+    }
+
+    static func isLikelyNewAccount(_ user: User) -> Bool {
+        guard let lastSignInAt = user.lastSignInAt else {
+            return true
+        }
+
+        return abs(lastSignInAt.timeIntervalSince(user.createdAt)) <= 120
     }
     #endif
 
@@ -266,7 +416,7 @@ private extension SupabaseInfrastructureService {
         }
 
         guard request.caseID != nil || request.evidenceItemID != nil else {
-            throw ProofKitError.remotePolicyViolation("AI proxy calls require a case ID or evidence item ID.")
+            throw ProofKitError.remotePolicyViolation("AI proxy calls require a case ID or proof item ID.")
         }
 
         guard request.extractedTextSnippets.contains(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
@@ -304,6 +454,18 @@ private extension SupabaseInfrastructureService {
                 "AI proxy metadata must not include local file paths or file URLs."
             )
         }
+    }
+}
+
+private struct ProofKitRegisterProfileRequest: Encodable {
+    let email: String?
+    let onboardingCategory: String?
+    let onboardingDisplayName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case email = "p_email"
+        case onboardingCategory = "p_onboarding_category"
+        case onboardingDisplayName = "p_display_name"
     }
 }
 

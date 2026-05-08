@@ -13,6 +13,7 @@ struct ServiceContainer {
     let aiRouter: any AITaskRoutingServicing
     let ai: any AITextAnalysisServicing
     let evidenceCase: any EvidenceCaseServicing
+    let analytics: any AnalyticsTracking
 
     private static let supabaseInfrastructure = SupabaseInfrastructureService.live()
     private static let paywallService = PlaceholderPaywallService(purchaseEntitlements: supabaseInfrastructure)
@@ -30,7 +31,8 @@ struct ServiceContainer {
         paywall: paywallService,
         aiRouter: aiTaskRouter,
         ai: TextOnlyAIPlaceholderService(),
-        evidenceCase: EvidenceCaseService()
+        evidenceCase: EvidenceCaseService(),
+        analytics: NoOpAnalyticsTracker()
     )
 
     func scoped(to session: ProofKitAccountSession) throws -> ServiceContainer {
@@ -46,7 +48,8 @@ struct ServiceContainer {
             paywall: paywall,
             aiRouter: aiRouter,
             ai: ai,
-            evidenceCase: evidenceCase
+            evidenceCase: evidenceCase,
+            analytics: analytics.scoped(to: session)
         )
     }
 }

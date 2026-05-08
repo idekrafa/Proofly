@@ -4,8 +4,41 @@ struct ProofKitAccountSession: Equatable, Identifiable {
     let userID: UUID
     let email: String?
     let accessTokenExpiresAt: Date?
+    let profileFirstName: String?
+    let profileDisplayName: String?
+
+    init(
+        userID: UUID,
+        email: String?,
+        accessTokenExpiresAt: Date?,
+        profileFirstName: String? = nil,
+        profileDisplayName: String? = nil
+    ) {
+        self.userID = userID
+        self.email = email
+        self.accessTokenExpiresAt = accessTokenExpiresAt
+        self.profileFirstName = profileFirstName
+        self.profileDisplayName = profileDisplayName
+    }
 
     var id: UUID { userID }
+}
+
+struct ProofKitAccountAuthResult: Equatable {
+    let session: ProofKitAccountSession
+    let isNewAccount: Bool
+}
+
+struct ProofKitProfileRegistrationResult: Decodable, Equatable {
+    let isNewProfile: Bool
+    let hasRegisteredBefore: Bool
+    let profileDisplayName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case isNewProfile = "is_new_profile"
+        case hasRegisteredBefore = "has_registered_before"
+        case profileDisplayName = "profile_display_name"
+    }
 }
 
 struct AICreditBalance: Codable, Equatable {

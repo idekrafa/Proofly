@@ -18,25 +18,29 @@ struct ProofKitRootView: View {
                 ProofKitAuthLaunchView()
 
             case .signedOut:
-                ProofKitAuthView(services: services) { session, isFirstTimeSignup in
-                    await authCoordinator.activate(session: session, isFirstTimeSignup: isFirstTimeSignup)
+                ProofKitAuthView(services: services) { session, isFirstTimeSignup, firstCaseSeed in
+                    scheduleActivation(
+                        session: session,
+                        isFirstTimeSignup: isFirstTimeSignup,
+                        firstCaseSeed: firstCaseSeed
+                    )
                 }
 
-            case .authenticated(let scope):
-                ContentView {
+            case .authenticated(let scope, let firstCaseSeed):
+                ContentView(accountSession: scope.session, firstCaseSeed: firstCaseSeed) {
                     authCoordinator.accountDidSignOut()
                 }
                 .id(scope.session.id)
                 .environment(\.proofKitServices, scope.services)
                 .modelContainer(scope.modelContainer)
 
-            case .signupSuccess(let scope):
-                ProofKitSignupSuccessView(email: scope.session.email)
-                    .id(scope.session.id)
-
             case .configurationError(let message):
-                ProofKitAuthView(services: services, initialErrorMessage: message) { session, isFirstTimeSignup in
-                    await authCoordinator.activate(session: session, isFirstTimeSignup: isFirstTimeSignup)
+                ProofKitAuthView(services: services, initialErrorMessage: message) { session, isFirstTimeSignup, firstCaseSeed in
+                    scheduleActivation(
+                        session: session,
+                        isFirstTimeSignup: isFirstTimeSignup,
+                        firstCaseSeed: firstCaseSeed
+                    )
                 }
             }
         }
@@ -47,6 +51,22 @@ struct ProofKitRootView: View {
             authCoordinator.handleAuthCallback(url)
         }
     }
+
+    @MainActor
+    private func scheduleActivation(
+        session: ProofKitAccountSession,
+        isFirstTimeSignup: Bool,
+        firstCaseSeed: ProofKitOnboardingFirstCaseSeed?
+    ) {
+        Task { @MainActor in
+            await Task.yield()
+            await authCoordinator.activate(
+                session: session,
+                isFirstTimeSignup: isFirstTimeSignup,
+                firstCaseSeed: firstCaseSeed
+            )
+        }
+    }
 }
 
 @MainActor
@@ -55,6 +75,7 @@ final class ProofKitAuthCoordinator: ObservableObject {
 
     private let services: ServiceContainer
     private var hasBootstrapped = false
+    private var currentScope: ProofKitAuthenticatedScope?
 
     init(services: ServiceContainer) {
         self.services = services
@@ -75,8 +96,23 @@ final class ProofKitAuthCoordinator: ObservableObject {
         }
 
         do {
-            if let session = try await services.account.currentSession() {
-                state = try .authenticated(makeScope(for: session))
+            let pendingSeed = ProofKitPendingOnboardingSeedStore.pendingSeed()
+            let pendingDisplayName = ProofKitPendingOnboardingSeedStore.pendingProfileDisplayName()
+            if let result = try await services.account.currentSession(
+                onboardingCategory: pendingSeed?.id,
+                onboardingDisplayName: pendingDisplayName
+            ) {
+                let shouldStartFirstCase = pendingSeed != nil && (
+                    result.isNewAccount ||
+                    ProofKitPendingOnboardingSeedStore.hasPendingAccountCreationAttempt(matching: result.session.email)
+                )
+                let firstCaseSeed = shouldStartFirstCase ? pendingSeed : nil
+
+                if !shouldStartFirstCase {
+                    ProofKitPendingOnboardingSeedStore.clear()
+                }
+
+                state = try .authenticated(makeScope(for: result.session), firstCaseSeed: firstCaseSeed)
             } else {
                 state = .signedOut
             }
@@ -85,22 +121,33 @@ final class ProofKitAuthCoordinator: ObservableObject {
         }
     }
 
-    func activate(session: ProofKitAccountSession, isFirstTimeSignup: Bool) async {
+    func activate(
+        session: ProofKitAccountSession,
+        isFirstTimeSignup: Bool,
+        firstCaseSeed: ProofKitOnboardingFirstCaseSeed?
+    ) async {
         do {
             let scope = try makeScope(for: session)
+            let pendingSeed = firstCaseSeed ?? ProofKitPendingOnboardingSeedStore.pendingSeed()
+            let shouldStartFirstCase = pendingSeed != nil && (
+                firstCaseSeed != nil ||
+                isFirstTimeSignup ||
+                ProofKitPendingOnboardingSeedStore.hasPendingAccountCreationAttempt(matching: session.email)
+            )
+            let onboardingSeed = shouldStartFirstCase ? pendingSeed : nil
 
-            if isFirstTimeSignup {
-                state = .signupSuccess(scope)
-                try? await Task.sleep(for: .seconds(1.15))
+            if !shouldStartFirstCase {
+                ProofKitPendingOnboardingSeedStore.clear()
             }
 
-            state = .authenticated(scope)
+            state = .authenticated(scope, firstCaseSeed: onboardingSeed)
         } catch {
             state = .configurationError(Self.message(for: error))
         }
     }
 
     func accountDidSignOut() {
+        currentScope = nil
         state = .signedOut
     }
 
@@ -110,11 +157,18 @@ final class ProofKitAuthCoordinator: ObservableObject {
     }
 
     private func makeScope(for session: ProofKitAccountSession) throws -> ProofKitAuthenticatedScope {
-        ProofKitAuthenticatedScope(
+        if let currentScope, currentScope.session.id == session.id {
+            return currentScope
+        }
+
+        let scope = ProofKitAuthenticatedScope(
             session: session,
             services: try services.scoped(to: session),
             modelContainer: try AccountScopedLocalData.modelContainer(for: session)
         )
+
+        currentScope = scope
+        return scope
     }
 
     private static func message(for error: Error) -> String {
@@ -136,7 +190,6 @@ struct ProofKitAuthenticatedScope {
 enum ProofKitRootAuthState {
     case checking
     case signedOut
-    case authenticated(ProofKitAuthenticatedScope)
-    case signupSuccess(ProofKitAuthenticatedScope)
+    case authenticated(ProofKitAuthenticatedScope, firstCaseSeed: ProofKitOnboardingFirstCaseSeed?)
     case configurationError(String)
 }

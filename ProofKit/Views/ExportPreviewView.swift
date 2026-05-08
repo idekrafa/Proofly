@@ -7,6 +7,8 @@ struct ExportPreviewView: View {
     @Environment(\.proofKitServices) private var services
 
     let caseFile: CaseFile
+    private let skippedEvidenceIDs: Set<UUID>
+    private let onAddProof: () -> Void
 
     @State private var includeStatementPlaceholder = true
     @State private var isExporting = false
@@ -14,13 +16,52 @@ struct ExportPreviewView: View {
     @State private var latestExportURL: URL?
     @State private var activePreviewURL: URL?
     @State private var exportAccess = ProofKitExportAccess.placeholderFree
+    @State private var showMissingItems = true
+    @State private var isPacketDetailsExpanded = false
+
+    init(
+        caseFile: CaseFile,
+        skippedEvidenceIDs: Set<UUID> = [],
+        onAddProof: @escaping () -> Void = {}
+    ) {
+        self.caseFile = caseFile
+        self.skippedEvidenceIDs = skippedEvidenceIDs
+        self.onAddProof = onAddProof
+    }
 
     private var latestExport: ExportPacket? {
         caseFile.sortedExportPackets.first
     }
 
-    private var currentExportURL: URL? {
-        latestExportURL ?? latestExport.flatMap { localURL(for: $0) }
+    private var generatedExport: (packet: ExportPacket, url: URL)? {
+        guard let latestExport else { return nil }
+
+        if let latestExportURL,
+           FileManager.default.fileExists(atPath: latestExportURL.path(percentEncoded: false)) {
+            return (latestExport, latestExportURL)
+        }
+
+        guard let localURL = localURL(for: latestExport) else { return nil }
+        return (latestExport, localURL)
+    }
+
+    private var exportScreenState: ExportScreenState {
+        if let generatedExport {
+            return .generated(generatedExport.packet, generatedExport.url)
+        }
+
+        return missingExportItems.isEmpty ? .ready : .almostReady
+    }
+
+    private var exportScreenStateID: String {
+        switch exportScreenState {
+        case .almostReady:
+            "almostReady-\(missingExportItems.map(\.id).joined(separator: "|"))-\(skippedEvidenceIDs.count)"
+        case .ready:
+            "ready-\(estimatedPageCount)-\(caseFile.evidenceItems.count)-\(includeStatementPlaceholder)"
+        case .generated(let packet, _):
+            "generated-\(packet.id)-\(activePreviewURL?.path(percentEncoded: false) ?? "closed")"
+        }
     }
 
     private var previewPDFURL: URL? {
@@ -31,15 +72,12 @@ struct ExportPreviewView: View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(
                 title: "Export",
-                subtitle: "Create a professional PDF packet from the records stored on this device."
+                subtitle: "Create a PDF packet from proof saved on this device."
             )
 
-            exportHero
+            stateDrivenContent
+                .transition(ProofKitMotion.cardInsertion)
                 .proofKitAppear()
-            readinessChecklist
-                .proofKitAppear(delay: 0.04)
-            packetSummaryCard
-                .proofKitAppear(delay: 0.08)
 
             if let previewPDFURL {
                 pdfPreviewCard(url: previewPDFURL)
@@ -47,83 +85,216 @@ struct ExportPreviewView: View {
                     .proofKitAppear(delay: 0.06)
             }
 
-            recentExportCard
-                .transition(ProofKitMotion.compactInsertion)
-                .proofKitAppear(delay: 0.10)
-
             Color.clear
                 .frame(height: 88)
         }
         .animation(ProofKitMotion.standard, value: isExporting)
         .animation(ProofKitMotion.standard, value: previewPDFURL)
         .animation(ProofKitMotion.standard, value: latestExport?.id)
+        .animation(ProofKitMotion.standard, value: exportScreenStateID)
         .task {
             await refreshExportAccess()
         }
     }
 
-    private var exportHero: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .top, spacing: 16) {
-                PacketDocumentIcon()
+    @ViewBuilder
+    private var stateDrivenContent: some View {
+        switch exportScreenState {
+        case .almostReady:
+            VStack(alignment: .leading, spacing: 14) {
+                almostReadyHero
 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        ExportStatusPill(text: "Export tab selected", systemImage: "checkmark.circle.fill")
-                        ExportStatusPill(text: "\(estimatedPageCount)-page estimate", systemImage: "doc.text")
+                if showMissingItems {
+                    missingItemsSection
+                        .transition(ProofKitMotion.compactInsertion)
+                }
+            }
+        case .ready:
+            VStack(alignment: .leading, spacing: 14) {
+                readyHero
+                packetDetailsDisclosure
+            }
+        case .generated(let packet, let url):
+            VStack(alignment: .leading, spacing: 14) {
+                generatedHero(url: url)
+                latestExportDetails(packet: packet)
+                packetDetailsDisclosure
+            }
+        }
+    }
+
+    private var almostReadyHero: some View {
+        exportHeroCard(
+            imageName: "RookExportAlmostReady",
+            accentColor: ExportPagePalette.guidance,
+            title: "Almost ready",
+            subtitle: almostReadySubtitle
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                Button {
+                    onAddProof()
+                } label: {
+                    Label("Add Proof", systemImage: "plus")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(ExportPagePalette.guidance)
+
+                Button {
+                    withAnimation(ProofKitMotion.standard) {
+                        showMissingItems = true
                     }
+                } label: {
+                    Text("See what’s missing")
+                        .font(.footnote.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(ExportPagePalette.guidance)
 
-                    Text("Generate a clean evidence packet")
+                exportMessages
+            }
+        }
+    }
+
+    private var readyHero: some View {
+        exportHeroCard(
+            imageName: "RookExportReady",
+            accentColor: ExportPagePalette.ready,
+            title: "Your packet is ready",
+            subtitle: "About \(estimatedPageCount) pages with \(proofItemCountText) and your timeline."
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                Button {
+                    Task { await generatePDF() }
+                } label: {
+                    HStack(spacing: 9) {
+                        if isExporting {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(.white)
+                                .transition(.opacity)
+                        } else {
+                            Image(systemName: "doc.badge.plus")
+                                .transition(.opacity)
+                        }
+
+                        Text(isExporting ? "Generating packet…" : "Generate PDF Packet")
+                            .fontWeight(.semibold)
+                            .contentTransition(.opacity)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(ExportPagePalette.ready)
+                .disabled(isExporting)
+
+                Text("Saved locally. Shared only when you choose.")
+                    .font(.caption)
+                    .foregroundStyle(ProofKitVisual.helperText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                exportMessages
+            }
+        }
+    }
+
+    private func generatedHero(url: URL) -> some View {
+        exportHeroCard(
+            imageName: "RookExportReady",
+            accentColor: ExportPagePalette.ready,
+            title: "Packet generated",
+            subtitle: "Your PDF is saved locally on this device."
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        viewPacketButton(url: url)
+                        sharePacketLink(url: url)
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    VStack(spacing: 10) {
+                        viewPacketButton(url: url)
+                        sharePacketLink(url: url)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .frame(maxWidth: .infinity)
+
+                Button {
+                    Task { await generatePDF() }
+                } label: {
+                    if isExporting {
+                        Label("Regenerating…", systemImage: "arrow.clockwise")
+                    } else {
+                        Text("Regenerate")
+                    }
+                }
+                .font(.footnote.weight(.semibold))
+                .buttonStyle(.plain)
+                .foregroundStyle(ExportPagePalette.ready)
+                .disabled(isExporting)
+
+                exportMessages
+            }
+        }
+    }
+
+    private func viewPacketButton(url: URL) -> some View {
+        Button {
+            withAnimation(ProofKitMotion.standard) {
+                activePreviewURL = url
+                exportErrorMessage = nil
+            }
+        } label: {
+            ExportActionLabel(title: "View Packet", systemImage: "doc.text")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .tint(ExportPagePalette.ready)
+    }
+
+    private func sharePacketLink(url: URL) -> some View {
+        ShareLink(item: url) {
+            ExportActionLabel(title: "Share", systemImage: "square.and.arrow.up")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+    }
+
+    private func exportHeroCard<Content: View>(
+        imageName: String,
+        accentColor: Color,
+        title: String,
+        subtitle: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ExportStatusPill(text: statePillText, color: accentColor)
+
+                    Text(title)
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("A local PDF with cover page, timeline, evidence index, and attachment references.")
+                    Text(subtitle)
                         .font(.subheadline)
                         .foregroundStyle(ProofKitVisual.helperText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                ExportRookImage(imageName: imageName)
             }
 
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 10) {
-                    primaryGenerateButton
-                    previewPacketButton
-                }
-
-                VStack(spacing: 10) {
-                    primaryGenerateButton
-                    previewPacketButton
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Label(exportPlanMessage, systemImage: exportAccess.isWatermarked ? "text.badge.checkmark" : "checkmark.seal")
-                    .font(.caption)
-                    .foregroundStyle(ProofKitVisual.helperText)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Label("Private by default: the PDF is saved locally and shared only when you choose.", systemImage: "lock")
-                    .font(.caption)
-                    .foregroundStyle(ProofKitVisual.helperText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if let blockedMessage = exportAccess.blockedMessage {
-                Text(blockedMessage)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(ProofKitVisual.helperText)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .transition(ProofKitMotion.compactInsertion)
-            }
-
-            if let exportErrorMessage {
-                Text(exportErrorMessage)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .transition(ProofKitMotion.compactInsertion)
-            }
+            content()
         }
         .padding(ProofKitVisual.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -131,78 +302,70 @@ struct ExportPreviewView: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(ProofKitVisual.surfaceGradient)
         }
-        .overlay {
+        .overlay(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(ProofKitVisual.cardBorder, lineWidth: 1)
+                .stroke(accentColor.opacity(0.32), lineWidth: 1)
         }
         .shadow(color: ProofKitVisual.elevatedShadow, radius: 18, x: 0, y: 10)
     }
 
-    private var primaryGenerateButton: some View {
-        Button {
-            Task { await generatePDF() }
-        } label: {
-            HStack(spacing: 9) {
-                if isExporting {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(.white)
-                        .transition(.opacity)
-                } else {
-                    Image(systemName: "doc.badge.plus")
-                        .transition(.opacity)
-                }
-
-                Text(isExporting ? "Generating packet…" : "Generate PDF Packet")
-                    .fontWeight(.semibold)
-                    .contentTransition(.opacity)
-            }
-            .frame(maxWidth: .infinity)
+    private var statePillText: String {
+        switch exportScreenState {
+        case .almostReady:
+            "Next step"
+        case .ready:
+            "Ready"
+        case .generated:
+            "Saved PDF"
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .disabled(isExporting)
     }
 
-    private var previewPacketButton: some View {
-        Button {
-            Task { await previewPacket() }
-        } label: {
-            Label("Preview packet", systemImage: "eye")
-                .fontWeight(.semibold)
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
-        .disabled(isExporting)
-    }
-
-    private var readinessChecklist: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Case readiness")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-
-                    Text(caseTitle)
-                        .font(.subheadline)
-                        .foregroundStyle(ProofKitVisual.helperText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 12)
-
-                ExportReadinessBadge(readyCount: readyChecklistCount, totalCount: readinessItems.count)
+    @ViewBuilder
+    private var exportMessages: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let blockedMessage = exportAccess.blockedMessage {
+                Label(blockedMessage, systemImage: "exclamationmark.triangle")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(ExportPagePalette.guidance)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(ProofKitMotion.compactInsertion)
             }
 
-            VStack(spacing: 0) {
-                ForEach(readinessItems) { item in
-                    ReadinessChecklistRow(item: item)
+            if let exportErrorMessage {
+                Label(exportErrorMessage, systemImage: "exclamationmark.circle")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(ProofKitMotion.compactInsertion)
+            }
+        }
+    }
 
-                    if item.id != readinessItems.last?.id {
-                        Divider()
-                            .padding(.leading, 34)
+    private var missingItemsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Before you export:")
+                .font(.headline)
+                .foregroundStyle(.primary)
+
+            VStack(spacing: 9) {
+                ForEach(missingExportItems) { item in
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: item.systemImage)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(ExportPagePalette.guidance)
+                            .frame(width: 22, height: 22)
+                            .background {
+                                Circle()
+                                    .fill(ExportPagePalette.guidance.opacity(0.16))
+                            }
+                            .accessibilityHidden(true)
+
+                        Text(item.title)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Spacer(minLength: 0)
                     }
                 }
             }
@@ -215,55 +378,76 @@ struct ExportPreviewView: View {
         }
         .overlay {
             RoundedRectangle(cornerRadius: ProofKitVisual.panelCornerRadius, style: .continuous)
+                .stroke(ExportPagePalette.guidance.opacity(0.22), lineWidth: 1)
+        }
+    }
+
+    private var packetDetailsDisclosure: some View {
+        DisclosureGroup(isExpanded: $isPacketDetailsExpanded) {
+            VStack(spacing: 0) {
+                ExportDetailsRow(title: "Proof items", value: "\(caseFile.evidenceItems.count)")
+                ExportDetailsRow(title: "Timeline", value: timelineReady ? "Included" : "Needs proof")
+                ExportDetailsRow(title: "Attachments", value: attachmentCount == 0 ? "None" : "\(attachmentCount)")
+                ExportDetailsRow(title: "Watermark", value: watermarkSummary)
+
+                Toggle(isOn: $includeStatementPlaceholder) {
+                    HStack(spacing: 8) {
+                        Text("Statement page")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+
+                        Spacer(minLength: 12)
+
+                        Text(includeStatementPlaceholder ? "On" : "Off")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(ProofKitVisual.helperText)
+                    }
+                }
+                .tint(ExportPagePalette.ready)
+                .padding(.vertical, 11)
+
+                Text(exportPlanMessage)
+                    .font(.caption)
+                    .foregroundStyle(ProofKitVisual.subduedText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 4)
+            }
+            .padding(.top, 10)
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(ProofKitVisual.helperText)
+
+                Text("Packet details")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+            }
+        }
+        .tint(ProofKitVisual.helperText)
+        .padding(ProofKitVisual.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: ProofKitVisual.panelCornerRadius, style: .continuous)
+                .fill(ProofKitVisual.cardBackground)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: ProofKitVisual.panelCornerRadius, style: .continuous)
                 .stroke(ProofKitVisual.cardBorder, lineWidth: 1)
         }
     }
 
-    private var packetSummaryCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 14) {
-                Image(systemName: "doc.plaintext")
-                    .font(.title2)
-                    .foregroundStyle(ProofKitVisual.helperText)
-                    .frame(width: 34, height: 34)
+    private func latestExportDetails(packet: ExportPacket) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Latest export details")
+                .font(.headline)
+                .foregroundStyle(.primary)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Packet summary")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-
-                    Text("About \(estimatedPageCount) pages")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.primary)
-
-                    Text(attachmentBehaviorText)
-                        .font(.caption)
-                        .foregroundStyle(ProofKitVisual.helperText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 8)
-            }
-
-            Divider()
-
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                ExportMetric(title: "Evidence", value: "\(caseFile.evidenceItems.count)")
-                ExportMetric(title: "Timeline", value: timelineReady ? "Included" : "Add proof")
-                ExportMetric(title: "Attachments", value: attachmentCount == 0 ? "None" : "\(attachmentCount)")
-                ExportMetric(title: "Watermark", value: watermarkSummary)
-            }
-
-            Toggle(isOn: $includeStatementPlaceholder) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Statement placeholder optional")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
-
-                    Text("Adds one blank page for a statement prepared outside ProofKit.")
-                        .font(.caption)
-                        .foregroundStyle(ProofKitVisual.helperText)
-                }
+            VStack(spacing: 0) {
+                ExportDetailsRow(title: "Generated", value: generatedDateText(for: packet))
+                ExportDetailsRow(title: "Page count", value: pageCountText(for: packet))
+                ExportDetailsRow(title: "File size", value: fileSizeText(for: packet))
             }
         }
         .padding(ProofKitVisual.cardPadding)
@@ -282,14 +466,13 @@ struct ExportPreviewView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Packet preview")
+                    Text("Packet view")
                         .font(.headline)
                         .foregroundStyle(.primary)
 
-                    Text(url.lastPathComponent)
+                    Text("Saved locally on this device.")
                         .font(.caption)
                         .foregroundStyle(ProofKitVisual.helperText)
-                        .lineLimit(2)
                 }
 
                 Spacer(minLength: 12)
@@ -302,7 +485,7 @@ struct ExportPreviewView: View {
             }
 
             PDFKitPreview(url: url)
-                .frame(height: 460)
+                .frame(height: 420)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -321,228 +504,68 @@ struct ExportPreviewView: View {
         }
     }
 
-    @ViewBuilder
-    private var recentExportCard: some View {
-        if let latestExport {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Latest export")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
+    private var missingExportItems: [MissingExportItem] {
+        var items: [MissingExportItem] = []
 
-                    Spacer(minLength: 12)
-
-                    if let exportedAt = latestExport.exportedAt {
-                        Text(Self.exportDateFormatter.string(from: exportedAt))
-                            .font(.caption)
-                            .foregroundStyle(ProofKitVisual.helperText)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(latestExport.userPacketTitle.caseTerminologyForDisplay)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    HStack(spacing: 8) {
-                        ExportMetadataPill(text: pageCountText(for: latestExport))
-                        ExportMetadataPill(text: fileSizeText(for: latestExport))
-                    }
-
-                    latestExportActions(for: latestExport)
-                }
-            }
-            .padding(ProofKitVisual.cardPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: ProofKitVisual.panelCornerRadius, style: .continuous)
-                    .fill(ProofKitVisual.cardBackground)
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: ProofKitVisual.panelCornerRadius, style: .continuous)
-                    .stroke(ProofKitVisual.cardBorder, lineWidth: 1)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Latest export")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "doc")
-                        .font(.title3)
-                        .foregroundStyle(ProofKitVisual.helperText)
-                        .frame(width: 32, height: 32)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("No PDF packet yet")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-
-                        Text("Generate PDF Packet to create a local file you can view or share.")
-                            .font(.caption)
-                            .foregroundStyle(ProofKitVisual.helperText)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-            .padding(ProofKitVisual.cardPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: ProofKitVisual.panelCornerRadius, style: .continuous)
-                    .fill(ProofKitVisual.cardBackground)
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: ProofKitVisual.panelCornerRadius, style: .continuous)
-                .stroke(ProofKitVisual.cardBorder, lineWidth: 1)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func latestExportActions(for latestExport: ExportPacket) -> some View {
-        if let url = localURL(for: latestExport) {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 10) {
-                    Button {
-                        withAnimation(ProofKitMotion.standard) {
-                            activePreviewURL = url
-                        }
-                    } label: {
-                        Label("View", systemImage: "doc.text.magnifyingglass")
-                    }
-                    .buttonStyle(.bordered)
-
-                    ShareLink(item: url) {
-                        Label("Share", systemImage: "square.and.arrow.up")
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button {
-                        Task { await generatePDF() }
-                    } label: {
-                        Label("Regenerate", systemImage: "arrow.clockwise")
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isExporting)
-                }
-
-                VStack(spacing: 10) {
-                    Button {
-                        withAnimation(ProofKitMotion.standard) {
-                            activePreviewURL = url
-                        }
-                    } label: {
-                        Label("View", systemImage: "doc.text.magnifyingglass")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-
-                    ShareLink(item: url) {
-                        Label("Share", systemImage: "square.and.arrow.up")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button {
-                        Task { await generatePDF() }
-                    } label: {
-                        Label("Regenerate", systemImage: "arrow.clockwise")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isExporting)
-                }
-            }
-            .font(.subheadline.weight(.semibold))
-        } else {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("The saved PDF is no longer available on this device.")
-                    .font(.caption)
-                    .foregroundStyle(ProofKitVisual.helperText)
-
-                Button {
-                    Task { await generatePDF() }
-                } label: {
-                    Label("Regenerate", systemImage: "arrow.clockwise")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(isExporting)
-            }
-        }
-    }
-
-    private var readinessItems: [CaseReadinessItem] {
-        [
-            CaseReadinessItem(
-                title: "Case details complete",
-                detail: caseDetailsReady ? "Title and case type are ready for the cover page." : "Add a title or ProofKit will use Untitled Case.",
-                isReady: caseDetailsReady
-            ),
-            CaseReadinessItem(
-                title: "Timeline included",
-                detail: timelineReady ? "\(caseFile.evidenceItems.count) evidence records will be shown chronologically." : "Add proof to include timeline entries.",
-                isReady: timelineReady
-            ),
-            CaseReadinessItem(
-                title: "Evidence index ready",
-                detail: evidenceIndexReady ? "Index will include every evidence item." : "Add proof to create an evidence index.",
-                isReady: evidenceIndexReady
-            ),
-            CaseReadinessItem(
-                title: "Attachments included",
-                detail: attachmentsReady ? attachmentBehaviorText : "No local attachments yet. Text notes can still be included.",
-                isReady: attachmentsReady
-            ),
-            CaseReadinessItem(
-                title: "Statement placeholder optional",
-                detail: includeStatementPlaceholder ? "One blank statement page will be added." : "No statement page will be added.",
-                isReady: true
+        if caseFile.evidenceItems.isEmpty {
+            items.append(
+                MissingExportItem(
+                    title: "Add at least 1 proof item",
+                    systemImage: "plus"
+                )
             )
-        ]
+        }
+
+        if unreviewedProofCount > 0 {
+            items.append(
+                MissingExportItem(
+                    title: unreviewedProofCount == 1 ? "Review new proof" : "Review new proof items",
+                    systemImage: "checkmark"
+                )
+            )
+        }
+
+        if !caseDetailsReady {
+            items.append(
+                MissingExportItem(
+                    title: "Add a case title",
+                    systemImage: "textformat"
+                )
+            )
+        }
+
+        return items
     }
 
-    private var readyChecklistCount: Int {
-        readinessItems.filter(\.isReady).count
+    private var almostReadySubtitle: String {
+        guard let firstMissingItem = missingExportItems.first else {
+            return "Rook is checking the latest case details before export."
+        }
+
+        return "\(firstMissingItem.title), then Rook can pack your timeline into a PDF."
     }
 
-    private var caseTitle: String {
-        let title = caseFile.userTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        return title.isEmpty ? "ProofKit Evidence Case" : "\(title) Evidence Case"
-    }
-
-    private var timelineReady: Bool {
-        !caseFile.evidenceItems.isEmpty
+    private var unreviewedProofCount: Int {
+        caseFile.evidenceItems.filter { evidenceItem in
+            evidenceItem.needsReview && !skippedEvidenceIDs.contains(evidenceItem.id)
+        }.count
     }
 
     private var caseDetailsReady: Bool {
         !caseFile.userTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var evidenceIndexReady: Bool {
+    private var timelineReady: Bool {
         !caseFile.evidenceItems.isEmpty
     }
 
-    private var attachmentsReady: Bool {
-        attachmentCount > 0
+    private var proofItemCountText: String {
+        let count = caseFile.evidenceItems.count
+        return count == 1 ? "1 proof item" : "\(count) proof items"
     }
 
     private var attachmentCount: Int {
         caseFile.evidenceItems.reduce(0) { $0 + $1.attachments.count }
-    }
-
-    private var attachmentBehaviorText: String {
-        switch attachmentCount {
-        case 0:
-            "No local attachments will be listed."
-        case 1:
-            "1 local attachment will be listed as a reference in the packet."
-        default:
-            "\(attachmentCount) local attachments will be listed as references in the packet."
-        }
     }
 
     private var watermarkSummary: String {
@@ -594,7 +617,7 @@ struct ExportPreviewView: View {
             let now = result.generatedAt
             let caseExport = ExportPacket(
                 userPacketTitle: result.caseTitle,
-                userPacketNotes: "Generated locally from current ProofKit records.",
+                userPacketNotes: "Generated locally from current ProofKit proof.",
                 localPDFFilePath: result.url.path(percentEncoded: false),
                 fileSizeBytes: result.fileSizeBytes,
                 pageCount: result.pageCount,
@@ -611,7 +634,9 @@ struct ExportPreviewView: View {
 
             withAnimation(ProofKitMotion.softSpring) {
                 latestExportURL = result.url
-                activePreviewURL = result.url
+                if activePreviewURL != nil {
+                    activePreviewURL = result.url
+                }
             }
             await refreshExportAccess()
         } catch {
@@ -622,20 +647,6 @@ struct ExportPreviewView: View {
 
         withAnimation(ProofKitMotion.standard) {
             isExporting = false
-        }
-    }
-
-    @MainActor
-    private func previewPacket() async {
-        guard !isExporting else { return }
-
-        if let currentExportURL {
-            withAnimation(ProofKitMotion.standard) {
-                activePreviewURL = currentExportURL
-                exportErrorMessage = nil
-            }
-        } else {
-            await generatePDF()
         }
     }
 
@@ -686,11 +697,11 @@ struct ExportPreviewView: View {
     private var exportPlanMessage: String {
         switch exportAccess.plan {
         case .free:
-            "Free export: small footer-only “Generated with ProofKit” mark. No diagonal watermark."
+            "Free export adds a small footer-only ProofKit mark. No diagonal watermark."
         case .paidUrgentExport:
-            "Paid Urgent Export: one final non-watermarked PDF for this case."
+            "Paid Urgent Export creates one final PDF for this case without a ProofKit watermark."
         case .pro:
-            "Pro export: no ProofKit watermark."
+            "Pro export creates PDFs without a ProofKit watermark."
         }
     }
 
@@ -703,13 +714,18 @@ struct ExportPreviewView: View {
         return URL(filePath: path)
     }
 
+    private func generatedDateText(for caseExport: ExportPacket) -> String {
+        guard let exportedAt = caseExport.exportedAt else { return "Unavailable" }
+        return Self.exportDateFormatter.string(from: exportedAt)
+    }
+
     private func pageCountText(for caseExport: ExportPacket) -> String {
-        guard let pageCount = caseExport.pageCount else { return "Pages unavailable" }
+        guard let pageCount = caseExport.pageCount else { return "Unavailable" }
         return pageCount == 1 ? "1 page" : "\(pageCount) pages"
     }
 
     private func fileSizeText(for caseExport: ExportPacket) -> String {
-        guard let fileSizeBytes = caseExport.fileSizeBytes else { return "Size unavailable" }
+        guard let fileSizeBytes = caseExport.fileSizeBytes else { return "Unavailable" }
         return Self.fileSizeFormatter.string(fromByteCount: fileSizeBytes)
     }
 
@@ -728,166 +744,100 @@ struct ExportPreviewView: View {
     }()
 }
 
-private struct CaseReadinessItem: Identifiable {
+private enum ExportScreenState {
+    case almostReady
+    case ready
+    case generated(ExportPacket, URL)
+}
+
+private enum ExportPagePalette {
+    static let ready = Color(red: 0.16, green: 0.82, blue: 0.78)
+    static let guidance = Color(red: 0.91, green: 0.68, blue: 0.31)
+}
+
+private struct MissingExportItem: Identifiable {
     let title: String
-    let detail: String
-    let isReady: Bool
+    let systemImage: String
 
     var id: String { title }
 }
 
-private struct ReadinessChecklistRow: View {
-    let item: CaseReadinessItem
+private struct ExportRookImage: View {
+    let imageName: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: item.isReady ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(item.isReady ? Color.green : ProofKitVisual.helperText)
-                .frame(width: 22)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(item.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Text(item.detail)
-                    .font(.caption)
-                    .foregroundStyle(ProofKitVisual.helperText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 11)
-    }
-}
-
-private struct ExportReadinessBadge: View {
-    let readyCount: Int
-    let totalCount: Int
-
-    var body: some View {
-        Text("\(readyCount)/\(totalCount) ready")
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(ProofKitVisual.helperText)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background {
-                Capsule(style: .continuous)
-                    .fill(ProofKitVisual.quietFill)
-            }
-    }
-}
-
-private struct PacketDocumentIcon: View {
-    var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(ProofKitVisual.cardBackground)
-                .frame(width: 58, height: 74)
-                .shadow(color: ProofKitVisual.elevatedShadow, radius: 10, x: 0, y: 5)
-                .overlay(alignment: .topLeading) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(ProofKitVisual.helperText.opacity(0.45))
-                            .frame(width: 26, height: 3)
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(ProofKitVisual.cardBorder)
-                            .frame(width: 34, height: 3)
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(ProofKitVisual.cardBorder)
-                            .frame(width: 28, height: 3)
-                    }
-                    .padding(12)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(ProofKitVisual.cardBorder, lineWidth: 1)
-                }
-
-            Text("PDF")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(ProofKitVisual.primaryActionForeground)
-                .tracking(0.4)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 4)
-                .background {
-                    Capsule(style: .continuous)
-                        .fill(ProofKitVisual.primaryActionBackground)
-                }
-                .offset(x: 7, y: 7)
-        }
-        .frame(width: 68, height: 82)
-        .accessibilityHidden(true)
+        Image(imageName)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFit()
+            .frame(width: 124, height: 124)
+            .accessibilityHidden(true)
+            .shadow(color: ProofKitVisual.elevatedShadow, radius: 12, x: 0, y: 8)
     }
 }
 
 private struct ExportStatusPill: View {
     let text: String
-    let systemImage: String
+    let color: Color
 
     var body: some View {
-        Label(text, systemImage: systemImage)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(ProofKitVisual.helperText)
+        Text(text)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(color)
+            .textCase(.uppercase)
+            .tracking(0.5)
             .lineLimit(1)
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
             .background {
                 Capsule(style: .continuous)
-                    .fill(ProofKitVisual.quietFill)
+                    .fill(color.opacity(0.15))
             }
     }
 }
 
-private extension String {
-    var caseTerminologyForDisplay: String {
-        replacingOccurrences(of: "Evidence Packet", with: "Evidence Case")
-            .replacingOccurrences(of: "evidence packet", with: "evidence case")
-            .replacingOccurrences(of: "Packet", with: "Case")
-            .replacingOccurrences(of: "packet", with: "case")
+private struct ExportActionLabel: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: systemImage)
+                .imageScale(.medium)
+
+            Text(title)
+                .lineLimit(1)
+                .minimumScaleFactor(0.88)
+                .allowsTightening(true)
+        }
+        .fontWeight(.semibold)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
-private struct ExportMetric: View {
+private struct ExportDetailsRow: View {
     let title: String
     let value: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title.uppercased())
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(ProofKitVisual.subduedText)
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.primary)
+
+            Spacer(minLength: 12)
 
             Text(value)
-                .font(.headline)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(ProofKitVisual.helperText)
+                .multilineTextAlignment(.trailing)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(ProofKitVisual.fieldBackground)
+        .padding(.vertical, 11)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(ProofKitVisual.divider)
+                .frame(height: 1)
         }
-    }
-}
-
-private struct ExportMetadataPill: View {
-    let text: String
-
-    var body: some View {
-        Text(text)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(ProofKitVisual.helperText)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background {
-                Capsule(style: .continuous)
-                    .fill(ProofKitVisual.quietFill)
-            }
     }
 }
 

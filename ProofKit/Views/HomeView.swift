@@ -13,14 +13,31 @@ struct HomeView: View {
     @State private var isOpeningCreatedCase = false
     @State private var paywallNotice: PaywallAccessDecision?
     @State private var activeAddProofSheet: HomeAddProofSheet?
+    private let accountSession: ProofKitAccountSession?
     private let onSettingsTapped: () -> Void
 
-    init(onSettingsTapped: @escaping () -> Void = {}) {
+    init(
+        accountSession: ProofKitAccountSession? = nil,
+        onSettingsTapped: @escaping () -> Void = {}
+    ) {
+        self.accountSession = accountSession
         self.onSettingsTapped = onSettingsTapped
     }
 
     private var featuredCase: CaseFile? {
         cases.first { $0.status == .active } ?? cases.first { $0.status != .archived }
+    }
+
+    private var headerGreeting: String {
+        if let accountSession {
+            return accountSession.welcomeBackGreeting
+        }
+
+        return cases.isEmpty ? "Welcome to ProofKit" : "Welcome back"
+    }
+
+    private var headerSubtitle: String {
+        cases.isEmpty ? "Let’s build your first proof case." : "Here’s what you’re working on."
     }
 
     var body: some View {
@@ -125,7 +142,7 @@ struct HomeView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 5) {
-                Text(cases.isEmpty ? "Welcome to ProofKit" : "Welcome back,\nRafael")
+                Text(headerGreeting)
                     .font(.system(size: 28, design: .default))
                     .foregroundStyle(.primary)
                     .kerning(-0.45)
@@ -133,34 +150,33 @@ struct HomeView: View {
                     .minimumScaleFactor(0.86)
                     .fixedSize(horizontal: false, vertical: true)
 
-                if cases.isEmpty {
-                    Text("Collect records, organize a timeline, and export a clean case PDF when you’re ready.")
-                        .font(.subheadline)
-                        .foregroundStyle(HomePalette.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text(headerSubtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(HomePalette.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 12)
 
-            Button(action: onSettingsTapped) {
-                Image(systemName: "person.crop.circle")
-                    .font(.system(size: 21, weight: .semibold))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.primary)
-                    .frame(width: 46, height: 46)
-                    .background {
-                        Circle()
-                            .fill(HomePalette.card)
-                    }
-                    .overlay {
-                        Circle()
-                            .stroke(HomePalette.hairline, lineWidth: 1)
-                    }
-                    .homeSoftShadow(radius: 12, y: 6)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Profile and settings")
+//  This was the Settings redirection button, not being used for now
+//            Button(action: onSettingsTapped) {
+//                Image(systemName: "person.crop.circle")
+//                    .font(.system(size: 21, weight: .semibold))
+//                    .symbolRenderingMode(.hierarchical)
+//                    .foregroundStyle(.primary)
+//                    .frame(width: 46, height: 46)
+//                    .background {
+//                        Circle()
+//                            .fill(HomePalette.card)
+//                    }
+//                    .overlay {
+//                        Circle()
+//                            .stroke(HomePalette.hairline, lineWidth: 1)
+//                    }
+//                    .homeSoftShadow(radius: 12, y: 6)
+//            }
+//            .buttonStyle(.plain)
+//            .accessibilityLabel("Profile and settings")
         }
         .padding(.top, 6)
         .proofKitAppear()
@@ -206,9 +222,10 @@ private enum HomeAddProofSheet: Identifiable {
 private struct FeaturedCaseCard: View {
     let caseFile: CaseFile
 
-    private var progress: Double { caseFile.homeCaseProgress }
-    private var currentStep: HomeCaseStep { caseFile.homeCurrentStep }
-    private var missingItems: [String] { caseFile.homeMissingItems }
+    private var readiness: CaseReadinessResult { CaseReadinessCalculator.calculate(for: caseFile) }
+    private var progress: Double { readiness.progress }
+    private var currentStep: HomeCaseStep { HomeCaseStep(readiness: readiness) }
+    private var missingItems: [String] { readiness.blockers }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -227,7 +244,7 @@ private struct FeaturedCaseCard: View {
                             .lineLimit(2)
 
                         HStack(spacing: 8) {
-                            HomeMetadataPill(text: caseFile.caseType.displayName)
+                            HomeMetadataPill(text: readiness.category.displayName)
                             HomeMetadataPill(text: caseFile.status.displayName)
                         }
                     }
@@ -240,13 +257,13 @@ private struct FeaturedCaseCard: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("\(Int((progress * 100).rounded()))% complete")
+                    Text("\(readiness.score)% ready")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
 
                     Spacer(minLength: 12)
 
-                    Text("Current step: \(currentStep.title)")
+                    Text(readiness.nextStepLabel)
                         .font(.footnote.weight(.medium))
                         .foregroundStyle(HomePalette.secondaryText)
                 }
@@ -274,7 +291,7 @@ private struct FeaturedCaseCard: View {
                     CaseDetailView(caseFile: caseFile)
                 } label: {
                     HStack(spacing: 6) {
-                        Text(progress >= 1 ? "Export case" : "Continue case")
+                        Text(readiness.signals.hasExportablePDF ? "Export case" : "Continue case")
                             .font(.footnote.weight(.semibold))
                         Image(systemName: "chevron.right")
                             .font(.caption2.weight(.bold))
@@ -295,15 +312,19 @@ private struct FeaturedCaseCard: View {
     }
 
     private var headline: String {
-        if progress >= 1 {
+        if readiness.signals.hasGeneratedExport {
+            return "Your packet is saved"
+        }
+
+        if readiness.signals.hasExportablePDF {
             return "Your case is ready to export"
         }
 
-        if progress > 0.75 {
+        if readiness.score >= 75 {
             return "Your case is almost ready"
         }
 
-        if progress >= 0.25 {
+        if readiness.score >= 25 {
             return "Your case is in progress"
         }
 
@@ -312,8 +333,16 @@ private struct FeaturedCaseCard: View {
 
     @ViewBuilder
     private var missingItemsLabel: some View {
-        if missingItems.isEmpty {
-            Label(progress >= 1 ? "Ready to export" : "Next: review case", systemImage: progress >= 1 ? "checkmark.circle" : "list.bullet.clipboard")
+        if readiness.counts.generatedExportCount > 0 {
+            Label(
+                readiness.counts.generatedExportCount == 1 ? "1 packet saved" : "\(readiness.counts.generatedExportCount) packets saved",
+                systemImage: "doc.text.fill"
+            )
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(HomePalette.secondaryText)
+            .lineLimit(2)
+        } else if missingItems.isEmpty {
+            Label(readiness.nextStepLabel, systemImage: readiness.signals.hasExportablePDF ? "checkmark.circle" : "list.bullet.clipboard")
                 .font(.footnote.weight(.medium))
                 .foregroundStyle(HomePalette.secondaryText)
                 .lineLimit(2)
@@ -460,6 +489,7 @@ private struct MyCasesSection: View {
 private struct CaseRow: View {
     let caseFile: CaseFile
     let onAddProof: () -> Void
+    private var readiness: CaseReadinessResult { CaseReadinessCalculator.calculate(for: caseFile) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
@@ -472,9 +502,14 @@ private struct CaseRow: View {
                         .foregroundStyle(.primary)
                         .lineLimit(2)
 
-                    Text("\(caseFile.evidenceItems.count.evidenceItemCountText) · \(caseFile.homeUpdatedText)")
+                    Text("\(readiness.category.displayName) · \(readiness.counts.proofItemCount.evidenceItemCountText) · \(caseFile.homeUpdatedText)")
                         .font(.subheadline)
                         .foregroundStyle(HomePalette.secondaryText)
+                        .lineLimit(1)
+
+                    Text("\(readiness.score)% ready · \(readiness.nextStepLabel)")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(HomePalette.tertiaryText)
                         .lineLimit(1)
                 }
 
@@ -642,6 +677,18 @@ private enum HomeCaseStep: CaseIterable, Identifiable {
 
     var id: String { title }
 
+    init(readiness: CaseReadinessResult) {
+        if !readiness.signals.hasTitle || !readiness.signals.hasSelectedCategory {
+            self = .case
+        } else if !readiness.signals.hasAtLeastOneProofItem || !readiness.signals.allProofItemsHandled {
+            self = .proof
+        } else if !readiness.signals.hasTimelineDate || !readiness.signals.hasTimelineDepthOrStrongItem {
+            self = .timeline
+        } else {
+            self = .export
+        }
+    }
+
     var title: String {
         switch self {
         case .case:
@@ -791,7 +838,7 @@ private extension CaseFile {
     }
 
     var homeThumbnailInitials: String {
-        let source = homeDisplayTitle == "Untitled Case" ? caseType.displayName : homeDisplayTitle
+        let source = homeDisplayTitle == "Untitled Case" ? caseReadinessCategory.displayName : homeDisplayTitle
         let words = source
             .split(separator: " ")
             .prefix(2)
@@ -801,153 +848,9 @@ private extension CaseFile {
         return initials.isEmpty ? "PK" : initials
     }
 
-    var homeCaseProgress: Double {
-        if status == .exported {
-            return 1
-        }
-
-        let evidenceCount = evidenceItems.count
-        let datedRatio = evidenceCount == 0 ? 0 : Double(evidenceItems.filter { $0.eventDate != nil }.count) / Double(evidenceCount)
-        let reviewedRatio = evidenceCount == 0 ? 0 : Double(evidenceItems.filter { !$0.needsReview }.count) / Double(evidenceCount)
-
-        var score = 0.0
-
-        if !userTitle.homeTrimmedText.isEmpty {
-            score += 0.12
-        }
-
-        if caseType != .general {
-            score += 0.04
-        }
-
-        score += min(Double(evidenceCount), 3) / 3 * 0.32
-        score += datedRatio * 0.16
-        score += reviewedRatio * 0.11
-
-        if !userSummary.homeTrimmedText.isEmpty || !userNotes.homeTrimmedText.isEmpty {
-            score += 0.04
-        }
-
-        if status == .active {
-            score += 0.05
-        }
-
-        if status == .readyForExport {
-            score = max(score, 0.88)
-        }
-
-        let cappedScore: Double
-        switch status {
-        case .draft:
-            cappedScore = min(score, 0.78)
-        case .active:
-            cappedScore = min(score, 0.96)
-        case .readyForExport:
-            cappedScore = min(score, 0.98)
-        case .exported:
-            cappedScore = 1
-        case .archived:
-            cappedScore = min(score, 0.90)
-        }
-
-        return min(max(cappedScore, 0), 1)
-    }
-
-    var homeCurrentStep: HomeCaseStep {
-        if homeCaseProgress >= 1 || status == .readyForExport || status == .exported {
-            return .export
-        }
-
-        if homeCaseProgress < 0.25 {
-            return .case
-        }
-
-        if homeCaseProgress < 0.58 {
-            return .proof
-        }
-
-        if homeCaseProgress < 0.86 {
-            return .timeline
-        }
-
-        return .export
-    }
-
-    var homeMissingItems: [String] {
-        if status == .exported || status == .readyForExport {
-            return []
-        }
-
-        if evidenceItems.isEmpty {
-            return ["proof items"]
-        }
-
-        var missingItems: [String] = []
-
-        if caseType.homeNeedsLandlordResponse, !homeHasLandlordResponse {
-            missingItems.append("landlord response")
-        }
-
-        if caseType.homeNeedsRepairPhoto, !homeHasRepairPhoto {
-            missingItems.append("repair photo")
-        }
-
-        if evidenceItems.contains(where: { $0.eventDate == nil }) {
-            missingItems.append("timeline dates")
-        }
-
-        if userTitle.homeTrimmedText.isEmpty {
-            missingItems.append("case title")
-        }
-
-        return Array(missingItems.prefix(3))
-    }
-
-    private var homeHasLandlordResponse: Bool {
-        evidenceItems.contains { evidenceItem in
-            let text = evidenceItem.homeSearchText
-            let mentionsLandlord = text.contains("landlord") || text.contains("property manager") || text.contains("building manager")
-            let suggestsResponse = text.contains("response") || text.contains("replied") || text.contains("reply") || text.contains("from landlord") || text.contains("from property manager")
-            return mentionsLandlord && suggestsResponse
-        }
-    }
-
-    private var homeHasRepairPhoto: Bool {
-        evidenceItems.contains { evidenceItem in
-            let hasPhotoAttachment = evidenceItem.category == .photo || evidenceItem.attachments.contains { $0.attachmentType == .photo || $0.attachmentType == .screenshot }
-            let text = evidenceItem.homeSearchText
-            return hasPhotoAttachment && (text.contains("repair") || text.contains("fixed") || text.contains("after"))
-        }
-    }
-}
-
-private extension EvidenceItem {
-    var homeSearchText: String {
-        [userTitle, userNotes, userCleanedNote, userWhyThisMatters, originalOCRText]
-            .joined(separator: " ")
-            .lowercased()
-    }
 }
 
 private extension CaseType {
-    var homeNeedsLandlordResponse: Bool {
-        switch self {
-        case .apartmentIssue, .tenantLandlord:
-            true
-        default:
-            false
-        }
-    }
-
-    var homeNeedsRepairPhoto: Bool {
-        switch self {
-        case .apartmentIssue, .tenantLandlord, .insuranceIssue, .insurance:
-            true
-        default:
-            false
-        }
-    }
-
     var homeFallbackColors: [Color] {
         switch self {
         case .apartmentIssue, .tenantLandlord:

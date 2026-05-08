@@ -345,7 +345,11 @@ struct GlobalSettingsView: View {
             return
         }
 
-        accountSession = try? await services.account.currentSession()
+        let authResult = try? await services.account.currentSession(
+            onboardingCategory: nil,
+            onboardingDisplayName: nil
+        )
+        accountSession = authResult?.session
     }
 
     private func perform(_ confirmation: SettingsConfirmation) {

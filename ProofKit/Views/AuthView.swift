@@ -3,12 +3,14 @@ import UIKit
 
 struct ProofKitAuthView: View {
     private let services: ServiceContainer
-    private let onAuthenticated: (ProofKitAccountSession, Bool) async -> Void
+    private let onAuthenticated: (ProofKitAccountSession, Bool, ProofKitOnboardingFirstCaseSeed?) async -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var authMode: ProofKitAuthMode = .welcome
     @State private var emailBackDestination: ProofKitAuthMode = .landing
+    @State private var selectedPurpose: ProofKitOnboardingPurpose?
+    @State private var onboardingDisplayName = ""
     @State private var isSignUpMode = false
     @State private var email = ""
     @State private var password = ""
@@ -20,7 +22,7 @@ struct ProofKitAuthView: View {
     init(
         services: ServiceContainer,
         initialErrorMessage: String? = nil,
-        onAuthenticated: @escaping (ProofKitAccountSession, Bool) async -> Void
+        onAuthenticated: @escaping (ProofKitAccountSession, Bool, ProofKitOnboardingFirstCaseSeed?) async -> Void
     ) {
         self.services = services
         self.onAuthenticated = onAuthenticated
@@ -41,6 +43,20 @@ struct ProofKitAuthView: View {
                     switch authMode {
                     case .welcome:
                         welcomeContent(in: proxy)
+                    case .name:
+                        ProofKitOnboardingNameView(displayName: $onboardingDisplayName) { displayName in
+                            continueFromNameCapture(displayName)
+                        }
+                    case .privacy:
+                        ProofKitOnboardingPrivacyView {
+                            continueFromPrivacyPromise()
+                        }
+                    case .purpose:
+                        ProofKitOnboardingPurposeView { purpose in
+                            continueFromPurposeSelection(purpose)
+                        }
+                    case .purposeAuth:
+                        purposeAuthContent(in: proxy)
                     case .landing:
                         landingContent(in: proxy)
                     case .email:
@@ -75,14 +91,10 @@ struct ProofKitAuthView: View {
             Spacer()
                 .frame(height: welcomeHeroTopOffset(for: proxy))
 
-            Image("RookLogin")
-                .resizable()
-                .scaledToFit()
-                .frame(
-                    width: ProofKitAuthLayout.rookHeroSize(for: proxy),
-                    height: ProofKitAuthLayout.rookHeroSize(for: proxy)
-                )
-                .accessibilityHidden(true)
+            ProofKitAuthRookImage(
+                imageName: "RookLogin",
+                size: ProofKitAuthLayout.rookHeroSize(for: proxy)
+            )
                 .proofKitAppear(delay: reduceMotion ? 0 : 0.04)
 
             Spacer()
@@ -162,14 +174,10 @@ struct ProofKitAuthView: View {
             Spacer()
                 .frame(height: landingHeroTopOffset(for: proxy))
 
-            Image("RookLogin")
-                .resizable()
-                .scaledToFit()
-                .frame(
-                    width: ProofKitAuthLayout.rookHeroSize(for: proxy),
-                    height: ProofKitAuthLayout.rookHeroSize(for: proxy)
-                )
-                .accessibilityHidden(true)
+            ProofKitAuthRookImage(
+                imageName: "RookLogin",
+                size: ProofKitAuthLayout.rookHeroSize(for: proxy)
+            )
                 .proofKitAppear(delay: reduceMotion ? 0 : 0.04)
 
             Spacer()
@@ -185,7 +193,42 @@ struct ProofKitAuthView: View {
 
             authButtonStack(
                 bottomInset: proxy.safeAreaInsets.bottom,
-                isCompactHeight: proxy.size.height < 740
+                isCompactHeight: proxy.size.height < 740,
+                emailStartsSignUp: false,
+                backDestination: .landing
+            )
+                .proofKitAppear(delay: reduceMotion ? 0 : 0.12)
+        }
+        .padding(.horizontal, ProofKitAuthLayout.horizontalPadding)
+    }
+
+    private func purposeAuthContent(in proxy: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            Spacer()
+                .frame(height: landingHeroTopOffset(for: proxy))
+
+            ProofKitAuthRookImage(
+                imageName: "RookLogin",
+                size: ProofKitAuthLayout.rookHeroSize(for: proxy)
+            )
+                .proofKitAppear(delay: reduceMotion ? 0 : 0.04)
+
+            Spacer()
+                .frame(height: landingHeroTitleSpacing(for: proxy))
+
+            authHeadline(
+                title: "Sign in to use ProofKit",
+                subtitle: "Your cases stay private on this device."
+            )
+            .proofKitAppear(delay: reduceMotion ? 0 : 0.08)
+
+            Spacer(minLength: landingButtonSpacerMinLength(for: proxy))
+
+            authButtonStack(
+                bottomInset: proxy.safeAreaInsets.bottom,
+                isCompactHeight: proxy.size.height < 740,
+                emailStartsSignUp: true,
+                backDestination: .purposeAuth
             )
                 .proofKitAppear(delay: reduceMotion ? 0 : 0.12)
         }
@@ -198,21 +241,17 @@ struct ProofKitAuthView: View {
                 Spacer()
                     .frame(height: max(proxy.safeAreaInsets.top + 94, 132))
 
-                Image("RookLogin")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(
-                        width: ProofKitAuthLayout.rookHeroSize(for: proxy),
-                        height: ProofKitAuthLayout.rookHeroSize(for: proxy)
-                    )
-                    .accessibilityHidden(true)
+                ProofKitAuthRookImage(
+                    imageName: "RookLogin",
+                    size: ProofKitAuthLayout.rookHeroSize(for: proxy)
+                )
 
                 Spacer()
                     .frame(height: 34)
 
                 authHeadline(
                     title: isSignUpMode ? "Create account" : "Welcome back",
-                    subtitle: isSignUpMode ? "Sign up with your email" : "Sign in with your email"
+                    subtitle: emailAuthSubtitle
                 )
 
                 VStack(spacing: 12) {
@@ -269,19 +308,21 @@ struct ProofKitAuthView: View {
                 .disabled(isWorking)
                 .padding(.top, 18)
 
-                Button {
-                    ProofKitAuthHaptics.tap()
-                    sendMagicLink()
-                } label: {
-                    Text("Email me a magic link")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.88))
-                        .padding(.vertical, 14)
-                        .frame(maxWidth: .infinity)
+                if shouldShowMagicLinkButton {
+                    Button {
+                        ProofKitAuthHaptics.tap()
+                        sendMagicLink()
+                    } label: {
+                        Text("Email me a magic link")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.88))
+                            .padding(.vertical, 14)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(ProofKitAuthPressButtonStyle())
+                    .disabled(isWorking)
+                    .padding(.top, 2)
                 }
-                .buttonStyle(ProofKitAuthPressButtonStyle())
-                .disabled(isWorking)
-                .padding(.top, 2)
 
                 Spacer()
                     .frame(height: 12)
@@ -312,7 +353,12 @@ struct ProofKitAuthView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func authButtonStack(bottomInset: CGFloat, isCompactHeight: Bool) -> some View {
+    private func authButtonStack(
+        bottomInset: CGFloat,
+        isCompactHeight: Bool,
+        emailStartsSignUp: Bool,
+        backDestination: ProofKitAuthMode
+    ) -> some View {
         VStack(spacing: 14) {
             ProofKitAuthButton(
                 title: "Continue with Apple",
@@ -346,7 +392,7 @@ struct ProofKitAuthView: View {
                 fontSize: 22,
                 icon: { EmptyView() },
                 action: {
-                    showEmailAuth(signUp: false, backDestination: .landing)
+                    showEmailAuth(signUp: emailStartsSignUp, backDestination: backDestination)
                 }
             )
 
@@ -361,7 +407,7 @@ struct ProofKitAuthView: View {
             ProofKitAuthHaptics.tap()
             showEmailAuth(
                 signUp: !isSignUpMode,
-                backDestination: authMode == .email ? emailBackDestination : .landing,
+                backDestination: currentAuthOptionsDestination,
                 focusDelay: 0
             )
         } label: {
@@ -382,6 +428,38 @@ struct ProofKitAuthView: View {
         .accessibilityLabel(isSignUpMode ? "Already have an account? Sign in" : "Don't have an account? Sign up")
     }
 
+    private var emailAuthSubtitle: String {
+        if isSignUpMode {
+            if selectedPurpose != nil {
+                return "Your cases stay private on this device."
+            }
+
+            return "Sign up with your email"
+        }
+
+        if selectedPurpose != nil {
+            return "Sign in to access your workspace and start this case."
+        }
+
+        return "Sign in with your email"
+    }
+
+    private var shouldShowMagicLinkButton: Bool {
+        selectedPurpose == nil && !isSignUpMode
+    }
+
+    private var currentAuthOptionsDestination: ProofKitAuthMode {
+        if authMode == .email {
+            return emailBackDestination
+        }
+
+        if authMode == .purposeAuth {
+            return .purposeAuth
+        }
+
+        return .landing
+    }
+
     private func backButton(topInset: CGFloat) -> some View {
         Button {
             ProofKitAuthHaptics.tap()
@@ -392,9 +470,28 @@ struct ProofKitAuthView: View {
                 if emailBackDestination == .landing {
                     isSignUpMode = false
                     confirmationPassword = ""
+                } else if emailBackDestination == .purposeAuth {
+                    isSignUpMode = true
+                    confirmationPassword = ""
                 }
             } else {
-                showWelcome()
+                switch authMode {
+                case .purposeAuth:
+                    focusedField = nil
+                    isSignUpMode = false
+                    confirmationPassword = ""
+                    authMode = .purpose
+                case .purpose:
+                    focusedField = nil
+                    authMode = .privacy
+                case .privacy:
+                    focusedField = nil
+                    authMode = .name
+                case .name, .landing:
+                    showWelcome()
+                case .welcome, .email:
+                    break
+                }
             }
         } label: {
             Image(systemName: "arrow.left")
@@ -492,18 +589,75 @@ struct ProofKitAuthView: View {
 
     private var backButtonAccessibilityLabel: String {
         if authMode == .email {
-            return emailBackDestination == .welcome ? "Back to welcome" : "Back to sign in options"
+            switch emailBackDestination {
+            case .welcome:
+                return "Back to welcome"
+            case .name:
+                return "Back to name"
+            case .privacy:
+                return "Back to privacy promise"
+            case .purpose:
+                return "Back to proof purpose"
+            case .purposeAuth:
+                return "Back to sign in to use ProofKit"
+            case .landing, .email:
+                return "Back to sign in options"
+            }
+        }
+
+        if authMode == .purposeAuth {
+            return "Back to proof purpose"
+        }
+
+        if authMode == .purpose {
+            return "Back to privacy promise"
+        }
+
+        if authMode == .privacy {
+            return "Back to name"
         }
 
         return "Back to welcome"
     }
 
     private func beginOnboarding() {
-        showEmailAuth(signUp: true, backDestination: .welcome)
+        focusedField = nil
+        selectedPurpose = nil
+        ProofKitPendingOnboardingSeedStore.clear()
+        onboardingDisplayName = ""
+        confirmationPassword = ""
+        authMode = .name
+    }
+
+    private func continueFromNameCapture(_ displayName: String) {
+        focusedField = nil
+        onboardingDisplayName = displayName
+        ProofKitPendingOnboardingSeedStore.saveProfileDisplayName(displayName)
+        confirmationPassword = ""
+        authMode = .privacy
+    }
+
+    private func continueFromPrivacyPromise() {
+        focusedField = nil
+        confirmationPassword = ""
+        authMode = .purpose
+    }
+
+    private func continueFromPurposeSelection(_ purpose: ProofKitOnboardingPurpose) {
+        focusedField = nil
+        selectedPurpose = purpose
+        ProofKitPendingOnboardingSeedStore.save(purpose.firstCaseSeed)
+        isSignUpMode = true
+        confirmationPassword = ""
+        emailBackDestination = .purposeAuth
+        authMode = .purposeAuth
     }
 
     private func showSignInOptions() {
         focusedField = nil
+        selectedPurpose = nil
+        ProofKitPendingOnboardingSeedStore.clearUnlessAccountCreationAttemptPending()
+        onboardingDisplayName = ProofKitPendingOnboardingSeedStore.pendingProfileDisplayName() ?? ""
         isSignUpMode = false
         confirmationPassword = ""
         emailBackDestination = .landing
@@ -512,8 +666,12 @@ struct ProofKitAuthView: View {
 
     private func showWelcome() {
         focusedField = nil
+        selectedPurpose = nil
+        ProofKitPendingOnboardingSeedStore.clearUnlessAccountCreationAttemptPending()
+        onboardingDisplayName = ProofKitPendingOnboardingSeedStore.pendingProfileDisplayName() ?? ""
         isSignUpMode = false
         confirmationPassword = ""
+        emailBackDestination = .landing
         authMode = .welcome
     }
 
@@ -539,12 +697,24 @@ struct ProofKitAuthView: View {
     private func authenticateWithOAuth(_ provider: ProofKitOAuthProvider) {
         guard ensureConfigured() else { return }
         guard !isWorking else { return }
+        resignAuthFocus()
         isWorking = true
 
         Task { @MainActor in
             do {
-                let session = try await services.account.signInWithOAuth(provider)
-                await onAuthenticated(session, false)
+                let seed = selectedPurpose?.firstCaseSeed
+                let profileDisplayName = onboardingProfileDisplayName(for: seed)
+                let result = try await services.account.signInWithOAuth(
+                    provider,
+                    onboardingCategory: seed?.id,
+                    onboardingDisplayName: profileDisplayName
+                )
+                await onAuthenticated(
+                    result.session,
+                    result.isNewAccount,
+                    result.isNewAccount ? seed : nil
+                )
+                return
             } catch {
                 notice = ProofKitAuthNotice(title: "Couldn’t Sign In", message: Self.message(for: error))
             }
@@ -575,18 +745,53 @@ struct ProofKitAuthView: View {
             return
         }
 
+        let shouldCreateAccount = isSignUpMode
+        let selectedSeed = selectedPurpose?.firstCaseSeed
+        let purposeSeed = selectedSeed ?? (shouldCreateAccount ? nil : ProofKitPendingOnboardingSeedStore.pendingSeed())
+        let profileDisplayName = onboardingProfileDisplayName(for: purposeSeed)
+
+        if shouldCreateAccount, let purposeSeed {
+            ProofKitPendingOnboardingSeedStore.save(purposeSeed)
+            if let profileDisplayName {
+                ProofKitPendingOnboardingSeedStore.saveProfileDisplayName(profileDisplayName)
+            }
+            ProofKitPendingOnboardingSeedStore.markAccountCreationAttempt(email: cleanEmail)
+        }
+
+        resignAuthFocus()
         isWorking = true
         Task { @MainActor in
             do {
-                let session: ProofKitAccountSession
-                if isSignUpMode {
-                    session = try await services.account.signUpWithPassword(email: cleanEmail, password: password)
+                let result: ProofKitAccountAuthResult
+                if shouldCreateAccount {
+                    result = try await services.account.signUpWithPassword(
+                        email: cleanEmail,
+                        password: password,
+                        onboardingCategory: purposeSeed?.id,
+                        onboardingDisplayName: profileDisplayName
+                    )
                 } else {
-                    session = try await services.account.signInWithPassword(email: cleanEmail, password: password)
+                    result = try await services.account.signInWithPassword(email: cleanEmail, password: password)
                 }
-                await onAuthenticated(session, isSignUpMode)
+
+                let shouldStartFirstCase = purposeSeed != nil && (
+                    result.isNewAccount ||
+                    shouldCreateAccount ||
+                    ProofKitPendingOnboardingSeedStore.hasPendingAccountCreationAttempt(matching: result.session.email)
+                )
+
+                await onAuthenticated(
+                    result.session,
+                    shouldStartFirstCase,
+                    shouldStartFirstCase ? purposeSeed : nil
+                )
+                return
             } catch {
-                notice = ProofKitAuthNotice(title: isSignUpMode ? "Couldn’t Create Account" : "Couldn’t Sign In", message: Self.message(for: error))
+                if shouldCreateAccount, !Self.isEmailConfirmationRequired(error) {
+                    ProofKitPendingOnboardingSeedStore.clearAccountCreationAttempt()
+                }
+
+                notice = ProofKitAuthNotice(title: shouldCreateAccount ? "Couldn’t Create Account" : "Couldn’t Sign In", message: Self.message(for: error))
             }
             isWorking = false
         }
@@ -603,6 +808,7 @@ struct ProofKitAuthView: View {
             return
         }
 
+        resignAuthFocus()
         isWorking = true
         Task { @MainActor in
             do {
@@ -630,6 +836,23 @@ struct ProofKitAuthView: View {
         return true
     }
 
+    private func resignAuthFocus() {
+        focusedField = nil
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+    }
+
+    private func onboardingProfileDisplayName(for seed: ProofKitOnboardingFirstCaseSeed?) -> String? {
+        guard seed != nil else { return nil }
+
+        return ProofKitOnboardingProfileName.normalized(onboardingDisplayName)
+            ?? ProofKitPendingOnboardingSeedStore.pendingProfileDisplayName()
+    }
+
     private static func message(for error: Error) -> String {
         if let localizedError = error as? LocalizedError,
            let description = localizedError.errorDescription {
@@ -637,6 +860,14 @@ struct ProofKitAuthView: View {
         }
 
         return error.localizedDescription
+    }
+
+    private static func isEmailConfirmationRequired(_ error: Error) -> Bool {
+        if case ProofKitError.remotePolicyViolation(let message) = error {
+            return message.localizedCaseInsensitiveContains("check your email")
+        }
+
+        return false
     }
 }
 
@@ -648,14 +879,10 @@ struct ProofKitAuthLaunchView: View {
                     .ignoresSafeArea()
 
                 VStack(spacing: 26) {
-                    Image("RookLogin")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(
-                            width: ProofKitAuthLayout.rookHeroSize(for: proxy),
-                            height: ProofKitAuthLayout.rookHeroSize(for: proxy)
-                        )
-                        .accessibilityHidden(true)
+                    ProofKitAuthRookImage(
+                        imageName: "RookLogin",
+                        size: ProofKitAuthLayout.rookHeroSize(for: proxy)
+                    )
 
                     ProgressView()
                         .tint(.white)
@@ -701,6 +928,21 @@ struct ProofKitSignupSuccessView: View {
     }
 }
 
+struct ProofKitAuthRookImage: View {
+    let imageName: String
+    let size: CGFloat
+
+    var body: some View {
+        Image(imageName)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFill()
+            .frame(width: size, height: size)
+            .clipped()
+            .accessibilityHidden(true)
+    }
+}
+
 private struct ProofKitAuthButton<Icon: View>: View {
     let title: String
     let foreground: Color
@@ -734,7 +976,7 @@ private struct ProofKitAuthButton<Icon: View>: View {
     }
 }
 
-private enum ProofKitAuthHaptics {
+enum ProofKitAuthHaptics {
     static func tap() {
         let generator = UIImpactFeedbackGenerator(style: .soft)
         generator.prepare()
@@ -762,7 +1004,7 @@ private struct ProofKitGoogleMark: View {
     }
 }
 
-private struct ProofKitAuthPressButtonStyle: ButtonStyle {
+struct ProofKitAuthPressButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
@@ -779,6 +1021,10 @@ private struct ProofKitAuthNotice: Identifiable {
 
 private enum ProofKitAuthMode: Hashable {
     case welcome
+    case name
+    case privacy
+    case purpose
+    case purposeAuth
     case landing
     case email
 }
@@ -789,17 +1035,21 @@ private enum ProofKitAuthField: Hashable {
     case confirmationPassword
 }
 
-private enum ProofKitAuthLayout {
+enum ProofKitAuthLayout {
     static let horizontalPadding: CGFloat = 20
     static let buttonHeight: CGFloat = 55
     static let welcomeButtonHeight: CGFloat = 62
 
     static func rookHeroSize(for proxy: GeometryProxy) -> CGFloat {
-        min(334, max(252, proxy.size.height * 0.38))
+        if proxy.size.height < 740 {
+            return min(224, max(198, proxy.size.height * 0.30))
+        }
+
+        return min(286, max(248, proxy.size.height * 0.33))
     }
 }
 
-private enum ProofKitAuthPalette {
+enum ProofKitAuthPalette {
     static let background = dynamicColor(
         light: UIColor(red: 0.972, green: 0.968, blue: 0.958, alpha: 1),
         dark: UIColor(red: 0.047, green: 0.059, blue: 0.078, alpha: 1)
@@ -825,7 +1075,7 @@ private enum ProofKitAuthPalette {
     }
 }
 
-private extension View {
+extension View {
     func proofKitAuthFieldStyle() -> some View {
         self
             .font(.system(size: 18, weight: .medium, design: .rounded))
@@ -845,7 +1095,7 @@ private extension View {
 }
 
 #Preview("Auth") {
-    ProofKitAuthView(services: .live) { _, _ in
+    ProofKitAuthView(services: .live) { _, _, _ in
         // Preview-only no-op.
     }
 }

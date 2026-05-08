@@ -111,7 +111,7 @@ struct ManualEvidenceEntryView: View {
             let currentCount = caseFile.evidenceItems.count
             let remainingCount = max(0, evidenceItemLimit - currentCount)
 
-            Text(remainingCount == 0 ? "\(entitlementSnapshot.plan.displayName) has reached \(currentCount)/\(evidenceItemLimit) evidence items for this case. Upgrade to add more proof." : "\(currentCount)/\(evidenceItemLimit) evidence items used. This manual record will stay local and does not use AI credits.")
+            Text(remainingCount == 0 ? "\(entitlementSnapshot.plan.displayName) has reached \(currentCount)/\(evidenceItemLimit) proof items for this case. Upgrade to add more proof." : "\(currentCount)/\(evidenceItemLimit) proof items used. This manual record will stay local and does not use AI credits.")
                 .font(.footnote)
                 .foregroundStyle(ProofKitVisual.helperText)
                 .fixedSize(horizontal: false, vertical: true)

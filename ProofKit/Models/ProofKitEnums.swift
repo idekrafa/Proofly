@@ -35,7 +35,7 @@ enum CaseType: String, CaseIterable, Codable, Identifiable {
         case .smallClaims:
             "Small Claims"
         case .tenantLandlord:
-            "Tenant / Landlord"
+            "Rent / Lease"
         case .employment:
             "Employment"
         case .consumer:
@@ -47,7 +47,7 @@ enum CaseType: String, CaseIterable, Codable, Identifiable {
         case .immigration:
             "Immigration"
         case .other:
-            "Other"
+            "Something Else"
         }
     }
 }
@@ -112,7 +112,7 @@ enum EvidenceCategory: String, CaseIterable, Codable, Identifiable {
         case .note:
             "Note"
         case .other:
-            "Other"
+            "Something Else"
         }
     }
 }
@@ -140,7 +140,7 @@ enum AttachmentType: String, CaseIterable, Codable, Identifiable {
         case .textNote:
             "Text Note"
         case .other:
-            "Other"
+            "Something Else"
         }
     }
 }

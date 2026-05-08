@@ -373,7 +373,7 @@ private final class PDFCaseRenderer {
         beginContentPage(
             context,
             title: "Evidence Index",
-            subtitle: "Reference list for the evidence item pages that follow."
+            subtitle: "Reference list for the proof item pages that follow."
         )
 
         guard !evidenceItems.isEmpty else {
@@ -539,7 +539,7 @@ private final class PDFCaseRenderer {
         drawSectionTitle("Attachments")
 
         guard !attachments.isEmpty else {
-            drawEmptyMessage("No attachments linked to this evidence item.")
+            drawEmptyMessage("No attachments linked to this proof item.")
             return
         }
 

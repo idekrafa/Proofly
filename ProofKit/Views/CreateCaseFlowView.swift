@@ -284,7 +284,7 @@ private enum CreateCaseOption: String, CaseIterable, Identifiable {
         case .insuranceIssue:
             "Insurance issue"
         case .other:
-            "Other"
+            "Something else"
         }
     }
 

@@ -26,19 +26,19 @@ struct TimelineView: View {
         VStack(alignment: .leading, spacing: 18) {
             SectionHeader(
                 title: "Timeline",
-                subtitle: "Evidence items grouped by the date they happened."
+                subtitle: "Proof items grouped by the date they happened."
             )
 
             if timelineGroups.isEmpty {
                 PlaceholderPanel(
                     systemImage: "calendar",
                     title: "Timeline is empty",
-                    message: "Add your first evidence item when you are ready. ProofKit will place dated items into a calm chronological view.",
+                    message: "Add your first proof item when you are ready. ProofKit will place dated items into a calm chronological view.",
                     steps: [
                         PlaceholderStep(
                             systemImage: "plus",
-                            title: "Add evidence",
-                            detail: "Use the Add Evidence button above to import a file or write a note."
+                            title: "Add proof",
+                            detail: "Use the Add Proof button above to import a file or write a note."
                         ),
                         PlaceholderStep(
                             systemImage: "calendar.badge.clock",
@@ -48,7 +48,7 @@ struct TimelineView: View {
                         PlaceholderStep(
                             systemImage: "list.bullet.rectangle",
                             title: "Review the timeline",
-                            detail: "Evidence items will group by date so larger cases stay readable."
+                            detail: "Proof items will group by date so larger cases stay readable."
                         )
                     ],
                     footnote: "There is no need to finish everything at once."
@@ -116,7 +116,7 @@ struct TimelineView: View {
 
     private var timelineSummaryText: String {
         let sectionText = timelineGroups.count == 1 ? "1 date section" : "\(timelineGroups.count) date sections"
-        let evidenceText = evidenceItemCount == 1 ? "1 evidence item" : "\(evidenceItemCount) evidence items"
+        let evidenceText = evidenceItemCount == 1 ? "1 proof item" : "\(evidenceItemCount) proof items"
         return "Oldest first • \(evidenceText) across \(sectionText)"
     }
 
@@ -140,8 +140,8 @@ struct TimelineView: View {
         } catch {
             withAnimation(ProofKitMotion.standard) {
                 deletionNotice = TimelineDeletionNotice(
-                    title: "Evidence not deleted",
-                    message: "This evidence item could not be deleted. Please try again."
+                    title: "Proof not deleted",
+                    message: "This proof item could not be deleted. Please try again."
                 )
             }
         }
@@ -244,6 +244,7 @@ private struct SwipeToDeleteEvidenceRow<Content: View>: View {
                 .frame(width: deleteButtonWidth, height: rowHeight)
                 .opacity(visibleOffset < 0 && rowHeight > 0 ? 1 : 0)
                 .allowsHitTesting(isDeleteRevealed)
+                .zIndex(2)
 
             content()
                 .background {
@@ -256,6 +257,7 @@ private struct SwipeToDeleteEvidenceRow<Content: View>: View {
                 .contentShape(Rectangle())
                 .onTapGesture(perform: handleTap)
                 .simultaneousGesture(revealGesture)
+                .zIndex(1)
         }
         .clipped()
         .onPreferenceChange(SwipeRowHeightPreferenceKey.self) { height in
@@ -274,10 +276,7 @@ private struct SwipeToDeleteEvidenceRow<Content: View>: View {
 
     private var deleteButton: some View {
         Button(role: .destructive) {
-            withAnimation(ProofKitMotion.standard) {
-                restingOffset = 0
-            }
-            onDelete()
+            performDelete()
         } label: {
             VStack(spacing: 4) {
                 Image(systemName: "trash")
@@ -291,9 +290,16 @@ private struct SwipeToDeleteEvidenceRow<Content: View>: View {
             .frame(maxHeight: .infinity)
             .background(Color.red)
             .clipShape(RoundedRectangle(cornerRadius: ProofKitVisual.cardCornerRadius, style: .continuous))
-            .accessibilityLabel("Delete evidence")
+            .contentShape(RoundedRectangle(cornerRadius: ProofKitVisual.cardCornerRadius, style: .continuous))
+            .accessibilityLabel("Delete proof")
         }
         .buttonStyle(.plain)
+    }
+
+    private func performDelete() {
+        isSuppressingTap = true
+        onDelete()
+        resetTapSuppressionSoon()
     }
 
     private var revealGesture: some Gesture {
@@ -610,7 +616,7 @@ private struct TimelineDateGroup: Identifiable {
     }
 
     var itemCountText: String {
-        items.count == 1 ? "1 evidence item" : "\(items.count) evidence items"
+        items.count == 1 ? "1 proof item" : "\(items.count) proof items"
     }
 
     static func groups(from evidenceItems: [EvidenceItem]) -> [TimelineDateGroup] {
@@ -676,7 +682,7 @@ private extension EvidenceItem {
             return fallbackTitle
         }
 
-        let categoryTitle = category == .uncategorized ? "Evidence item" : "\(category.displayName) evidence item"
+        let categoryTitle = category == .uncategorized ? "Proof item" : "\(category.displayName) proof item"
         if let eventDate {
             return "\(categoryTitle) from \(ProofKitDateFormatting.shortDate(eventDate))"
         }

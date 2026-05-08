@@ -122,6 +122,37 @@ enum ProofKitMotion {
     }
 }
 
+enum ProofKitEmptyCardMetrics {
+    static let mascotHeroWidth: CGFloat = 300
+    static let mascotHeroHeight: CGFloat = 240
+    static let contentSpacing: CGFloat = 18
+    static let textSpacing: CGFloat = 8
+    static let cardPadding: CGFloat = 20
+    static let cornerRadius: CGFloat = 24
+    static let shadowRadius: CGFloat = 18
+    static let shadowY: CGFloat = 9
+}
+
+struct ProofKitEmptyMascotImage: View {
+    let imageName: String
+    let shadowColor: Color
+
+    var body: some View {
+        Image(imageName)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFill()
+            .frame(
+                width: ProofKitEmptyCardMetrics.mascotHeroWidth,
+                height: ProofKitEmptyCardMetrics.mascotHeroHeight
+            )
+            .clipped()
+            .frame(maxWidth: .infinity, alignment: .center)
+            .accessibilityHidden(true)
+            .shadow(color: shadowColor, radius: 14, x: 0, y: 10)
+    }
+}
+
 extension View {
     func proofKitCard(
         padding: CGFloat = ProofKitVisual.cardPadding,

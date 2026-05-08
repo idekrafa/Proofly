@@ -161,6 +161,7 @@ struct CasesView: View {
             CasesEmptyState(
                 title: "No cases yet",
                 message: "Create your first case, then add photos, screenshots, PDFs, and notes as proof.",
+                footnote: "Cases stay local until you export them.",
                 primaryActionTitle: "+ New Case",
                 mascotImageName: "RookCasesEmpty",
                 primaryAction: {
@@ -281,6 +282,7 @@ private struct CasesSearchField: View {
         .foregroundStyle(.primary)
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(CasesPalette.searchField)
@@ -297,6 +299,7 @@ private struct CasesSearchField: View {
 private struct CaseListCard: View {
     let caseFile: CaseFile
     let onAddProof: () -> Void
+    private var readiness: CaseReadinessResult { CaseReadinessCalculator.calculate(for: caseFile) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -310,9 +313,14 @@ private struct CaseListCard: View {
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("\(caseFile.evidenceItems.count.evidenceItemCountText) · \(caseFile.casesUpdatedText)")
+                    Text("\(readiness.category.displayName) · \(readiness.counts.proofItemCount.evidenceItemCountText) · \(caseFile.casesUpdatedText)")
                         .font(.subheadline)
                         .foregroundStyle(CasesPalette.secondaryText)
+                        .lineLimit(1)
+
+                    Text("\(readiness.score)% ready · \(readiness.nextStepLabel)")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(CasesPalette.tertiaryText)
                         .lineLimit(1)
                 }
 
@@ -402,30 +410,23 @@ private struct CasesFallbackThumbnail: View {
 }
 
 private struct CasesEmptyState: View {
-    private let mascotHeroWidth: CGFloat = 300
-    private let mascotHeroHeight: CGFloat = 240
-
     let title: String
     let message: String
+    var footnote: String? = nil
     let primaryActionTitle: String
     var mascotImageName: String? = nil
     let primaryAction: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: ProofKitEmptyCardMetrics.contentSpacing) {
             if let mascotImageName {
-                Image(mascotImageName)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFill()
-                    .frame(width: mascotHeroWidth, height: mascotHeroHeight)
-                    .clipped()
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .accessibilityHidden(true)
-                    .shadow(color: CasesPalette.mascotShadow, radius: 14, x: 0, y: 10)
+                ProofKitEmptyMascotImage(
+                    imageName: mascotImageName,
+                    shadowColor: CasesPalette.mascotShadow
+                )
             }
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: ProofKitEmptyCardMetrics.textSpacing) {
                 Text(title)
                     .font(.title3.weight(.bold))
                     .foregroundStyle(.primary)
@@ -442,18 +443,28 @@ private struct CasesEmptyState: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(CasesPrimaryButtonStyle())
+
+            if let footnote {
+                Text(footnote)
+                    .font(.footnote)
+                    .foregroundStyle(CasesPalette.tertiaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .padding(20)
+        .padding(ProofKitEmptyCardMetrics.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: ProofKitEmptyCardMetrics.cornerRadius, style: .continuous)
                 .fill(CasesPalette.card)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: ProofKitEmptyCardMetrics.cornerRadius, style: .continuous)
                 .stroke(CasesPalette.hairline, lineWidth: 1)
         }
-        .casesSoftShadow(radius: 18, y: 9)
+        .casesSoftShadow(
+            radius: ProofKitEmptyCardMetrics.shadowRadius,
+            y: ProofKitEmptyCardMetrics.shadowY
+        )
     }
 }
 
@@ -593,7 +604,7 @@ private extension CaseFile {
     }
 
     var casesThumbnailInitials: String {
-        let source = casesDisplayTitle == "Untitled Case" ? caseType.displayName : casesDisplayTitle
+        let source = casesDisplayTitle == "Untitled Case" ? caseReadinessCategory.displayName : casesDisplayTitle
         let words = source
             .split(separator: " ")
             .prefix(2)
@@ -610,6 +621,7 @@ private extension CaseFile {
 
         return [
             casesDisplayTitle,
+            caseReadinessCategory.displayName,
             caseType.displayName,
             status.displayName,
             userSummary,

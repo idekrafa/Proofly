@@ -111,7 +111,7 @@ struct ProofKitPlanLimits: Codable, Equatable {
     }
 
     var evidenceItemLimitText: String {
-        evidenceItemLimit.map { "\($0) evidence items" } ?? "Unlimited evidence items"
+        evidenceItemLimit.map { "\($0) proof items" } ?? "Unlimited proof items"
     }
 
     var aiCreditLimitText: String {

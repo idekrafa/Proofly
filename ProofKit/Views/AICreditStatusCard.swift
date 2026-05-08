@@ -216,15 +216,6 @@ private struct AICreditStatusSnapshot: Equatable {
         statusMessage: nil,
         hasLoaded: false
     )
-
-    static let localOnly = AICreditStatusSnapshot(
-        planName: "Free",
-        remainingCreditsText: "5",
-        renewalText: "Monthly",
-        explanation: "AI credits are only used when you choose an AI action. Importing files, OCR, organizing your timeline, and exporting your case PDF do not use credits.",
-        statusMessage: nil,
-        hasLoaded: true
-    )
 }
 
 private struct AICreditStatusRow: View {

@@ -25,3 +25,6 @@ Config/ProofKit.local.xcconfig
 
 # Local Codex/task notes
 tasks/
+
+# Supabase local CLI state
+supabase/.temp/

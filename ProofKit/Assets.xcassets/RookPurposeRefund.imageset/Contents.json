@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "AuthReferenceMark.png",
+      "filename" : "RefundRookTransparent.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "AuthReferenceMark@2x.png",
+      "filename" : "RefundRookTransparent 1.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "AuthReferenceMark@3x.png",
+      "filename" : "RefundRookTransparent 2.png",
       "idiom" : "universal",
       "scale" : "3x"
     }

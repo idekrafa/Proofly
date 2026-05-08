@@ -12,7 +12,7 @@
 
 /* Begin PBXFileReference section */
 		9E4370192FAB8198000BF1B2 /* ProofKit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ProofKit.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		E10C0DEF0000000000000005 /* ProofKit.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/ProofKit.xcconfig; sourceTree = "<group>"; };
+		E10C0DEF0000000000000005 /* Config/ProofKit.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/ProofKit.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -51,7 +51,7 @@
 		9E4370102FAB8198000BF1B2 = {
 			isa = PBXGroup;
 			children = (
-				E10C0DEF0000000000000005 /* ProofKit.xcconfig */,
+				E10C0DEF0000000000000005 /* Config/ProofKit.xcconfig */,
 				9E43701B2FAB8198000BF1B2 /* ProofKit */,
 				9E43701A2FAB8198000BF1B2 /* Products */,
 			);
@@ -272,7 +272,7 @@
 		};
 		9E4370272FAB819B000BF1B2 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = E10C0DEF0000000000000005 /* ProofKit.xcconfig */;
+			baseConfigurationReference = E10C0DEF0000000000000005 /* Config/ProofKit.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -303,7 +303,7 @@
 		};
 		9E4370282FAB819B000BF1B2 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = E10C0DEF0000000000000005 /* ProofKit.xcconfig */;
+			baseConfigurationReference = E10C0DEF0000000000000005 /* Config/ProofKit.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
