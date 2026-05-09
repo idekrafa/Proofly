@@ -592,6 +592,8 @@ struct ExportPreviewView: View {
     @MainActor
     private func generatePDF() async {
         guard !isExporting else { return }
+        let analyticsStartedAt = Date()
+        services.analytics.trackPDFExportStarted(caseFile: caseFile)
 
         withAnimation(ProofKitMotion.standard) {
             isExporting = true
@@ -638,8 +640,17 @@ struct ExportPreviewView: View {
                     activePreviewURL = result.url
                 }
             }
+            services.analytics.trackPDFExportCompleted(
+                caseFile: caseFile,
+                durationMS: Self.analyticsDurationMS(since: analyticsStartedAt)
+            )
             await refreshExportAccess()
         } catch {
+            services.analytics.trackPDFExportFailed(
+                caseFile: caseFile,
+                durationMS: Self.analyticsDurationMS(since: analyticsStartedAt),
+                errorType: AnalyticsErrorType(error)
+            )
             withAnimation(ProofKitMotion.standard) {
                 exportErrorMessage = error.localizedDescription
             }
@@ -648,6 +659,10 @@ struct ExportPreviewView: View {
         withAnimation(ProofKitMotion.standard) {
             isExporting = false
         }
+    }
+
+    private static func analyticsDurationMS(since startDate: Date) -> Int {
+        max(0, Int(Date().timeIntervalSince(startDate) * 1_000))
     }
 
     private var exportDirectory: URL {
@@ -864,7 +879,7 @@ private struct PDFKitPreview: UIViewRepresentable {
         caseFile: CaseFile(
             caseType: .apartmentIssue,
             status: .active,
-            userTitle: "Apartment repair timeline",
+            userTitle: "Housing lease timeline",
             userSummary: "Records related to repair requests, messages, photos, and receipts.",
             evidenceItems: [
                 EvidenceItem(

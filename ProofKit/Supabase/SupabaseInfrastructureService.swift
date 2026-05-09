@@ -73,6 +73,67 @@ extension SupabaseInfrastructureService: AccountServicing {
         #endif
     }
 
+    func updateProfileDisplayName(_ displayName: String) async throws -> ProofKitAccountSession {
+        #if canImport(Supabase)
+        let normalizedDisplayName = try Self.normalizedDisplayName(displayName)
+        let client = try configuredClient
+        guard let session = client.auth.currentSession else {
+            throw ProofKitError.remotePolicyViolation("Sign in before updating your ProofKit profile.")
+        }
+
+        _ = try await registerProfile(
+            for: session,
+            onboardingCategory: nil,
+            onboardingDisplayName: nil
+        )
+
+        try await client
+            .from("profiles")
+            .update(
+                ProofKitUpdateProfileDisplayNameRequest(
+                    displayName: normalizedDisplayName,
+                    updatedAt: .now
+                )
+            )
+            .eq("id", value: session.user.id.uuidString)
+            .execute()
+
+        _ = try await client.auth.update(
+            user: UserAttributes(
+                data: [
+                    "display_name": .string(normalizedDisplayName),
+                    "full_name": .string(normalizedDisplayName),
+                    "name": .string(normalizedDisplayName)
+                ]
+            )
+        )
+
+        let refreshedSession = client.auth.currentSession ?? session
+        return Self.accountSession(
+            from: refreshedSession,
+            profileDisplayName: normalizedDisplayName
+        )
+        #else
+        throw ProofKitError.supabaseSDKUnavailable
+        #endif
+    }
+
+    func requestEmailChange(to email: String) async throws {
+        #if canImport(Supabase)
+        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalizedEmail.isEmpty else {
+            throw ProofKitError.remotePolicyViolation("Enter an email address before saving.")
+        }
+
+        _ = try await configuredClient.auth.update(
+            user: UserAttributes(email: normalizedEmail),
+            redirectTo: configuration?.authRedirectURL
+        )
+        #else
+        throw ProofKitError.supabaseSDKUnavailable
+        #endif
+    }
+
     func signInWithPassword(email: String, password: String) async throws -> ProofKitAccountAuthResult {
         #if canImport(Supabase)
         let session = try await configuredClient.auth.signIn(email: email, password: password)
@@ -400,6 +461,23 @@ private extension SupabaseInfrastructureService {
 
         return abs(lastSignInAt.timeIntervalSince(user.createdAt)) <= 120
     }
+
+    static func normalizedDisplayName(_ displayName: String) throws -> String {
+        let normalized = displayName
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !normalized.isEmpty else {
+            throw ProofKitError.remotePolicyViolation("Enter a name before saving.")
+        }
+
+        if normalized.count > 80 {
+            return String(normalized.prefix(80)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return normalized
+    }
     #endif
 
     static func validateTextOnlyAIRequest(_ request: AIProxyTextRequest) throws {
@@ -466,6 +544,16 @@ private struct ProofKitRegisterProfileRequest: Encodable {
         case email = "p_email"
         case onboardingCategory = "p_onboarding_category"
         case onboardingDisplayName = "p_display_name"
+    }
+}
+
+private struct ProofKitUpdateProfileDisplayNameRequest: Encodable {
+    let displayName: String
+    let updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case displayName = "display_name"
+        case updatedAt = "updated_at"
     }
 }
 

@@ -37,7 +37,7 @@ struct HomeView: View {
     }
 
     private var headerSubtitle: String {
-        cases.isEmpty ? "Let’s build your first proof case." : "Here’s what you’re working on."
+        cases.isEmpty ? "A calm place for proof, timelines, and packets." : "Your calm proof workspace."
     }
 
     var body: some View {
@@ -47,33 +47,44 @@ struct HomeView: View {
                     header
 
                     if cases.isEmpty {
-                        CreateFirstCaseCard {
+                        EmptyHomeWorkspaceCard {
                             Task { await addCase() }
                         }
                         .transition(ProofKitMotion.cardInsertion)
                         .proofKitAppear(delay: 0.04)
                     } else if let featuredCase {
-                        FeaturedCaseCard(caseFile: featuredCase)
+                        FeaturedCaseCard(
+                            caseFile: featuredCase,
+                            onAddProof: { caseFile in
+                                Task { await showAddProofOptions(for: caseFile) }
+                            }
+                        )
                             .transition(ProofKitMotion.cardInsertion)
                             .proofKitAppear(delay: 0.04)
+
+                        NextBestStepCard(caseFile: featuredCase)
+                            .transition(ProofKitMotion.cardInsertion)
+                            .proofKitAppear(delay: 0.08)
                     }
 
-                    MyCasesSection(
-                        cases: cases,
-                        onAddProof: { caseFile in
-                            Task { await showAddProofOptions(for: caseFile) }
-                        },
-                        onNewCase: {
-                            Task { await addCase() }
-                        }
-                    )
-                    .proofKitAppear(delay: 0.10)
+                    if !cases.isEmpty {
+                        MyCasesSection(
+                            cases: cases,
+                            onAddProof: { caseFile in
+                                Task { await showAddProofOptions(for: caseFile) }
+                            },
+                            onNewCase: {
+                                Task { await addCase() }
+                            }
+                        )
+                        .proofKitAppear(delay: 0.12)
+                    }
                 }
                 .frame(maxWidth: 760, alignment: .leading)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 20)
                 .padding(.top, 18)
-                .padding(.bottom, 32)
+                .padding(.bottom, 132)
             }
             .background(HomePalette.background.ignoresSafeArea())
             .animation(ProofKitMotion.standard, value: cases.map(\.id))
@@ -91,11 +102,15 @@ struct HomeView: View {
             }
             .sheet(isPresented: $isShowingCreateCaseFlow) {
                 CreateCaseFlowView { draft in
-                    pendingCreatedCase = viewModel.createCase(
+                    let caseFile = viewModel.createCase(
                         in: modelContext,
                         title: draft.title,
-                        caseType: draft.caseType
+                        caseType: draft.caseType,
+                        summary: draft.summary,
+                        notes: draft.notes
                     )
+                    services.analytics.trackCaseCreated(caseFile, sourceScreen: .home)
+                    pendingCreatedCase = caseFile
                     isShowingCreateCaseFlow = false
                 }
             }
@@ -158,6 +173,21 @@ struct HomeView: View {
 
             Spacer(minLength: 12)
 
+            Button {
+                Task { await addCase() }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(HomePalette.primaryActionForeground)
+                    .frame(width: 46, height: 46)
+                    .background {
+                        Circle()
+                            .fill(HomePalette.primaryActionBackground)
+                    }
+            }
+            .buttonStyle(HomeIconButtonStyle())
+            .accessibilityLabel("New Case")
+
 //  This was the Settings redirection button, not being used for now
 //            Button(action: onSettingsTapped) {
 //                Image(systemName: "person.crop.circle")
@@ -190,6 +220,7 @@ struct HomeView: View {
             return
         }
 
+        services.analytics.trackCaseCreateStarted(sourceScreen: .home)
         isShowingCreateCaseFlow = true
     }
 
@@ -221,138 +252,193 @@ private enum HomeAddProofSheet: Identifiable {
 
 private struct FeaturedCaseCard: View {
     let caseFile: CaseFile
+    let onAddProof: (CaseFile) -> Void
 
     private var readiness: CaseReadinessResult { CaseReadinessCalculator.calculate(for: caseFile) }
     private var progress: Double { readiness.progress }
-    private var currentStep: HomeCaseStep { HomeCaseStep(readiness: readiness) }
-    private var missingItems: [String] { readiness.blockers }
+    private var nextAction: HomeNextAction { HomeNextAction(readiness: readiness) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 17) {
             HStack(alignment: .top, spacing: 14) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(headline)
-                        .font(.title3.weight(.bold))
+                VStack(alignment: .leading, spacing: 11) {
+                    Text("Active proof timeline")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(HomePalette.accent)
+                        .textCase(.uppercase)
+                        .tracking(0.8)
+
+                    Text(caseFile.homeDisplayTitle)
+                        .font(.title2.weight(.bold))
                         .foregroundStyle(.primary)
-                        .kerning(-0.25)
+                        .kerning(-0.35)
+                        .lineLimit(3)
+                        .minimumScaleFactor(0.88)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(caseFile.homeDisplayTitle)
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(2)
-
-                        HStack(spacing: 8) {
-                            HomeMetadataPill(text: readiness.category.displayName)
-                            HomeMetadataPill(text: caseFile.status.displayName)
-                        }
+                    HStack(spacing: 8) {
+                        HomeMetadataPill(text: readiness.category.displayName)
+                        HomeMetadataPill(text: "\(readiness.score)% ready")
                     }
                 }
+                .layoutPriority(1)
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 4)
 
-                CaseThumbnail(caseFile: caseFile, width: 82, height: 82, cornerRadius: 20)
+                HomeRookOrb(assetName: caseFile.homeRookAssetName, size: 62)
             }
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 9) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("\(readiness.score)% ready")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
+                    Text("Readiness")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(HomePalette.secondaryText)
 
                     Spacer(minLength: 12)
 
-                    Text(readiness.nextStepLabel)
+                    Text("\(readiness.score)%")
                         .font(.footnote.weight(.medium))
-                        .foregroundStyle(HomePalette.secondaryText)
+                        .foregroundStyle(HomePalette.accent)
                 }
 
                 ProgressTrack(progress: progress)
                     .frame(height: 7)
-
-                HStack(spacing: 7) {
-                    ForEach(HomeCaseStep.allCases) { step in
-                        StepChip(
-                            step: step,
-                            isCurrent: step == currentStep,
-                            isComplete: step.order < currentStep.order || progress >= 1
-                        )
-                    }
-                }
             }
 
-            HStack(alignment: .center, spacing: 12) {
-                missingItemsLabel
-
-                Spacer(minLength: 8)
-
-                NavigationLink {
-                    CaseDetailView(caseFile: caseFile)
-                } label: {
-                    HStack(spacing: 6) {
-                        Text(readiness.signals.hasExportablePDF ? "Export case" : "Continue case")
-                            .font(.footnote.weight(.semibold))
-                        Image(systemName: "chevron.right")
-                            .font(.caption2.weight(.bold))
-                    }
-                    .foregroundStyle(HomePalette.primaryActionForeground)
-                    .padding(.horizontal, 13)
-                    .padding(.vertical, 9)
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: nextAction.systemImage)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(HomePalette.accent)
+                    .frame(width: 22, height: 22)
                     .background {
-                        Capsule(style: .continuous)
-                            .fill(HomePalette.primaryActionBackground)
+                        Circle()
+                            .fill(HomePalette.accent.opacity(0.12))
                     }
-                }
-                .buttonStyle(.plain)
+
+                Text(nextAction.line)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+
+            primaryCTA
         }
         .homeCard(padding: 20, cornerRadius: 26)
-        .accessibilityElement(children: .combine)
-    }
-
-    private var headline: String {
-        if readiness.signals.hasGeneratedExport {
-            return "Your packet is saved"
-        }
-
-        if readiness.signals.hasExportablePDF {
-            return "Your case is ready to export"
-        }
-
-        if readiness.score >= 75 {
-            return "Your case is almost ready"
-        }
-
-        if readiness.score >= 25 {
-            return "Your case is in progress"
-        }
-
-        return "Start building your case"
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder
-    private var missingItemsLabel: some View {
-        if readiness.counts.generatedExportCount > 0 {
-            Label(
-                readiness.counts.generatedExportCount == 1 ? "1 packet saved" : "\(readiness.counts.generatedExportCount) packets saved",
-                systemImage: "doc.text.fill"
-            )
-            .font(.footnote.weight(.medium))
-            .foregroundStyle(HomePalette.secondaryText)
-            .lineLimit(2)
-        } else if missingItems.isEmpty {
-            Label(readiness.nextStepLabel, systemImage: readiness.signals.hasExportablePDF ? "checkmark.circle" : "list.bullet.clipboard")
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(HomePalette.secondaryText)
-                .lineLimit(2)
+    private var primaryCTA: some View {
+        if nextAction == .addProof {
+            Button {
+                onAddProof(caseFile)
+            } label: {
+                HomePrimaryActionLabel(title: nextAction.ctaTitle, systemImage: nextAction.ctaSystemImage)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(nextAction.ctaTitle)
         } else {
-            Label("Missing: \(missingItems.joined(separator: ", "))", systemImage: "exclamationmark.circle")
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(HomePalette.secondaryText)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
+            NavigationLink {
+                CaseDetailView(caseFile: caseFile)
+            } label: {
+                HomePrimaryActionLabel(title: nextAction.ctaTitle, systemImage: nextAction.ctaSystemImage)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(nextAction.ctaTitle)
         }
+    }
+}
+
+private struct NextBestStepCard: View {
+    let caseFile: CaseFile
+
+    private var readiness: CaseReadinessResult { CaseReadinessCalculator.calculate(for: caseFile) }
+    private var nextAction: HomeNextAction { HomeNextAction(readiness: readiness) }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: nextAction.helperSystemImage)
+                .font(.subheadline.weight(.semibold))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(HomePalette.accent)
+                .frame(width: 34, height: 34)
+                .background {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(HomePalette.accent.opacity(0.10))
+                }
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Next best step")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(HomePalette.accent)
+
+                Text(nextAction.helperCopy)
+                    .font(.subheadline)
+                    .foregroundStyle(HomePalette.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .layoutPriority(1)
+        }
+        .homeCard(padding: 14, cornerRadius: 22)
+    }
+}
+
+private struct HomePrimaryActionLabel: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.semibold))
+
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.86)
+        }
+        .foregroundStyle(HomePalette.primaryActionForeground)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 14)
+        .background {
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .fill(HomePalette.primaryActionBackground)
+        }
+    }
+}
+
+private struct HomeRookOrb: View {
+    let assetName: String
+    let size: CGFloat
+
+    var body: some View {
+        HomeRookImage(assetName: assetName, size: size)
+            .padding(6)
+            .background {
+                Circle()
+                    .fill(HomePalette.rookHalo)
+            }
+            .overlay {
+                Circle()
+                    .stroke(HomePalette.hairline, lineWidth: 1)
+            }
+            .accessibilityHidden(true)
+    }
+}
+
+private struct HomeRookImage: View {
+    let assetName: String
+    let size: CGFloat
+
+    var body: some View {
+        Image(assetName)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
     }
 }
 
@@ -379,40 +465,6 @@ private struct ProgressTrack: View {
     }
 }
 
-private struct StepChip: View {
-    let step: HomeCaseStep
-    let isCurrent: Bool
-    let isComplete: Bool
-
-    var body: some View {
-        Text(step.title)
-            .font(.caption.weight(isCurrent ? .semibold : .medium))
-            .foregroundStyle(textColor)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 7)
-            .background {
-                Capsule(style: .continuous)
-                    .fill(isCurrent ? HomePalette.accent.opacity(0.12) : Color.clear)
-            }
-            .overlay {
-                Capsule(style: .continuous)
-                    .stroke(isCurrent ? HomePalette.accent.opacity(0.18) : Color.clear, lineWidth: 1)
-            }
-    }
-
-    private var textColor: Color {
-        if isCurrent {
-            return HomePalette.accent
-        }
-
-        if isComplete {
-            return Color(.label)
-        }
-
-        return HomePalette.tertiaryText
-    }
-}
-
 private struct MyCasesSection: View {
     let cases: [CaseFile]
     let onAddProof: (CaseFile) -> Void
@@ -420,7 +472,7 @@ private struct MyCasesSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("My Cases")
+            Text("Recent cases")
                 .font(.title3.weight(.bold))
                 .foregroundStyle(.primary)
                 .kerning(-0.2)
@@ -452,20 +504,20 @@ private struct MyCasesSection: View {
                     }
                     .homeSoftShadow(radius: 18, y: 9)
 
-                    Button(action: onNewCase) {
-                        Text("+ New Case")
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(HomePalette.primaryActionForeground)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background {
-                                RoundedRectangle(cornerRadius: 19, style: .continuous)
-                                    .fill(HomePalette.primaryActionBackground)
-                            }
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("New Case")
-                    .proofKitAppear(delay: 0.06)
+//                    Button(action: onNewCase) {
+//                        Text("+ New case")
+//                            .font(.headline.weight(.semibold))
+//                            .foregroundStyle(HomePalette.primaryActionForeground)
+//                            .frame(maxWidth: .infinity)
+//                            .padding(.vertical, 16)
+//                            .background {
+//                                RoundedRectangle(cornerRadius: 19, style: .continuous)
+//                                    .fill(HomePalette.primaryActionBackground)
+//                            }
+//                    }
+//                    .buttonStyle(.plain)
+//                    .accessibilityLabel("New case")
+//                    .proofKitAppear(delay: 0.06)
                 }
             }
         }
@@ -473,11 +525,11 @@ private struct MyCasesSection: View {
 
     private var noCasesCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("No cases yet")
+            Text("No proof timelines yet")
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(.primary)
 
-            Text("Your cases will appear here once you create one.")
+            Text("Your recent work will appear here once you create a timeline.")
                 .font(.subheadline)
                 .foregroundStyle(HomePalette.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -490,6 +542,7 @@ private struct CaseRow: View {
     let caseFile: CaseFile
     let onAddProof: () -> Void
     private var readiness: CaseReadinessResult { CaseReadinessCalculator.calculate(for: caseFile) }
+    private var nextAction: HomeNextAction { HomeNextAction(readiness: readiness) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
@@ -507,7 +560,7 @@ private struct CaseRow: View {
                         .foregroundStyle(HomePalette.secondaryText)
                         .lineLimit(1)
 
-                    Text("\(readiness.score)% ready · \(readiness.nextStepLabel)")
+                    Text("\(readiness.score)% ready · \(nextAction.line)")
                         .font(.footnote.weight(.medium))
                         .foregroundStyle(HomePalette.tertiaryText)
                         .lineLimit(1)
@@ -518,7 +571,7 @@ private struct CaseRow: View {
 
             HStack(spacing: 10) {
                 Button(action: onAddProof) {
-                    Text("+ Add Proof")
+                    Text("Add proof")
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                 }
@@ -527,7 +580,7 @@ private struct CaseRow: View {
                 NavigationLink {
                     CaseDetailView(caseFile: caseFile)
                 } label: {
-                    Text("Manage Case")
+                    Text("Open timeline")
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                 }
@@ -538,30 +591,57 @@ private struct CaseRow: View {
     }
 }
 
-private struct CreateFirstCaseCard: View {
+private struct EmptyHomeWorkspaceCard: View {
     let onNewCase: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Create your first case")
+        VStack(alignment: .center, spacing: 18) {
+            HomeRookImage(assetName: "RookCasesEmpty", size: 96)
+                .frame(maxWidth: .infinity)
+
+            VStack(alignment: .center, spacing: 9) {
+                Text("Ready to build your first proof timeline?")
                     .font(.title3.weight(.bold))
                     .foregroundStyle(.primary)
                     .kerning(-0.2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                Text("Start organizing photos, screenshots, PDFs, and notes into a clean case file.")
+                Text("Start with a situation, then add screenshots, notes, photos, or documents.")
                     .font(.subheadline)
                     .foregroundStyle(HomePalette.secondaryText)
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button(action: onNewCase) {
-                Text("+ New Case")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
+            HStack(alignment: .top, spacing: 9) {
+                Image(systemName: "sparkles")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(HomePalette.accent)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Next best step")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(HomePalette.accent)
+
+                    Text("Create your first proof timeline.")
+                        .font(.footnote)
+                        .foregroundStyle(HomePalette.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-            .buttonStyle(HomeSoftPrimaryButtonStyle())
-            .accessibilityLabel("New Case")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(13)
+            .background {
+                RoundedRectangle(cornerRadius: 17, style: .continuous)
+                    .fill(HomePalette.controlFill)
+            }
+
+            Button(action: onNewCase) {
+                HomePrimaryActionLabel(title: "Create first case", systemImage: "plus")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Create first case")
         }
         .homeCard(padding: 20, cornerRadius: 26)
     }
@@ -650,68 +730,108 @@ private struct HomePillButtonStyle: ButtonStyle {
     }
 }
 
-private struct HomeSoftPrimaryButtonStyle: ButtonStyle {
+private struct HomeIconButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(HomePalette.accent)
-            .padding(.vertical, 14)
-            .padding(.horizontal, 14)
-            .background {
-                RoundedRectangle(cornerRadius: 17, style: .continuous)
-                    .fill(HomePalette.accent.opacity(configuration.isPressed ? 0.16 : 0.10))
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 17, style: .continuous)
-                    .stroke(HomePalette.accent.opacity(0.14), lineWidth: 1)
-            }
-            .scaleEffect(configuration.isPressed ? 0.988 : 1)
-            .animation(.snappy(duration: 0.16), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .opacity(configuration.isPressed ? 0.86 : 1)
+            .animation(ProofKitMotion.quick, value: configuration.isPressed)
     }
 }
 
-private enum HomeCaseStep: CaseIterable, Identifiable {
-    case `case`
-    case proof
-    case timeline
-    case export
-
-    var id: String { title }
+private enum HomeNextAction: Equatable {
+    case addProof
+    case reviewInbox
+    case checkTimeline
+    case exportPacket
 
     init(readiness: CaseReadinessResult) {
-        if !readiness.signals.hasTitle || !readiness.signals.hasSelectedCategory {
-            self = .case
-        } else if !readiness.signals.hasAtLeastOneProofItem || !readiness.signals.allProofItemsHandled {
-            self = .proof
+        if !readiness.signals.hasAtLeastOneProofItem {
+            self = .addProof
+        } else if readiness.counts.unreviewedItemCount > 0 {
+            self = .reviewInbox
         } else if !readiness.signals.hasTimelineDate || !readiness.signals.hasTimelineDepthOrStrongItem {
-            self = .timeline
+            self = .checkTimeline
         } else {
-            self = .export
+            self = .exportPacket
         }
     }
 
-    var title: String {
+    var line: String {
         switch self {
-        case .case:
-            "Case"
-        case .proof:
-            "Proof"
-        case .timeline:
-            "Timeline"
-        case .export:
-            "Export"
+        case .addProof:
+            "Next: Add proof"
+        case .reviewInbox:
+            "Next: Review inbox"
+        case .checkTimeline:
+            "Next: Check timeline"
+        case .exportPacket:
+            "Next: Export packet"
         }
     }
 
-    var order: Int {
+    var ctaTitle: String {
         switch self {
-        case .case:
-            0
-        case .proof:
-            1
-        case .timeline:
-            2
-        case .export:
-            3
+        case .addProof:
+            "Add proof"
+        case .reviewInbox:
+            "Review inbox"
+        case .checkTimeline:
+            "View timeline"
+        case .exportPacket:
+            "Export packet"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .addProof:
+            "plus.circle.fill"
+        case .reviewInbox:
+            "tray.full.fill"
+        case .checkTimeline:
+            "calendar.badge.clock"
+        case .exportPacket:
+            "doc.text.fill"
+        }
+    }
+
+    var ctaSystemImage: String {
+        switch self {
+        case .addProof:
+            "plus"
+        case .reviewInbox:
+            "tray.full"
+        case .checkTimeline:
+            "calendar"
+        case .exportPacket:
+            "square.and.arrow.up"
+        }
+    }
+
+    var helperSystemImage: String {
+        switch self {
+        case .addProof:
+            "sparkles"
+        case .reviewInbox:
+            "checklist"
+        case .checkTimeline:
+            "calendar"
+        case .exportPacket:
+            "checklist"
+        }
+    }
+
+    var helperCopy: String {
+        switch self {
+        case .addProof:
+            "Start with one screenshot, receipt, note, or document."
+        case .reviewInbox:
+            "Review new proof so it can be added to your timeline."
+        case .checkTimeline:
+            "Check dates so your timeline tells the story clearly."
+        case .exportPacket:
+            "Your packet is ready when you are."
         }
     }
 }
@@ -752,6 +872,10 @@ private enum HomePalette {
     static let controlFillPressed = dynamicColor(
         light: .systemGray4,
         dark: UIColor(red: 0.176, green: 0.220, blue: 0.286, alpha: 1)
+    )
+    static let rookHalo = dynamicColor(
+        light: UIColor(red: 0.91, green: 0.96, blue: 1.00, alpha: 1),
+        dark: UIColor(red: 0.105, green: 0.150, blue: 0.198, alpha: 1)
     )
     static let progressTrack = dynamicColor(
         light: .systemGray5,
@@ -848,6 +972,18 @@ private extension CaseFile {
         return initials.isEmpty ? "PK" : initials
     }
 
+    var homeRookAssetName: String {
+        switch caseReadinessCategory.analyticsValue {
+        case "apartment":
+            "RookPurposeRental"
+        case "refund":
+            "RookPurposeRefund"
+        case "school":
+            "RookPurposeCollege"
+        default:
+            "RookPurposeOther"
+        }
+    }
 }
 
 private extension CaseType {
@@ -857,7 +993,9 @@ private extension CaseType {
             [Color(red: 0.32, green: 0.55, blue: 0.58), Color(red: 0.17, green: 0.28, blue: 0.31)]
         case .refundWarrantyIssue, .consumer:
             [Color(red: 0.27, green: 0.47, blue: 0.78), Color(red: 0.15, green: 0.25, blue: 0.43)]
-        case .workplaceIssue, .employment, .unpaidFreelanceWork:
+        case .schoolCollegeIssue:
+            [Color(red: 0.38, green: 0.45, blue: 0.72), Color(red: 0.20, green: 0.24, blue: 0.40)]
+        case .workplaceIssue, .employment, .unpaidFreelanceWork, .workFreelanceIssue:
             [Color(red: 0.42, green: 0.42, blue: 0.52), Color(red: 0.22, green: 0.22, blue: 0.30)]
         case .insuranceIssue, .insurance:
             [Color(red: 0.25, green: 0.54, blue: 0.48), Color(red: 0.12, green: 0.31, blue: 0.29)]

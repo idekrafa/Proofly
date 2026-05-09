@@ -4,3 +4,5 @@
 // Create Config/ProofKit.local.xcconfig locally for machine-specific values.
 
 #include? "ProofKit.local.xcconfig"
+// PostHog analytics configuration is read from Info.plist/build settings or environment.
+// Do not put PostHog project tokens in this tracked file; set them in ProofKit.local.xcconfig or CI secrets.

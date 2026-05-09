@@ -190,7 +190,8 @@ private struct TimelineDateGroupSection: View {
                         HStack(alignment: .top, spacing: 10) {
                             TimelineRailMarker(isLastInGroup: itemIndex == group.items.count - 1)
 
-                            SwipeToDeleteEvidenceRow(
+                            ProofKitSwipeToDeleteRow(
+                                deleteAccessibilityLabel: "Delete proof",
                                 onOpen: {
                                     onOpen(evidenceItem)
                                 },
@@ -214,145 +215,6 @@ private struct TimelineDateGroupSection: View {
             }
         }
         .animation(ProofKitMotion.softSpring, value: isCollapsed)
-    }
-}
-
-private struct SwipeToDeleteEvidenceRow<Content: View>: View {
-    private let deleteButtonWidth: CGFloat = 96
-    private let revealThreshold: CGFloat = 42
-
-    let onOpen: () -> Void
-    let onDelete: () -> Void
-    @ViewBuilder let content: () -> Content
-
-    @GestureState private var dragTranslation: CGFloat = 0
-    @State private var restingOffset: CGFloat = 0
-    @State private var isSuppressingTap = false
-    @State private var rowHeight: CGFloat = 0
-
-    private var visibleOffset: CGFloat {
-        max(-deleteButtonWidth, min(0, restingOffset + dragTranslation))
-    }
-
-    private var isDeleteRevealed: Bool {
-        restingOffset < 0
-    }
-
-    var body: some View {
-        ZStack(alignment: .trailing) {
-            deleteButton
-                .frame(width: deleteButtonWidth, height: rowHeight)
-                .opacity(visibleOffset < 0 && rowHeight > 0 ? 1 : 0)
-                .allowsHitTesting(isDeleteRevealed)
-                .zIndex(2)
-
-            content()
-                .background {
-                    GeometryReader { proxy in
-                        Color.clear
-                            .preference(key: SwipeRowHeightPreferenceKey.self, value: proxy.size.height)
-                    }
-                }
-                .offset(x: visibleOffset)
-                .contentShape(Rectangle())
-                .onTapGesture(perform: handleTap)
-                .simultaneousGesture(revealGesture)
-                .zIndex(1)
-        }
-        .clipped()
-        .onPreferenceChange(SwipeRowHeightPreferenceKey.self) { height in
-            guard abs(rowHeight - height) > 0.5 else { return }
-            rowHeight = height
-        }
-        .accessibilityAction(named: "Open") {
-            onOpen()
-        }
-        .accessibilityAction(named: isDeleteRevealed ? "Hide Delete" : "Reveal Delete") {
-            withAnimation(ProofKitMotion.standard) {
-                restingOffset = isDeleteRevealed ? 0 : -deleteButtonWidth
-            }
-        }
-    }
-
-    private var deleteButton: some View {
-        Button(role: .destructive) {
-            performDelete()
-        } label: {
-            VStack(spacing: 4) {
-                Image(systemName: "trash")
-                    .font(.subheadline.weight(.semibold))
-
-                Text("Delete")
-                    .font(.caption2.weight(.bold))
-            }
-            .foregroundStyle(.white)
-            .frame(width: deleteButtonWidth)
-            .frame(maxHeight: .infinity)
-            .background(Color.red)
-            .clipShape(RoundedRectangle(cornerRadius: ProofKitVisual.cardCornerRadius, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: ProofKitVisual.cardCornerRadius, style: .continuous))
-            .accessibilityLabel("Delete proof")
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func performDelete() {
-        isSuppressingTap = true
-        onDelete()
-        resetTapSuppressionSoon()
-    }
-
-    private var revealGesture: some Gesture {
-        DragGesture(minimumDistance: 16, coordinateSpace: .local)
-            .updating($dragTranslation) { value, state, _ in
-                guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                state = value.translation.width
-            }
-            .onChanged { value in
-                guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                isSuppressingTap = true
-            }
-            .onEnded { value in
-                guard abs(value.translation.width) > abs(value.translation.height) else {
-                    resetTapSuppressionSoon()
-                    return
-                }
-
-                let projectedOffset = restingOffset + value.predictedEndTranslation.width
-                let shouldReveal = projectedOffset < -deleteButtonWidth / 2 || value.translation.width < -revealThreshold
-
-                withAnimation(ProofKitMotion.standard) {
-                    restingOffset = shouldReveal ? -deleteButtonWidth : 0
-                }
-
-                resetTapSuppressionSoon()
-            }
-    }
-
-    private func handleTap() {
-        guard !isSuppressingTap else { return }
-
-        if isDeleteRevealed {
-            withAnimation(ProofKitMotion.standard) {
-                restingOffset = 0
-            }
-        } else {
-            onOpen()
-        }
-    }
-
-    private func resetTapSuppressionSoon() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            isSuppressingTap = false
-        }
-    }
-}
-
-private struct SwipeRowHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
     }
 }
 

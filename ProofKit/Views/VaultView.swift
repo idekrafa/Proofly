@@ -1473,8 +1473,8 @@ private struct VaultPreview: View {
         )
         let vaultAttachment = Attachment(
             attachmentType: .photo,
-            originalFilename: "Apartment Leak.jpg",
-            localFilePath: "/tmp/apartment-leak.jpg",
+            originalFilename: "Lease Walkthrough.jpg",
+            localFilePath: "/tmp/lease-walkthrough.jpg",
             fileSizeBytes: 518_000,
             createdAt: now.addingTimeInterval(-3600),
             updatedAt: now.addingTimeInterval(-3600)

@@ -3,8 +3,6 @@ import SwiftUI
 
 enum ProofKitSettingsStorageKeys {
     static let appearance = "proofkit.settings.appearance"
-    static let automaticTimeZone = "proofkit.settings.automaticTimeZone"
-    static let dictationLanguage = "proofkit.settings.dictationLanguage"
 }
 
 enum ProofKitAppearancePreference: String, CaseIterable, Identifiable {
@@ -37,88 +35,128 @@ enum ProofKitAppearancePreference: String, CaseIterable, Identifiable {
     }
 }
 
-enum ProofKitDictationLanguagePreference: String, CaseIterable, Identifiable {
-    case autoDetect
-    case englishUS
-    case portugueseBR
-    case spanish
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .autoDetect:
-            "Auto-detect"
-        case .englishUS:
-            "English (US)"
-        case .portugueseBR:
-            "Português (BR)"
-        case .spanish:
-            "Spanish"
-        }
-    }
-}
-
 struct GlobalSettingsView: View {
+    private let initialAccountSession: ProofKitAccountSession?
+    private let onAccountSessionUpdated: (ProofKitAccountSession) -> Void
     let onSignedOut: () -> Void
 
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
     @Environment(\.proofKitServices) private var services
 
     @Query(sort: \CaseFile.updatedAt, order: .reverse) private var caseFiles: [CaseFile]
 
-    @AppStorage(ProofKitSettingsStorageKeys.appearance) private var appearanceRawValue = ProofKitAppearancePreference.system.rawValue
-    @AppStorage(ProofKitSettingsStorageKeys.automaticTimeZone) private var automaticTimeZone = true
-    @AppStorage(ProofKitSettingsStorageKeys.dictationLanguage) private var dictationLanguageRawValue = ProofKitDictationLanguagePreference.autoDetect.rawValue
-
     @State private var entitlement = ProofKitEntitlementSnapshot.placeholder()
     @State private var accountSession: ProofKitAccountSession?
+    @State private var accountProfile = SettingsEditableAccountProfile.empty
+    @State private var aiCreditsText = "Checking…"
     @State private var settingsNotice: SettingsNotice?
     @State private var confirmation: SettingsConfirmation?
     @State private var exportFile: SettingsExportFile?
+    @State private var infoSheet: SettingsInfoPresentation?
     @State private var isPreparingExport = false
-    @State private var isSigningOut = false
-    @State private var showingPlans = false
-    @State private var showingAbout = false
+    @State private var isDeletingLocalData = false
+    @State private var showingNameEditor = false
+    @State private var showingEmailEditor = false
+    @State private var showingPaywall = false
+    @State private var didTrackSettingsOpened = false
+    @AppStorage(AnalyticsService.optOutStorageKey) private var analyticsOptOut = false
 
-    init(onSignedOut: @escaping () -> Void = {}) {
+    init(
+        accountSession: ProofKitAccountSession? = nil,
+        onAccountSessionUpdated: @escaping (ProofKitAccountSession) -> Void = { _ in },
+        onSignedOut: @escaping () -> Void = {}
+    ) {
+        self.initialAccountSession = accountSession
+        self.onAccountSessionUpdated = onAccountSessionUpdated
         self.onSignedOut = onSignedOut
+        _accountSession = State(initialValue: accountSession)
     }
 
-    private var appearancePreference: ProofKitAppearancePreference {
-        ProofKitAppearancePreference(rawValue: appearanceRawValue) ?? .system
+    private var editableNameValue: String {
+        accountProfile.name ?? accountSession?.profileDisplayName ?? ""
     }
 
-    private var dictationLanguagePreference: ProofKitDictationLanguagePreference {
-        ProofKitDictationLanguagePreference(rawValue: dictationLanguageRawValue) ?? .autoDetect
+    private var editableEmailValue: String {
+        accountProfile.email ?? accountSession?.email ?? ""
+    }
+
+    private var displayNameText: String {
+        let value = editableNameValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? "Add name" : value
+    }
+
+    private var displayEmailText: String {
+        let value = editableEmailValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? "Add email" : value
+    }
+
+    private var planStatusText: String {
+        entitlement.plan == .pro ? "Pro" : "Free"
+    }
+
+    private var analyticsEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { !analyticsOptOut },
+            set: { isEnabled in
+                analyticsOptOut = !isEnabled
+                services.analytics.setOptedOut(!isEnabled)
+            }
+        )
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: SettingsLayout.sectionSpacing) {
-                    deviceSettingsSection
-                    subscriptionSection
-                    singleActionSections
-                    dataAndAccountSection
+                    header
+
+                    accountSection
+                    planSection
+                    privacySection
+                    supportSection
+                    aboutSection
                 }
                 .frame(maxWidth: 760, alignment: .leading)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 16)
-                .padding(.top, 14)
-                .padding(.bottom, 34)
+                .frame(maxWidth: .infinity, alignment: .top)
+                .padding(.horizontal, 20)
+                .padding(.top, 24)
+                .padding(.bottom, SettingsLayout.safeBottomPadding)
             }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("Settings")
+            .background(ProofKitVisual.screenBackground.ignoresSafeArea())
+            .scrollBounceBehavior(.basedOnSize, axes: .vertical)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
             .task {
-                await loadAccountAndPlan()
+                trackSettingsOpenedIfNeeded()
+                await loadSettings()
             }
-            .sheet(isPresented: $showingPlans) {
-                SettingsPlansSheet(entitlement: entitlement)
+            .onChange(of: initialAccountSession) { _, updatedSession in
+                accountSession = updatedSession
+                accountProfile = services.account.isConfigured ? .empty : SettingsAccountProfileStore.load(for: updatedSession)
             }
-            .sheet(isPresented: $showingAbout) {
-                SettingsAboutSheet()
+            .sheet(isPresented: $showingNameEditor) {
+                SettingsEditNameSheet(initialName: editableNameValue) { newName in
+                    saveAccountName(newName)
+                }
+                .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showingEmailEditor) {
+                SettingsEditEmailSheet(initialEmail: editableEmailValue) { newEmail in
+                    saveAccountEmail(newEmail)
+                }
+                .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showingPaywall, onDismiss: {
+                Task { await loadSettings() }
+            }) {
+                PaywallView {
+                    await loadSettings()
+                }
+            }
+            .sheet(item: $infoSheet) { sheet in
+                SettingsInfoSheetView(sheet: sheet)
+                    .presentationDetents([.medium, .large])
             }
             .sheet(item: $exportFile) { file in
                 SettingsExportReadySheet(exportFile: file)
@@ -134,214 +172,270 @@ struct GlobalSettingsView: View {
                 Alert(
                     title: Text(confirmation.title),
                     message: Text(confirmation.message),
-                    primaryButton: confirmation.buttonRole == .destructive
-                    ? .destructive(Text(confirmation.confirmTitle)) {
-                        perform(confirmation)
-                    }
-                    : .default(Text(confirmation.confirmTitle)) {
+                    primaryButton: .destructive(Text(confirmation.confirmTitle)) {
                         perform(confirmation)
                     },
-                    secondaryButton: .cancel()
+                    secondaryButton: .cancel(Text("Cancel"))
                 )
             }
         }
     }
 
-    private var deviceSettingsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SettingsSectionTitle("Device Settings")
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text("Settings")
+                .font(.system(size: 36, weight: .bold, design: .rounded))
+                .kerning(-0.8)
+                .foregroundStyle(.primary)
+                .accessibilityAddTraits(.isHeader)
 
+            Text("Manage your account, plan, privacy, and app preferences.")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(ProofKitVisual.helperText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.bottom, 2)
+        .proofKitAppear()
+    }
+
+    private var accountSection: some View {
+        settingsSection(
+            title: "Account",
+            copy: "Used for your ProofKit account and exported packets.",
+            delay: 0.03
+        ) {
             SettingsGroup {
-                SettingsMenuRow(
-                    icon: "circle.lefthalf.filled",
-                    iconColor: .indigo,
-                    title: "Appearance",
-                    value: appearancePreference.displayName
+                SettingsValueButtonRow(
+                    icon: "person.crop.circle.fill",
+                    iconColor: ProofKitVisual.accentSecondary,
+                    title: "Name",
+                    value: displayNameText,
+                    valueColor: editableNameValue.isEmpty ? ProofKitVisual.subduedText : ProofKitVisual.helperText
                 ) {
-                    ForEach(ProofKitAppearancePreference.allCases) { preference in
-                        Button {
-                            withAnimation(ProofKitMotion.standard) {
-                                appearanceRawValue = preference.rawValue
-                            }
-                        } label: {
-                            if preference == appearancePreference {
-                                Label(preference.displayName, systemImage: "checkmark")
-                            } else {
-                                Text(preference.displayName)
-                            }
-                        }
-                    }
+                    showingNameEditor = true
+                }
+
+                SettingsDivider()
+
+                SettingsValueButtonRow(
+                    icon: "envelope.fill",
+                    iconColor: ProofKitVisual.accent,
+                    title: "Email",
+                    value: displayEmailText,
+                    valueColor: editableEmailValue.isEmpty ? ProofKitVisual.subduedText : ProofKitVisual.helperText
+                ) {
+                    showingEmailEditor = true
+                }
+            }
+        }
+    }
+
+    private var planSection: some View {
+        settingsSection(
+            title: "Plan",
+            copy: "AI tools will use credits once they launch. Your core proof timeline stays usable without AI.",
+            delay: 0.06
+        ) {
+            SettingsGroup {
+                SettingsValueRow(
+                    icon: "crown.fill",
+                    iconColor: .yellow,
+                    title: "Current plan",
+                    value: planStatusText
+                )
+
+                SettingsDivider()
+
+                SettingsValueRow(
+                    icon: "sparkles",
+                    iconColor: ProofKitVisual.accentSecondary,
+                    title: "AI credits",
+                    value: aiCreditsText
+                )
+
+                SettingsDivider()
+
+                SettingsButtonRow(
+                    icon: "creditcard.fill",
+                    iconColor: ProofKitVisual.accent,
+                    title: "Manage subscription",
+                    titleColor: ProofKitVisual.accent,
+                    showsChevron: true
+                ) {
+                    showingPaywall = true
+                }
+            }
+        }
+    }
+
+    private var privacySection: some View {
+        settingsSection(title: "Privacy & data", delay: 0.09) {
+            SettingsGroup {
+                SettingsButtonRow(
+                    icon: "lock.fill",
+                    iconColor: ProofKitVisual.accentSecondary,
+                    title: "Local-first storage",
+                    showsChevron: true
+                ) {
+                    infoSheet = .localFirst
                 }
 
                 SettingsDivider()
 
                 SettingsToggleRow(
-                    icon: "globe",
-                    iconColor: .purple,
-                    title: "Automatic Time Zone",
-                    isOn: $automaticTimeZone
-                )
-
-                SettingsDivider()
-
-                SettingsMenuRow(
-                    icon: "mic.fill",
-                    iconColor: Color(red: 0.0, green: 0.52, blue: 1.0),
-                    title: "Dictation Language",
-                    value: dictationLanguagePreference.displayName,
-                    showsInfo: true
-                ) {
-                    ForEach(ProofKitDictationLanguagePreference.allCases) { language in
-                        Button {
-                            dictationLanguageRawValue = language.rawValue
-                        } label: {
-                            if language == dictationLanguagePreference {
-                                Label(language.displayName, systemImage: "checkmark")
-                            } else {
-                                Text(language.displayName)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .proofKitAppear()
-    }
-
-    private var subscriptionSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SettingsSectionTitle("Subscription")
-
-            SettingsGroup {
-                SettingsDetailRow(
-                    icon: "crown.fill",
-                    iconColor: .yellow,
-                    title: "\(entitlement.plan.displayName) Plan Active",
-                    subtitle: subscriptionSubtitle,
-                    titleColor: .primary
+                    icon: "chart.line.uptrend.xyaxis",
+                    iconColor: ProofKitVisual.accent,
+                    title: "Product analytics",
+                    subtitle: "Only privacy-safe funnel events. Never proof content.",
+                    isOn: analyticsEnabledBinding
                 )
 
                 SettingsDivider()
 
                 SettingsButtonRow(
-                    icon: nil,
-                    iconColor: Color(red: 0.0, green: 0.52, blue: 1.0),
-                    title: "See Plans",
-                    titleColor: Color(red: 0.0, green: 0.52, blue: 1.0),
-                    showsChevron: true
+                    icon: "square.and.arrow.up.fill",
+                    iconColor: ProofKitVisual.accent,
+                    title: isPreparingExport ? "Preparing export…" : "Export my data",
+                    titleColor: ProofKitVisual.accent,
+                    isLoading: isPreparingExport
                 ) {
-                    showingPlans = true
+                    Task { await prepareDataExport() }
                 }
+                .disabled(isPreparingExport)
+
+                SettingsDivider()
+
+                SettingsButtonRow(
+                    icon: "trash.fill",
+                    iconColor: .red,
+                    title: isDeletingLocalData ? "Deleting local data…" : "Delete local data",
+                    titleColor: .red,
+                    isLoading: isDeletingLocalData
+                ) {
+                    confirmation = .deleteLocalData
+                }
+                .disabled(isDeletingLocalData)
             }
         }
-        .proofKitAppear(delay: 0.03)
     }
 
-    private var singleActionSections: some View {
-        VStack(spacing: SettingsLayout.actionGroupSpacing) {
+    private var supportSection: some View {
+        settingsSection(title: "Support", delay: 0.12) {
             SettingsGroup {
                 SettingsButtonRow(
-                    icon: "star.fill",
-                    iconColor: Color(red: 0.0, green: 0.52, blue: 1.0),
-                    title: "Give Feedback",
+                    icon: "bubble.left.and.bubble.right.fill",
+                    iconColor: ProofKitVisual.accentSecondary,
+                    title: "Send feedback",
                     showsChevron: true
                 ) {
+                    services.analytics.trackFeedbackStarted()
                     openMail(subject: "ProofKit Feedback")
                 }
-            }
 
-            SettingsGroup {
+                SettingsDivider()
+
                 SettingsButtonRow(
-                    icon: "heart.fill",
-                    iconColor: .pink,
-                    title: "About the App",
+                    icon: "envelope.badge.fill",
+                    iconColor: ProofKitVisual.accent,
+                    title: "Contact support",
                     showsChevron: true
                 ) {
-                    showingAbout = true
+                    services.analytics.trackSupportOpened()
+                    openMail(subject: "ProofKit Support")
+                }
+
+                SettingsDivider()
+
+                SettingsButtonRow(
+                    icon: "ladybug.fill",
+                    iconColor: .orange,
+                    title: "Report a bug",
+                    showsChevron: true
+                ) {
+                    services.analytics.trackSupportOpened()
+                    openMail(subject: "ProofKit Bug Report")
                 }
             }
         }
-        .proofKitAppear(delay: 0.06)
     }
 
-    private var dataAndAccountSection: some View {
-        SettingsGroup {
-            SettingsButtonRow(
-                icon: "envelope.fill",
-                iconColor: Color(red: 0.0, green: 0.52, blue: 1.0),
-                title: "Contact Support",
-                titleColor: Color(red: 0.0, green: 0.52, blue: 1.0)
-            ) {
-                openMail(subject: "ProofKit Support")
+    private var aboutSection: some View {
+        settingsSection(title: "About", delay: 0.15) {
+            SettingsGroup {
+                SettingsButtonRow(
+                    icon: "checkmark.seal.fill",
+                    iconColor: ProofKitVisual.accent,
+                    title: "About ProofKit",
+                    showsChevron: true
+                ) {
+                    infoSheet = .aboutProofKit
+                }
+
+                SettingsDivider()
+
+                SettingsButtonRow(
+                    icon: "bird.fill",
+                    iconColor: ProofKitVisual.accentSecondary,
+                    title: "About Rook",
+                    showsChevron: true
+                ) {
+                    infoSheet = .aboutRook
+                }
+
+                SettingsDivider()
+
+                SettingsValueRow(
+                    icon: "info.circle.fill",
+                    iconColor: ProofKitVisual.helperText,
+                    title: "Version",
+                    value: SettingsAppVersionText.current
+                )
             }
-
-            SettingsDivider()
-
-            SettingsButtonRow(
-                icon: "trash",
-                iconColor: .orange,
-                title: "Clear Local Cache",
-                titleColor: .orange
-            ) {
-                confirmation = .clearCache
-            }
-
-            SettingsDivider()
-
-            SettingsButtonRow(
-                icon: "square.and.arrow.up",
-                iconColor: Color(red: 0.0, green: 0.52, blue: 1.0),
-                title: isPreparingExport ? "Preparing Export…" : "Export Data",
-                titleColor: Color(red: 0.0, green: 0.52, blue: 1.0),
-                isLoading: isPreparingExport
-            ) {
-                Task { await prepareDataExport() }
-            }
-            .disabled(isPreparingExport)
-
-            SettingsDivider()
-
-            SettingsButtonRow(
-                icon: "person.crop.circle.badge.xmark",
-                iconColor: .red,
-                title: "Delete Account",
-                titleColor: .red
-            ) {
-                confirmation = .deleteAccount
-            }
-
-            SettingsDivider()
-
-            SettingsButtonRow(
-                icon: "rectangle.portrait.and.arrow.right",
-                iconColor: .red,
-                title: isSigningOut ? "Signing Out…" : "Sign Out",
-                titleColor: .red,
-                isLoading: isSigningOut
-            ) {
-                confirmation = .signOut
-            }
-            .disabled(isSigningOut)
         }
-        .proofKitAppear(delay: 0.09)
     }
 
-    private var subscriptionSubtitle: String {
-        [
-            entitlement.limits.aiCreditLimitText,
-            entitlement.limits.exportLimitText,
-            entitlement.source == .purchaseEntitlement ? nil : "Purchase data is placeholder-backed"
-        ]
-        .compactMap { $0 }
-        .joined(separator: " • ")
+    private func settingsSection<Content: View>(
+        title: String,
+        copy: String? = nil,
+        delay: Double,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(ProofKitVisual.helperText)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+
+                if let copy {
+                    Text(copy)
+                        .font(.footnote)
+                        .foregroundStyle(ProofKitVisual.subduedText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.horizontal, 4)
+
+            content()
+        }
+        .proofKitAppear(delay: delay)
+    }
+
+    private func trackSettingsOpenedIfNeeded() {
+        guard !didTrackSettingsOpened else { return }
+        didTrackSettingsOpened = true
+        services.analytics.trackSettingsOpened()
     }
 
     @MainActor
-    private func loadAccountAndPlan() async {
+    private func loadSettings() async {
         entitlement = await services.paywall.currentEntitlement()
+        aiCreditsText = await currentAICreditsText(for: entitlement)
 
         guard services.account.isConfigured else {
             accountSession = nil
+            accountProfile = SettingsAccountProfileStore.load(for: nil)
             return
         }
 
@@ -350,34 +444,129 @@ struct GlobalSettingsView: View {
             onboardingDisplayName: nil
         )
         accountSession = authResult?.session
-    }
-
-    private func perform(_ confirmation: SettingsConfirmation) {
-        switch confirmation {
-        case .clearCache:
-            Task { await clearLocalCache() }
-        case .deleteAccount:
-            showDeleteAccountResult()
-        case .signOut:
-            Task { await signOut() }
+        accountProfile = .empty
+        if let session = authResult?.session {
+            SettingsAccountProfileStore.clear(for: session)
         }
     }
 
     @MainActor
-    private func clearLocalCache() async {
+    private func currentAICreditsText(for entitlement: ProofKitEntitlementSnapshot) async -> String {
+        guard services.account.isConfigured else {
+            return Self.includedCreditsText(for: entitlement)
+        }
+
         do {
-            let clearedCount = try Self.clearCacheDirectories()
+            let balance = try await services.aiCredits.fetchAICreditBalance()
+            return "\(balance.availableCredits) available"
+        } catch {
+            return Self.includedCreditsText(for: entitlement)
+        }
+    }
+
+    private static func includedCreditsText(for entitlement: ProofKitEntitlementSnapshot) -> String {
+        let credits = entitlement.limits.monthlyAICredits
+        if credits <= 0 {
+            return "Not included"
+        }
+
+        return entitlement.limits.aiCreditsRenewMonthly ? "\(credits)/month included" : "\(credits) included"
+    }
+
+    @MainActor
+    private func saveAccountName(_ name: String) {
+        Task { await saveAccountNameToSupabase(name) }
+    }
+
+    @MainActor
+    private func saveAccountEmail(_ email: String) {
+        Task { await requestSupabaseEmailChange(email) }
+    }
+
+    @MainActor
+    private func saveAccountNameToSupabase(_ name: String) async {
+        guard let normalized = Self.normalizedName(name) else {
             settingsNotice = SettingsNotice(
-                title: "Local Cache Cleared",
-                message: clearedCount == 0
-                ? "No temporary ProofKit cache files were found. Your saved cases, proof files, OCR text, and PDFs were not changed."
-                : "Removed \(clearedCount) temporary ProofKit cache folder\(clearedCount == 1 ? "" : "s"). Your saved cases, proof files, OCR text, and PDFs were not changed."
+                title: "Name Required",
+                message: "Enter a name before saving."
+            )
+            return
+        }
+
+        guard services.account.isConfigured else {
+            accountProfile.name = normalized
+            SettingsAccountProfileStore.saveName(normalized, for: accountSession)
+            settingsNotice = SettingsNotice(
+                title: "Saved on This Device",
+                message: "Supabase account services are not configured in this build, so the name was saved locally only."
+            )
+            return
+        }
+
+        do {
+            let updatedSession = try await services.account.updateProfileDisplayName(normalized)
+            accountSession = updatedSession
+            accountProfile = .empty
+            SettingsAccountProfileStore.clear(for: updatedSession)
+            onAccountSessionUpdated(updatedSession)
+            settingsNotice = SettingsNotice(
+                title: "Name Updated",
+                message: "Your ProofKit profile name was updated in Supabase."
             )
         } catch {
             settingsNotice = SettingsNotice(
-                title: "Couldn’t Clear Cache",
+                title: "Couldn’t Update Name",
                 message: Self.message(for: error)
             )
+        }
+    }
+
+    @MainActor
+    private func requestSupabaseEmailChange(_ email: String) async {
+        guard let normalized = Self.normalizedEmail(email),
+              SettingsEmailValidator.isValid(normalized) else {
+            settingsNotice = SettingsNotice(
+                title: "Invalid Email",
+                message: "Enter a valid email address before saving."
+            )
+            return
+        }
+
+        if normalized == accountSession?.email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            settingsNotice = SettingsNotice(
+                title: "Email Unchanged",
+                message: "That is already the email address for this ProofKit account."
+            )
+            return
+        }
+
+        guard services.account.isConfigured else {
+            settingsNotice = SettingsNotice(
+                title: "Email Not Updated",
+                message: "Supabase account services are not configured in this build, so email changes can’t be requested."
+            )
+            return
+        }
+
+        do {
+            try await services.account.requestEmailChange(to: normalized)
+            SettingsAccountProfileStore.clearEmail(for: accountSession)
+            settingsNotice = SettingsNotice(
+                title: "Confirm Your New Email",
+                message: "Supabase sent a confirmation email to \(normalized). Your ProofKit account email will update after you confirm it."
+            )
+        } catch {
+            settingsNotice = SettingsNotice(
+                title: "Couldn’t Request Email Change",
+                message: Self.message(for: error)
+            )
+        }
+    }
+
+    private func perform(_ confirmation: SettingsConfirmation) {
+        switch confirmation {
+        case .deleteLocalData:
+            Task { await deleteLocalData() }
         }
     }
 
@@ -388,7 +577,13 @@ struct GlobalSettingsView: View {
         defer { isPreparingExport = false }
 
         do {
-            let file = try Self.writeDataExport(for: caseFiles)
+            let file = try Self.writeDataExport(
+                for: caseFiles,
+                accountName: editableNameValue,
+                accountEmail: editableEmailValue,
+                plan: planStatusText,
+                aiCreditsText: aiCreditsText
+            )
             exportFile = file
         } catch {
             settingsNotice = SettingsNotice(
@@ -399,45 +594,31 @@ struct GlobalSettingsView: View {
     }
 
     @MainActor
-    private func signOut() async {
-        guard !isSigningOut else { return }
-        isSigningOut = true
-        defer { isSigningOut = false }
+    private func deleteLocalData() async {
+        guard !isDeletingLocalData else { return }
+        isDeletingLocalData = true
+        defer { isDeletingLocalData = false }
 
-        guard services.account.isConfigured else {
-            settingsNotice = SettingsNotice(
-                title: "No Account Connected",
-                message: "Supabase account services are not configured in this build. Local cases and proof files are still available on this device."
-            )
-            return
-        }
+        let snapshot = SettingsLocalDataSnapshot(caseFiles: caseFiles)
 
         do {
-            try await services.account.signOut()
-            accountSession = nil
-            onSignedOut()
-            settingsNotice = SettingsNotice(
-                title: "Signed Out",
-                message: "This device has been signed out. This account’s local cases, vault files, OCR text, packets, and evidence are hidden until the same account signs in again."
+            for caseFile in caseFiles {
+                modelContext.delete(caseFile)
+            }
+
+            try modelContext.save()
+            let removalResult = Self.removeLocalFiles(at: snapshot.fileURLs)
+            SettingsAccountProfileStore.clear(for: accountSession)
+            accountProfile = .empty
+            settingsNotice = Self.localDataDeletionNotice(
+                snapshot: snapshot,
+                removalResult: removalResult
             )
         } catch {
+            modelContext.rollback()
             settingsNotice = SettingsNotice(
-                title: "Couldn’t Sign Out",
+                title: "Couldn’t Delete Local Data",
                 message: Self.message(for: error)
-            )
-        }
-    }
-
-    private func showDeleteAccountResult() {
-        if services.account.isConfigured, accountSession != nil {
-            settingsNotice = SettingsNotice(
-                title: "Account Deletion Not Yet Connected",
-                message: "ProofKit can sign out on this device, but permanent account deletion still needs a backend endpoint. Contact support and we’ll help remove the account record."
-            )
-        } else {
-            settingsNotice = SettingsNotice(
-                title: "No Account to Delete",
-                message: "There is no signed-in account on this device. This did not delete local cases, proof files, OCR text, or PDFs."
             )
         }
     }
@@ -455,28 +636,20 @@ struct GlobalSettingsView: View {
         }
     }
 
-    private static func clearCacheDirectories() throws -> Int {
-        let fileManager = FileManager.default
-        let candidates = [
-            fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first?.appending(path: "ProofKit"),
-            URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "ProofKit"),
-            URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "ProofKitSettingsExports")
-        ].compactMap { $0 }
-
-        var clearedCount = 0
-        for url in candidates where fileManager.fileExists(atPath: url.path(percentEncoded: false)) {
-            try fileManager.removeItem(at: url)
-            clearedCount += 1
-        }
-
-        return clearedCount
-    }
-
-    @MainActor
-    private static func writeDataExport(for caseFiles: [CaseFile]) throws -> SettingsExportFile {
+    private static func writeDataExport(
+        for caseFiles: [CaseFile],
+        accountName: String,
+        accountEmail: String,
+        plan: String,
+        aiCreditsText: String
+    ) throws -> SettingsExportFile {
         let snapshot = ProofKitSettingsDataExport(
             exportedAt: .now,
-            appVersion: SettingsAboutSheet.appVersionText,
+            appVersion: SettingsAppVersionText.current,
+            accountName: normalizedName(accountName),
+            accountEmail: normalizedEmail(accountEmail),
+            plan: plan,
+            aiCreditsText: aiCreditsText,
             caseCount: caseFiles.count,
             cases: caseFiles.map(ProofKitSettingsCaseExport.init(caseFile:))
         )
@@ -500,6 +673,68 @@ struct GlobalSettingsView: View {
         return SettingsExportFile(url: url, caseCount: caseFiles.count)
     }
 
+    private static func removeLocalFiles(at urls: Set<URL>) -> SettingsFileRemovalResult {
+        let fileManager = FileManager.default
+        var removedCount = 0
+        var failedCount = 0
+
+        for url in urls {
+            let path = url.path(percentEncoded: false)
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else { continue }
+            guard !isDirectory.boolValue else { continue }
+
+            do {
+                try fileManager.removeItem(at: url)
+                removedCount += 1
+            } catch {
+                failedCount += 1
+            }
+        }
+
+        return SettingsFileRemovalResult(removedCount: removedCount, failedCount: failedCount)
+    }
+
+    private static func localDataDeletionNotice(
+        snapshot: SettingsLocalDataSnapshot,
+        removalResult: SettingsFileRemovalResult
+    ) -> SettingsNotice {
+        if snapshot.caseCount == 0, snapshot.fileURLs.isEmpty {
+            return SettingsNotice(
+                title: "No Local Data Found",
+                message: "ProofKit did not find local cases, proof files, OCR text, or packets to delete on this device."
+            )
+        }
+
+        var message = "Removed \(snapshot.caseCount) case\(snapshot.caseCount == 1 ? "" : "s") and local proof records from this device."
+        if removalResult.removedCount > 0 {
+            message += " Removed \(removalResult.removedCount) stored file\(removalResult.removedCount == 1 ? "" : "s")."
+        }
+        if removalResult.failedCount > 0 {
+            message += " \(removalResult.failedCount) file\(removalResult.failedCount == 1 ? "" : "s") could not be removed; try again or contact support."
+        }
+
+        return SettingsNotice(
+            title: "Local Data Deleted",
+            message: message
+        )
+    }
+
+    private static func normalizedName(_ value: String) -> String? {
+        let normalized = value
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private static func normalizedEmail(_ value: String) -> String? {
+        let normalized = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return normalized.isEmpty ? nil : normalized
+    }
+
     private static func message(for error: Error) -> String {
         if let localizedError = error as? LocalizedError,
            let description = localizedError.errorDescription {
@@ -519,7 +754,6 @@ struct GlobalSettingsView: View {
 
 private enum SettingsLayout {
     static let sectionSpacing: CGFloat = 20
-    static let actionGroupSpacing: CGFloat = 14
     static let groupCornerRadius: CGFloat = 20
     static let rowHorizontalPadding: CGFloat = 18
     static let rowVerticalPadding: CGFloat = 11
@@ -527,22 +761,7 @@ private enum SettingsLayout {
     static let rowMinHeight: CGFloat = 56
     static let iconWidth: CGFloat = 28
     static let dividerIndent: CGFloat = 32
-    static let sectionTitleHorizontalPadding: CGFloat = 30
-}
-
-private struct SettingsSectionTitle: View {
-    let title: String
-
-    init(_ title: String) {
-        self.title = title
-    }
-
-    var body: some View {
-        Text(title)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(ProofKitVisual.helperText)
-            .padding(.horizontal, SettingsLayout.sectionTitleHorizontalPadding)
-    }
+    static let safeBottomPadding: CGFloat = 132
 }
 
 private struct SettingsGroup<Content: View>: View {
@@ -596,67 +815,49 @@ private struct SettingsIcon: View {
     }
 }
 
-private struct SettingsDetailRow: View {
-    let icon: String
-    let iconColor: Color
-    let title: String
-    let subtitle: String?
-    var titleColor: Color = .primary
-
-    var body: some View {
-        HStack(alignment: .center, spacing: SettingsLayout.rowSpacing) {
-            SettingsIcon(systemImage: icon, color: iconColor)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(titleColor)
-                    .lineLimit(2)
-
-                if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.footnote)
-                        .foregroundStyle(ProofKitVisual.helperText)
-                        .lineLimit(2)
-                }
-            }
-
-            Spacer(minLength: 12)
-        }
-        .padding(.horizontal, SettingsLayout.rowHorizontalPadding)
-        .padding(.vertical, SettingsLayout.rowVerticalPadding)
-        .minSettingsRowHeight()
-    }
-}
-
-private struct SettingsMenuRow<MenuContent: View>: View {
+private struct SettingsValueRow: View {
     let icon: String
     let iconColor: Color
     let title: String
     let value: String
-    var showsInfo = false
-    let menuContent: MenuContent
-
-    init(
-        icon: String,
-        iconColor: Color,
-        title: String,
-        value: String,
-        showsInfo: Bool = false,
-        @ViewBuilder menuContent: () -> MenuContent
-    ) {
-        self.icon = icon
-        self.iconColor = iconColor
-        self.title = title
-        self.value = value
-        self.showsInfo = showsInfo
-        self.menuContent = menuContent()
-    }
+    var valueColor: Color = .primary
 
     var body: some View {
-        Menu {
-            menuContent
-        } label: {
+        HStack(spacing: SettingsLayout.rowSpacing) {
+            SettingsIcon(systemImage: icon, color: iconColor)
+
+            Text(title)
+                .font(.body.weight(.regular))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            Spacer(minLength: 12)
+
+            Text(value)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(valueColor)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .multilineTextAlignment(.trailing)
+                .minimumScaleFactor(0.82)
+        }
+        .padding(.horizontal, SettingsLayout.rowHorizontalPadding)
+        .padding(.vertical, SettingsLayout.rowVerticalPadding)
+        .minSettingsRowHeight()
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct SettingsValueButtonRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let value: String
+    var valueColor: Color = ProofKitVisual.helperText
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
             HStack(spacing: SettingsLayout.rowSpacing) {
                 SettingsIcon(systemImage: icon, color: iconColor)
 
@@ -665,29 +866,27 @@ private struct SettingsMenuRow<MenuContent: View>: View {
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
-                if showsInfo {
-                    Image(systemName: "info.circle")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(ProofKitVisual.helperText)
-                }
-
                 Spacer(minLength: 12)
 
                 Text(value)
                     .font(.body.weight(.regular))
-                    .foregroundStyle(ProofKitVisual.helperText)
+                    .foregroundStyle(valueColor)
                     .lineLimit(1)
+                    .truncationMode(.middle)
+                    .multilineTextAlignment(.trailing)
+                    .minimumScaleFactor(0.82)
 
-                Image(systemName: "chevron.down")
+                Image(systemName: "chevron.right")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(ProofKitVisual.helperText)
+                    .foregroundStyle(ProofKitVisual.subduedText)
+                    .accessibilityHidden(true)
             }
             .contentShape(Rectangle())
             .padding(.horizontal, SettingsLayout.rowHorizontalPadding)
             .padding(.vertical, SettingsLayout.rowVerticalPadding)
             .minSettingsRowHeight()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ProofKitCardButtonStyle())
     }
 }
 
@@ -695,24 +894,31 @@ private struct SettingsToggleRow: View {
     let icon: String
     let iconColor: Color
     let title: String
+    let subtitle: String
     @Binding var isOn: Bool
 
     var body: some View {
-        Toggle(isOn: $isOn.animation(ProofKitMotion.standard)) {
+        Toggle(isOn: $isOn) {
             HStack(spacing: SettingsLayout.rowSpacing) {
                 SettingsIcon(systemImage: icon, color: iconColor)
 
-                Text(title)
-                    .font(.body.weight(.regular))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.body.weight(.regular))
+                        .foregroundStyle(.primary)
+
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(ProofKitVisual.helperText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
-        .toggleStyle(.switch)
-        .tint(.green)
+        .tint(ProofKitVisual.accent)
         .padding(.horizontal, SettingsLayout.rowHorizontalPadding)
-        .padding(.vertical, 10)
+        .padding(.vertical, SettingsLayout.rowVerticalPadding)
         .minSettingsRowHeight()
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -761,85 +967,205 @@ private extension View {
     }
 }
 
-private struct SettingsPlansSheet: View {
+private struct SettingsEditNameSheet: View {
     @Environment(\.dismiss) private var dismiss
-    let entitlement: ProofKitEntitlementSnapshot
 
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Current Plan")
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(.primary)
+    @State private var name: String
+    @State private var attemptedSave = false
+    let onSave: (String) -> Void
 
-                        Text("\(entitlement.plan.displayName) is active. Plan records are placeholder-backed until StoreKit or RevenueCat purchase records are connected.")
-                            .font(.subheadline)
-                            .foregroundStyle(ProofKitVisual.helperText)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .proofKitCard()
-
-                    PaywallPlanCard()
-                    AICreditStatusCard()
-                }
-                .padding(20)
-            }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("Plans")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-        }
+    init(initialName: String, onSave: @escaping (String) -> Void) {
+        _name = State(initialValue: initialName)
+        self.onSave = onSave
     }
-}
 
-private struct SettingsAboutSheet: View {
-    @Environment(\.dismiss) private var dismiss
+    private var normalizedName: String {
+        name
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSave: Bool {
+        !normalizedName.isEmpty
+    }
 
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 18) {
-                Image(systemName: "checkmark.seal.fill")
-                    .font(.system(size: 42, weight: .semibold))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(Color(red: 0.0, green: 0.52, blue: 1.0))
+                Text("This updates your ProofKit profile name in Supabase and refreshes your home greeting.")
+                    .font(.subheadline)
+                    .foregroundStyle(ProofKitVisual.helperText)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("ProofKit")
-                        .font(.title.weight(.bold))
-                        .foregroundStyle(.primary)
+                TextField("Name", text: $name)
+                    .textContentType(.name)
+                    .textInputAutocapitalization(.words)
+                    .submitLabel(.done)
+                    .font(.body.weight(.semibold))
+                    .padding(14)
+                    .proofKitFieldBackground(cornerRadius: 16)
+                    .onSubmit(save)
 
-                    Text("A local-first place to organize proof, review OCR text, build a timeline, and create case PDFs from your own records.")
-                        .font(.subheadline)
-                        .foregroundStyle(ProofKitVisual.helperText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                VStack(spacing: 0) {
-                    AboutInfoRow(title: "Version", value: Self.appVersionText)
-                    Divider().padding(.leading, 14)
-                    AboutInfoRow(title: "Storage", value: "Local evidence files stay on this device")
-                    Divider().padding(.leading, 14)
-                    AboutInfoRow(title: "AI", value: "Text-only, user-triggered actions")
-                }
-                .background {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(ProofKitVisual.cardBackground)
+                if attemptedSave, !canSave {
+                    Text("Enter a name before saving.")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.red)
+                        .transition(ProofKitMotion.compactInsertion)
                 }
 
                 Spacer(minLength: 0)
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("About")
+            .background(ProofKitVisual.screenBackground.ignoresSafeArea())
+            .navigationTitle("Edit name")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        save()
+                    }
+                    .disabled(!canSave)
+                }
+            }
+            .animation(ProofKitMotion.standard, value: attemptedSave)
+        }
+    }
+
+    private func save() {
+        attemptedSave = true
+        guard canSave else { return }
+
+        onSave(normalizedName)
+        dismiss()
+    }
+}
+
+private struct SettingsEditEmailSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var email: String
+    @State private var attemptedSave = false
+    let onSave: (String) -> Void
+
+    init(initialEmail: String, onSave: @escaping (String) -> Void) {
+        _email = State(initialValue: initialEmail)
+        self.onSave = onSave
+    }
+
+    private var normalizedEmail: String {
+        email
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    private var canSave: Bool {
+        SettingsEmailValidator.isValid(normalizedEmail)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 18) {
+                Text("Supabase will send a confirmation email. Your ProofKit account email changes only after you confirm the new address.")
+                    .font(.subheadline)
+                    .foregroundStyle(ProofKitVisual.helperText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                TextField("Email", text: $email)
+                    .textContentType(.emailAddress)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .submitLabel(.done)
+                    .font(.body.weight(.semibold))
+                    .padding(14)
+                    .proofKitFieldBackground(cornerRadius: 16)
+                    .onSubmit(save)
+
+                if attemptedSave, !canSave {
+                    Text("Enter a valid email address.")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.red)
+                        .transition(ProofKitMotion.compactInsertion)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(ProofKitVisual.screenBackground.ignoresSafeArea())
+            .navigationTitle("Edit email")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        save()
+                    }
+                    .disabled(!canSave)
+                }
+            }
+            .animation(ProofKitMotion.standard, value: attemptedSave)
+        }
+    }
+
+    private func save() {
+        attemptedSave = true
+        guard canSave else { return }
+
+        onSave(normalizedEmail)
+        dismiss()
+    }
+}
+
+private enum SettingsEmailValidator {
+    static func isValid(_ email: String) -> Bool {
+        let pattern = #"^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$"#
+        return email.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+}
+
+private struct SettingsInfoSheetView: View {
+    @Environment(\.dismiss) private var dismiss
+    let sheet: SettingsInfoPresentation
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 18) {
+                    icon
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(sheet.title)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text(sheet.message)
+                            .font(.body)
+                            .foregroundStyle(ProofKitVisual.helperText)
+                            .lineSpacing(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .proofKitCard(cornerRadius: ProofKitVisual.panelCornerRadius)
+                }
+                .padding(20)
+                .padding(.bottom, 28)
+            }
+            .background(ProofKitVisual.screenBackground.ignoresSafeArea())
+            .navigationTitle(sheet.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -851,7 +1177,184 @@ private struct SettingsAboutSheet: View {
         }
     }
 
-    static var appVersionText: String {
+    @ViewBuilder
+    private var icon: some View {
+        if sheet == .aboutRook {
+            Image("rook_image")
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(maxWidth: 148)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .shadow(color: ProofKitVisual.accentSecondary.opacity(0.14), radius: 14, x: 0, y: 9)
+                .accessibilityLabel("Rook proof keeper")
+        } else {
+            Image(systemName: sheet.systemImage)
+                .font(.system(size: 42, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(sheet.iconColor)
+                .frame(width: 64, height: 64)
+                .background {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(ProofKitVisual.quietFill)
+                }
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+private enum SettingsInfoPresentation: String, Identifiable {
+    case localFirst
+    case aboutProofKit
+    case aboutRook
+
+    var id: String { rawValue }
+
+    var navigationTitle: String {
+        switch self {
+        case .localFirst:
+            "Local-first storage"
+        case .aboutProofKit:
+            "About ProofKit"
+        case .aboutRook:
+            "About Rook"
+        }
+    }
+
+    var title: String { navigationTitle }
+
+    var systemImage: String {
+        switch self {
+        case .localFirst:
+            "lock.fill"
+        case .aboutProofKit:
+            "checkmark.seal.fill"
+        case .aboutRook:
+            "bird.fill"
+        }
+    }
+
+    var iconColor: Color {
+        switch self {
+        case .localFirst, .aboutRook:
+            ProofKitVisual.accentSecondary
+        case .aboutProofKit:
+            ProofKitVisual.accent
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .localFirst:
+            "ProofKit keeps your cases and proof private on this device unless you choose to export or share them."
+        case .aboutProofKit:
+            "ProofKit helps you organize screenshots, receipts, notes, and documents into a clear proof timeline. Your core proof records stay local-first on this device unless you choose to export or share them."
+        case .aboutRook:
+            "Rook is ProofKit’s little proof keeper — a calm guide for turning messy screenshots and receipts into a clear timeline."
+        }
+    }
+}
+
+private struct SettingsEditableAccountProfile: Equatable {
+    var name: String?
+    var email: String?
+
+    static let empty = SettingsEditableAccountProfile(name: nil, email: nil)
+}
+
+private enum SettingsAccountProfileStore {
+    static func load(for session: ProofKitAccountSession?) -> SettingsEditableAccountProfile {
+        SettingsEditableAccountProfile(
+            name: normalizedValue(forKey: key("name", session: session)),
+            email: normalizedValue(forKey: key("email", session: session))
+        )
+    }
+
+    static func saveName(_ name: String?, for session: ProofKitAccountSession?) {
+        save(name, forKey: key("name", session: session))
+    }
+
+    static func saveEmail(_ email: String?, for session: ProofKitAccountSession?) {
+        save(email, forKey: key("email", session: session))
+    }
+
+    static func clearEmail(for session: ProofKitAccountSession?) {
+        UserDefaults.standard.removeObject(forKey: key("email", session: session))
+    }
+
+    static func clear(for session: ProofKitAccountSession?) {
+        UserDefaults.standard.removeObject(forKey: key("name", session: session))
+        UserDefaults.standard.removeObject(forKey: key("email", session: session))
+    }
+
+    private static func normalizedValue(forKey key: String) -> String? {
+        guard let value = UserDefaults.standard.string(forKey: key)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
+            return nil
+        }
+
+        return value
+    }
+
+    private static func save(_ value: String?, forKey key: String) {
+        if let value, !value.isEmpty {
+            UserDefaults.standard.set(value, forKey: key)
+        } else {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+    }
+
+    private static func key(_ field: String, session: ProofKitAccountSession?) -> String {
+        let scope = session?.userID.uuidString.lowercased() ?? "local"
+        return "proofkit.settings.accountProfile.\(scope).\(field)"
+    }
+}
+
+private struct SettingsLocalDataSnapshot {
+    let caseCount: Int
+    let fileURLs: Set<URL>
+
+    @MainActor
+    init(caseFiles: [CaseFile]) {
+        caseCount = caseFiles.count
+        var urls = Set<URL>()
+
+        for caseFile in caseFiles {
+            Self.insertFileURL(caseFile.thumbnailLocalFilePath, into: &urls)
+
+            for evidenceItem in caseFile.evidenceItems {
+                for attachment in evidenceItem.attachments {
+                    Self.insertFileURL(attachment.localFilePath, into: &urls)
+                    Self.insertFileURL(attachment.thumbnailLocalFilePath, into: &urls)
+                }
+            }
+
+            for exportPacket in caseFile.exportPackets {
+                Self.insertFileURL(exportPacket.localPDFFilePath, into: &urls)
+            }
+        }
+
+        fileURLs = urls
+    }
+
+    private static func insertFileURL(_ path: String?, into urls: inout Set<URL>) {
+        guard let path = path?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !path.isEmpty else {
+            return
+        }
+
+        urls.insert(URL(fileURLWithPath: path))
+    }
+}
+
+private struct SettingsFileRemovalResult {
+    let removedCount: Int
+    let failedCount: Int
+}
+
+private enum SettingsAppVersionText {
+    static var current: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
 
@@ -865,27 +1368,6 @@ private struct SettingsAboutSheet: View {
         default:
             return "Development"
         }
-    }
-}
-
-private struct AboutInfoRow: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(title)
-                .font(.subheadline)
-                .foregroundStyle(ProofKitVisual.helperText)
-
-            Spacer(minLength: 12)
-
-            Text(value)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.trailing)
-        }
-        .padding(14)
     }
 }
 
@@ -943,51 +1425,28 @@ private struct SettingsNotice: Identifiable {
 }
 
 private enum SettingsConfirmation: String, Identifiable {
-    case clearCache
-    case deleteAccount
-    case signOut
+    case deleteLocalData
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .clearCache:
-            "Clear Local Cache?"
-        case .deleteAccount:
-            "Delete Account?"
-        case .signOut:
-            "Sign Out?"
+        case .deleteLocalData:
+            "Delete local data?"
         }
     }
 
     var message: String {
         switch self {
-        case .clearCache:
-            "This removes temporary ProofKit cache folders only. It does not delete cases, proof files, OCR text, notes, or exported PDFs."
-        case .deleteAccount:
-            "ProofKit will check account state. This account’s local cases, vault files, OCR text, packets, and evidence are not shown to other signed-in accounts."
-        case .signOut:
-            "This signs out the connected account on this device. This account’s local workspace remains on this device but is hidden until the same account signs in again."
+        case .deleteLocalData:
+            "This removes ProofKit data stored on this device. Export anything important first. This can’t be undone."
         }
     }
 
     var confirmTitle: String {
         switch self {
-        case .clearCache:
-            "Clear Cache"
-        case .deleteAccount:
-            "Continue"
-        case .signOut:
-            "Sign Out"
-        }
-    }
-
-    var buttonRole: ButtonRole? {
-        switch self {
-        case .clearCache:
-            nil
-        case .deleteAccount, .signOut:
-            .destructive
+        case .deleteLocalData:
+            "Delete local data"
         }
     }
 }
@@ -1001,6 +1460,10 @@ private struct SettingsExportFile: Identifiable {
 private struct ProofKitSettingsDataExport: Encodable {
     let exportedAt: Date
     let appVersion: String
+    let accountName: String?
+    let accountEmail: String?
+    let plan: String
+    let aiCreditsText: String
     let caseCount: Int
     let cases: [ProofKitSettingsCaseExport]
 }

@@ -274,6 +274,9 @@ struct ManualEvidenceEntryView: View {
 
         do {
             try modelContext.save()
+            services.analytics.trackProofAdded(evidenceItem, caseFile: caseFile)
+            services.analytics.trackTimelineItemCreated(evidenceItem)
+            services.analytics.trackProofAddedToTimeline(evidenceItem)
             onSave(evidenceItem)
             dismiss()
         } catch {
@@ -348,7 +351,7 @@ private extension String {
         ManualEvidenceEntryView(
             caseFile: CaseFile(
                 caseType: .apartmentIssue,
-                userTitle: "Apartment repair timeline"
+                userTitle: "Housing lease timeline"
             )
         ) { _ in }
     }

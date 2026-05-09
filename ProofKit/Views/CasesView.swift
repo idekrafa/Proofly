@@ -15,6 +15,10 @@ struct CasesView: View {
     @State private var isOpeningCreatedCase = false
     @State private var paywallNotice: PaywallAccessDecision?
     @State private var activeAddProofSheet: CasesAddProofSheet?
+    @State private var selectedCaseRoute: CasesCaseRoute?
+    @State private var casePendingDeletion: CaseFile?
+    @State private var isDeleteCaseConfirmationPresented = false
+    @State private var caseDeletionNotice: CasesDeletionNotice?
 
     private var filteredCases: [CaseFile] {
         let queryTokens = searchText
@@ -63,13 +67,20 @@ struct CasesView: View {
                     )
                 }
             }
+            .navigationDestination(item: $selectedCaseRoute) { route in
+                CaseDetailView(caseFile: route.caseFile)
+            }
             .sheet(isPresented: $isShowingCreateCaseFlow) {
                 CreateCaseFlowView { draft in
-                    pendingCreatedCase = viewModel.createCase(
+                    let caseFile = viewModel.createCase(
                         in: modelContext,
                         title: draft.title,
-                        caseType: draft.caseType
+                        caseType: draft.caseType,
+                        summary: draft.summary,
+                        notes: draft.notes
                     )
+                    services.analytics.trackCaseCreated(caseFile, sourceScreen: .cases)
+                    pendingCreatedCase = caseFile
                     isShowingCreateCaseFlow = false
                 }
             }
@@ -109,6 +120,28 @@ struct CasesView: View {
                     message: Text(notice.message),
                     dismissButton: .default(Text("OK"))
                 )
+            }
+            .alert(item: $caseDeletionNotice) { notice in
+                Alert(
+                    title: Text(notice.title),
+                    message: Text(notice.message),
+                    dismissButton: .default(Text("OK"))
+                )
+            }
+            .confirmationDialog(
+                "Delete case?",
+                isPresented: $isDeleteCaseConfirmationPresented,
+                titleVisibility: .visible
+            ) {
+                Button("Delete Case", role: .destructive) {
+                    deletePendingCase()
+                }
+
+                Button("Cancel", role: .cancel) {
+                    casePendingDeletion = nil
+                }
+            } message: {
+                Text(deleteCaseConfirmationMessage)
             }
         }
     }
@@ -198,12 +231,23 @@ struct CasesView: View {
 
                 LazyVStack(spacing: 14) {
                     ForEach(Array(filteredCases.enumerated()), id: \.element.id) { index, caseFile in
-                        CaseListCard(
-                            caseFile: caseFile,
-                            onAddProof: {
-                                Task { await showAddProofOptions(for: caseFile) }
+                        ProofKitSwipeToDeleteRow(
+                            deleteAccessibilityLabel: "Delete case",
+                            cornerRadius: 22,
+                            onDelete: {
+                                prepareDelete(for: caseFile)
                             }
-                        )
+                        ) {
+                            CaseListCard(
+                                caseFile: caseFile,
+                                onAddProof: {
+                                    Task { await showAddProofOptions(for: caseFile) }
+                                },
+                                onManageCase: {
+                                    openCase(caseFile)
+                                }
+                            )
+                        }
                         .proofKitAppear(delay: min(Double(index) * 0.025, 0.16))
                     }
                 }
@@ -220,6 +264,7 @@ struct CasesView: View {
             return
         }
 
+        services.analytics.trackCaseCreateStarted(sourceScreen: .cases)
         isShowingCreateCaseFlow = true
     }
 
@@ -232,6 +277,39 @@ struct CasesView: View {
         }
 
         activeAddProofSheet = .importOptions(caseFile)
+    }
+
+    private func openCase(_ caseFile: CaseFile) {
+        selectedCaseRoute = CasesCaseRoute(caseFile: caseFile)
+    }
+
+    private func prepareDelete(for caseFile: CaseFile) {
+        casePendingDeletion = caseFile
+        isDeleteCaseConfirmationPresented = true
+    }
+
+    private var deleteCaseConfirmationMessage: String {
+        guard let casePendingDeletion else {
+            return "This removes the selected case from ProofKit. Original proof files stay in the Vault and on this device."
+        }
+
+        return "This removes “\(casePendingDeletion.casesDisplayTitle)” and its timeline, notes, proof entries, and export records from ProofKit. Original proof files stay in the Vault and on this device."
+    }
+
+    private func deletePendingCase() {
+        guard let caseFile = casePendingDeletion else { return }
+
+        do {
+            try CaseDeletionService.deleteCase(caseFile, modelContext: modelContext)
+            services.analytics.trackCaseDeleted(caseFile)
+        } catch {
+            caseDeletionNotice = CasesDeletionNotice(
+                title: "Case not deleted",
+                message: "This case could not be deleted. Please try again."
+            )
+        }
+
+        casePendingDeletion = nil
     }
 }
 
@@ -247,6 +325,30 @@ private enum CasesAddProofSheet: Identifiable {
             "manualEntry-\(caseFile.id.uuidString)"
         }
     }
+}
+
+private struct CasesCaseRoute: Identifiable, Hashable {
+    let id: UUID
+    let caseFile: CaseFile
+
+    init(caseFile: CaseFile) {
+        id = caseFile.id
+        self.caseFile = caseFile
+    }
+
+    static func == (lhs: CasesCaseRoute, rhs: CasesCaseRoute) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+}
+
+private struct CasesDeletionNotice: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
 }
 
 private struct CasesSearchField: View {
@@ -299,6 +401,7 @@ private struct CasesSearchField: View {
 private struct CaseListCard: View {
     let caseFile: CaseFile
     let onAddProof: () -> Void
+    let onManageCase: () -> Void
     private var readiness: CaseReadinessResult { CaseReadinessCalculator.calculate(for: caseFile) }
 
     var body: some View {
@@ -335,9 +438,7 @@ private struct CaseListCard: View {
                 }
                 .buttonStyle(CasesPillButtonStyle())
 
-                NavigationLink {
-                    CaseDetailView(caseFile: caseFile)
-                } label: {
+                Button(action: onManageCase) {
                     Text("Manage Case")
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
@@ -655,7 +756,9 @@ private extension CaseType {
             [Color(red: 0.32, green: 0.55, blue: 0.58), Color(red: 0.17, green: 0.28, blue: 0.31)]
         case .refundWarrantyIssue, .consumer:
             [Color(red: 0.27, green: 0.47, blue: 0.78), Color(red: 0.15, green: 0.25, blue: 0.43)]
-        case .workplaceIssue, .employment, .unpaidFreelanceWork:
+        case .schoolCollegeIssue:
+            [Color(red: 0.38, green: 0.45, blue: 0.72), Color(red: 0.20, green: 0.24, blue: 0.40)]
+        case .workplaceIssue, .employment, .unpaidFreelanceWork, .workFreelanceIssue:
             [Color(red: 0.42, green: 0.42, blue: 0.52), Color(red: 0.22, green: 0.22, blue: 0.30)]
         case .insuranceIssue, .insurance:
             [Color(red: 0.25, green: 0.54, blue: 0.48), Color(red: 0.12, green: 0.31, blue: 0.29)]

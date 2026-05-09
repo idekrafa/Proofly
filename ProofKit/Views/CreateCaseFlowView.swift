@@ -3,6 +3,8 @@ import SwiftUI
 struct CreateCaseDraft {
     let caseType: CaseType
     let title: String
+    let summary: String
+    let notes: String
 }
 
 struct CreateCaseFlowView: View {
@@ -10,8 +12,9 @@ struct CreateCaseFlowView: View {
 
     let onCreate: (CreateCaseDraft) -> Void
 
-    @State private var selectedOption: CreateCaseOption?
+    @State private var selectedCategory: CaseCategory?
     @State private var title = ""
+    @State private var lastPrefilledTitle: String?
     @State private var step: Step = .documentationType
     @FocusState private var titleIsFocused: Bool
 
@@ -38,7 +41,7 @@ struct CreateCaseFlowView: View {
                     .transition(ProofKitMotion.cardInsertion)
                     .padding(.horizontal, 20)
                     .padding(.top, 24)
-                    .padding(.bottom, 28)
+                    .padding(.bottom, 32)
                     .frame(maxWidth: 680, alignment: .leading)
                     .frame(maxWidth: .infinity)
                 }
@@ -70,7 +73,7 @@ struct CreateCaseFlowView: View {
             Text(step == .documentationType ? "What are you documenting?" : "Name this case")
                 .font(.title2.weight(.semibold))
 
-            Text(step == .documentationType ? "Choose the closest fit. This only helps organize your records." : "Use a clear name you’ll recognize later. You can change it anytime.")
+            Text(step == .documentationType ? "Choose the closest fit. This only helps organize your records." : "ProofKit started with a suggested title. You can change it anytime.")
                 .font(.subheadline)
                 .foregroundStyle(ProofKitVisual.helperText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -90,40 +93,29 @@ struct CreateCaseFlowView: View {
     }
 
     private var documentationTypeStep: some View {
-        VStack(alignment: .leading, spacing: ProofKitVisual.cardSpacing) {
-            ForEach(Array(CreateCaseOption.allCases.enumerated()), id: \.element.id) { index, option in
-                Button {
-                    withAnimation(ProofKitMotion.standard) {
-                        selectedOption = option
-                    }
-                } label: {
-                    CreateCaseOptionRow(
-                        option: option,
-                        isSelected: selectedOption == option
-                    )
-                }
-                .buttonStyle(ProofKitCardButtonStyle())
-                .proofKitAppear(delay: min(Double(index) * 0.02, 0.12))
-            }
-        }
+        CaseCategoryPickerView(
+            selection: $selectedCategory,
+            cardSpacing: 13,
+            cardStyle: .onboardingPurpose
+        )
     }
 
     private var titleStep: some View {
         VStack(alignment: .leading, spacing: ProofKitVisual.sectionSpacing) {
-            if let selectedOption {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Documenting")
+            if let selectedCategory {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Selected category")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(ProofKitVisual.helperText)
 
-                    Text(selectedOption.title)
-                        .font(.headline.weight(.semibold))
-                }
-                .padding(ProofKitVisual.compactCardPadding)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(ProofKitVisual.cardBackground)
+                    CaseCategoryPurposeCard(
+                        category: selectedCategory,
+                        isSelected: true,
+                        height: 128,
+                        imageSize: 116,
+                        imageColumnWidth: 118,
+                        accessory: .selection
+                    )
                 }
                 .transition(ProofKitMotion.compactInsertion)
             }
@@ -133,7 +125,7 @@ struct CreateCaseFlowView: View {
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(ProofKitVisual.helperText)
 
-                TextField("Example: Kitchen repair records", text: $title)
+                TextField(selectedCategory?.starterTitle ?? "Example: Kitchen repair records", text: $title)
                     .textInputAutocapitalization(.words)
                     .submitLabel(.done)
                     .focused($titleIsFocused)
@@ -146,6 +138,13 @@ struct CreateCaseFlowView: View {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .stroke(ProofKitVisual.cardBorder, lineWidth: 1)
                     }
+            }
+
+            if let selectedCategory {
+                Text(selectedCategory.starterDescription)
+                    .font(.footnote)
+                    .foregroundStyle(ProofKitVisual.helperText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Text("ProofKit will create a local case file. You can add records, build a timeline, and export a case PDF later.")
@@ -183,7 +182,7 @@ struct CreateCaseFlowView: View {
     private var primaryActionIsDisabled: Bool {
         switch step {
         case .documentationType:
-            selectedOption == nil
+            selectedCategory == nil
         case .caseTitle:
             title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
@@ -192,61 +191,30 @@ struct CreateCaseFlowView: View {
     private func primaryAction() {
         switch step {
         case .documentationType:
+            guard let selectedCategory else { return }
+            prefillTitleIfNeeded(for: selectedCategory)
             withAnimation(ProofKitMotion.standard) {
                 step = .caseTitle
             }
         case .caseTitle:
-            guard let selectedOption else { return }
+            guard let selectedCategory else { return }
             onCreate(
                 CreateCaseDraft(
-                    caseType: selectedOption.caseType,
-                    title: title.trimmingCharacters(in: .whitespacesAndNewlines)
+                    caseType: selectedCategory.caseType,
+                    title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                    summary: selectedCategory.starterDescription,
+                    notes: selectedCategory.selectedCategoryNotesLine
                 )
             )
         }
     }
 
-}
-
-private struct CreateCaseOptionRow: View {
-    let option: CreateCaseOption
-    let isSelected: Bool
-
-    var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: option.systemImage)
-                .font(.headline)
-                .foregroundStyle(ProofKitVisual.helperText)
-                .frame(width: 28, height: 28)
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(option.title)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Text(option.description)
-                    .font(.subheadline)
-                    .foregroundStyle(ProofKitVisual.helperText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 10)
-
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .font(.title3)
-                .foregroundStyle(isSelected ? Color.accentColor : ProofKitVisual.subduedText)
+    private func prefillTitleIfNeeded(for category: CaseCategory) {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedTitle.isEmpty || lastPrefilledTitle == title {
+            title = category.starterTitle
+            lastPrefilledTitle = category.starterTitle
         }
-        .padding(ProofKitVisual.compactCardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: ProofKitVisual.cardCornerRadius, style: .continuous)
-                .fill(ProofKitVisual.cardBackground)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: ProofKitVisual.cardCornerRadius, style: .continuous)
-                .stroke(isSelected ? Color.accentColor.opacity(0.55) : ProofKitVisual.cardBorder, lineWidth: 1)
-        }
-        .animation(ProofKitMotion.standard, value: isSelected)
     }
 }
 
@@ -258,85 +226,6 @@ private struct ProgressCapsule: View {
             .fill(isActive ? Color.accentColor : ProofKitVisual.quietFill)
             .frame(height: 4)
             .animation(ProofKitMotion.standard, value: isActive)
-    }
-}
-
-private enum CreateCaseOption: String, CaseIterable, Identifiable {
-    case apartmentIssue
-    case unpaidFreelanceWork
-    case refundWarrantyIssue
-    case workplaceIssue
-    case insuranceIssue
-    case other
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .apartmentIssue:
-            "Apartment issue"
-        case .unpaidFreelanceWork:
-            "Unpaid freelance work"
-        case .refundWarrantyIssue:
-            "Refund/warranty issue"
-        case .workplaceIssue:
-            "Workplace issue"
-        case .insuranceIssue:
-            "Insurance issue"
-        case .other:
-            "Something else"
-        }
-    }
-
-    var description: String {
-        switch self {
-        case .apartmentIssue:
-            "Repairs, messages, photos, rent records, or a move-out timeline."
-        case .unpaidFreelanceWork:
-            "Contracts, invoices, project records, messages, and payment timeline."
-        case .refundWarrantyIssue:
-            "Receipts, product photos, support messages, and warranty records."
-        case .workplaceIssue:
-            "Schedules, messages, notes, policy records, and workplace timeline."
-        case .insuranceIssue:
-            "Claim records, photos, receipts, messages, and adjuster updates."
-        case .other:
-            "Any situation where you want a clean set of records and a timeline."
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .apartmentIssue:
-            "house"
-        case .unpaidFreelanceWork:
-            "briefcase"
-        case .refundWarrantyIssue:
-            "cart"
-        case .workplaceIssue:
-            "person.text.rectangle"
-        case .insuranceIssue:
-            "shield"
-        case .other:
-            "folder"
-        }
-    }
-
-    var caseType: CaseType {
-        switch self {
-        case .apartmentIssue:
-            .apartmentIssue
-        case .unpaidFreelanceWork:
-            .unpaidFreelanceWork
-        case .refundWarrantyIssue:
-            .refundWarrantyIssue
-        case .workplaceIssue:
-            .workplaceIssue
-        case .insuranceIssue:
-            .insuranceIssue
-        case .other:
-            .other
-        }
     }
 }
 

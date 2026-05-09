@@ -1,159 +1,5 @@
 import SwiftUI
 
-struct ProofKitOnboardingPurpose: Hashable, Identifiable {
-    let id: String
-    let imageName: String
-    let title: String
-    let outcome: String
-
-    static let rental = ProofKitOnboardingPurpose(
-        id: "rental",
-        imageName: "RookPurposeRental",
-        title: "Rent or lease issue",
-        outcome: "Build a clean repair, deposit, or landlord timeline."
-    )
-
-    static let refund = ProofKitOnboardingPurpose(
-        id: "refund",
-        imageName: "RookPurposeRefund",
-        title: "Get a refund",
-        outcome: "Organize receipts, screenshots, and messages."
-    )
-
-    static let college = ProofKitOnboardingPurpose(
-        id: "college",
-        imageName: "RookPurposeCollege",
-        title: "School or college issue",
-        outcome: "Keep deadlines, emails, essays, and records together."
-    )
-
-    static let other = ProofKitOnboardingPurpose(
-        id: "other",
-        imageName: "RookPurposeOther",
-        title: "Not sure yet?",
-        outcome: "ProofKit has your back —\norganize proof for whatever\nlife throws at you."
-    )
-
-    static let all: [ProofKitOnboardingPurpose] = [
-        .rental,
-        .refund,
-        .college,
-        .other
-    ]
-}
-
-struct ProofKitOnboardingFirstCaseSeed: Hashable, Identifiable {
-    let id: String
-    let title: String
-    let caseType: CaseType
-    let caseTypeLabel: String
-    let summary: String
-    let suggestedEvidence: [String]
-    let prompt: String?
-
-    var notesText: String {
-        notesText(details: "")
-    }
-
-    func notesText(details: String) -> String {
-        var sections: [String] = []
-        let trimmedDetails = details.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        sections.append("Selected onboarding category: \(caseTypeLabel)")
-
-        if !trimmedDetails.isEmpty {
-            sections.append("What happened:\n\(trimmedDetails)")
-        }
-
-        if let prompt {
-            sections.append(prompt)
-        }
-
-        if !suggestedEvidence.isEmpty {
-            let bullets = suggestedEvidence
-                .map { "• \($0)" }
-                .joined(separator: "\n")
-            sections.append("Suggested evidence:\n\(bullets)")
-        }
-
-        return sections.joined(separator: "\n\n")
-    }
-}
-
-extension ProofKitOnboardingPurpose {
-    var firstCaseSeed: ProofKitOnboardingFirstCaseSeed {
-        switch id {
-        case Self.rental.id:
-            ProofKitOnboardingFirstCaseSeed(
-                id: id,
-                title: "Apartment issue timeline",
-                caseType: .tenantLandlord,
-                caseTypeLabel: "Rent / lease",
-                summary: "A draft timeline for rent, lease, repair, deposit, or landlord records.",
-                suggestedEvidence: [
-                    "Repair requests",
-                    "Landlord messages",
-                    "Move-in photos",
-                    "Deposit/payment screenshots",
-                    "Lease documents"
-                ],
-                prompt: nil
-            )
-        case Self.refund.id:
-            ProofKitOnboardingFirstCaseSeed(
-                id: id,
-                title: "Refund request timeline",
-                caseType: .refundWarrantyIssue,
-                caseTypeLabel: "Refund / warranty",
-                summary: "A draft timeline for receipts, support conversations, delivery records, and refund decisions.",
-                suggestedEvidence: [
-                    "Order screenshots",
-                    "Support chats",
-                    "Receipts",
-                    "Delivery photos"
-                ],
-                prompt: nil
-            )
-        case Self.college.id:
-            ProofKitOnboardingFirstCaseSeed(
-                id: id,
-                title: "School / college timeline",
-                caseType: .other,
-                caseTypeLabel: "School / college",
-                summary: "A draft packet for school or college deadlines, emails, essays, documents, and confirmations.",
-                suggestedEvidence: [
-                    "Deadlines",
-                    "Emails",
-                    "Essays",
-                    "Documents",
-                    "Confirmations"
-                ],
-                prompt: nil
-            )
-        default:
-            ProofKitOnboardingFirstCaseSeed(
-                id: Self.other.id,
-                title: "My proof timeline",
-                caseType: .general,
-                caseTypeLabel: "Something else",
-                summary: "A flexible draft packet for organizing what happened and the records that prove it.",
-                suggestedEvidence: [
-                    "What happened?",
-                    "Photos or screenshots",
-                    "Messages or emails",
-                    "Receipts or documents",
-                    "Important dates"
-                ],
-                prompt: "Start by answering: What happened?"
-            )
-        }
-    }
-
-    static func firstCaseSeed(for id: String) -> ProofKitOnboardingFirstCaseSeed? {
-        all.first { $0.id == id }?.firstCaseSeed
-    }
-}
-
 enum ProofKitPendingOnboardingSeedStore {
     private static let seedIDKey = "proofkit.pendingOnboardingFirstCaseSeedID"
     private static let seedSavedAtKey = "proofkit.pendingOnboardingFirstCaseSeedSavedAt"
@@ -173,7 +19,7 @@ enum ProofKitPendingOnboardingSeedStore {
             return nil
         }
 
-        return ProofKitOnboardingPurpose.firstCaseSeed(for: seedID)
+        return CaseCategory.firstCaseSeed(for: seedID)
     }
 
     static func saveProfileDisplayName(_ displayName: String?) {
@@ -268,7 +114,7 @@ enum ProofKitPendingOnboardingSeedStore {
 }
 
 struct ProofKitOnboardingPurposeView: View {
-    let onSelect: (ProofKitOnboardingPurpose) -> Void
+    let onSelect: (CaseCategory) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -299,15 +145,23 @@ struct ProofKitOnboardingPurposeView: View {
 
                 ScrollView {
                     VStack(spacing: cardSpacing(for: proxy)) {
-                        ForEach(ProofKitOnboardingPurpose.all) { purpose in
-                            ProofKitPurposeCard(
-                                purpose: purpose,
-                                height: cardHeight(for: proxy),
-                                imageSize: imageSize(for: proxy),
-                                imageColumnWidth: imageColumnWidth(for: proxy)
-                            ) {
-                                onSelect(purpose)
+                        ForEach(CaseCategory.sharedOptions) { category in
+                            Button {
+                                ProofKitAuthHaptics.tap()
+                                onSelect(category)
+                            } label: {
+                                CaseCategoryPurposeCard(
+                                    category: category,
+                                    isSelected: false,
+                                    height: cardHeight(for: proxy),
+                                    imageSize: imageSize(for: proxy),
+                                    imageColumnWidth: imageColumnWidth(for: proxy),
+                                    accessory: .chevron
+                                )
                             }
+                            .buttonStyle(ProofKitAuthPressButtonStyle())
+                            .accessibilityLabel("\(category.onboardingPurposeTitle). \(category.onboardingPurposeOutcome)")
+                            .accessibilityHint("Double tap to choose this purpose and continue.")
                         }
                     }
                     .proofKitAppear(delay: reduceMotion ? 0 : 0.08)
@@ -370,81 +224,6 @@ struct ProofKitOnboardingPurposeView: View {
         }
 
         return proxy.size.width < 370 ? 15.5 : 16.5
-    }
-}
-
-private struct ProofKitPurposeCard: View {
-    let purpose: ProofKitOnboardingPurpose
-    let height: CGFloat
-    let imageSize: CGFloat
-    let imageColumnWidth: CGFloat
-    let action: () -> Void
-
-    var body: some View {
-        Button {
-            ProofKitAuthHaptics.tap()
-            action()
-        } label: {
-            HStack(spacing: 12) {
-                ZStack {
-                    Image(purpose.imageName)
-                        .resizable()
-                        .interpolation(.high)
-                        .scaledToFit()
-                        .frame(width: imageSize, height: imageSize)
-                        .shadow(color: Color.black.opacity(0.30), radius: 14, x: 0, y: 9)
-                }
-                .frame(width: imageColumnWidth, height: height, alignment: .center)
-                .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Text(purpose.title)
-                            .font(.system(size: 17, weight: .semibold, design: .rounded))
-                            .tracking(-0.18)
-                            .foregroundStyle(.white)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.84)
-                    }
-
-                    Text(purpose.outcome)
-                        .font(.system(size: 14.5, weight: .regular, design: .rounded))
-                        .tracking(-0.08)
-                        .foregroundStyle(ProofKitAuthPalette.secondaryText)
-                        .lineLimit(3)
-                        .minimumScaleFactor(0.86)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.36))
-            }
-            .padding(.leading, 2)
-            .padding(.trailing, 16)
-            .frame(maxWidth: .infinity)
-            .frame(height: height)
-            .background {
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                ProofKitAuthPalette.fieldBackground.opacity(0.96),
-                                ProofKitAuthPalette.fieldBackground.opacity(0.70)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .stroke(ProofKitAuthPalette.fieldStroke, lineWidth: 1)
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-        }
-        .buttonStyle(ProofKitAuthPressButtonStyle())
-        .accessibilityLabel("\(purpose.title). \(purpose.outcome)")
     }
 }
 

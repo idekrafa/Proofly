@@ -33,6 +33,9 @@ struct ProofKitRootView: View {
                 .id(scope.session.id)
                 .environment(\.proofKitServices, scope.services)
                 .modelContainer(scope.modelContainer)
+                .task(id: scope.session.id) {
+                    await scope.services.subscriptions.identifyCustomer(for: scope.session)
+                }
 
             case .configurationError(let message):
                 ProofKitAuthView(services: services, initialErrorMessage: message) { session, isFirstTimeSignup, firstCaseSeed in
@@ -91,6 +94,7 @@ final class ProofKitAuthCoordinator: ObservableObject {
         state = .checking
 
         guard services.account.isConfigured else {
+            await services.subscriptions.resetCustomerForSignedOutState()
             state = .signedOut
             return
         }
@@ -112,8 +116,10 @@ final class ProofKitAuthCoordinator: ObservableObject {
                     ProofKitPendingOnboardingSeedStore.clear()
                 }
 
+                await services.subscriptions.identifyCustomer(for: result.session)
                 state = try .authenticated(makeScope(for: result.session), firstCaseSeed: firstCaseSeed)
             } else {
+                await services.subscriptions.resetCustomerForSignedOutState()
                 state = .signedOut
             }
         } catch {
@@ -127,6 +133,7 @@ final class ProofKitAuthCoordinator: ObservableObject {
         firstCaseSeed: ProofKitOnboardingFirstCaseSeed?
     ) async {
         do {
+            await services.subscriptions.identifyCustomer(for: session)
             let scope = try makeScope(for: session)
             let pendingSeed = firstCaseSeed ?? ProofKitPendingOnboardingSeedStore.pendingSeed()
             let shouldStartFirstCase = pendingSeed != nil && (
@@ -147,6 +154,9 @@ final class ProofKitAuthCoordinator: ObservableObject {
     }
 
     func accountDidSignOut() {
+        Task {
+            await services.subscriptions.resetCustomerForSignedOutState()
+        }
         currentScope = nil
         state = .signedOut
     }
@@ -158,7 +168,17 @@ final class ProofKitAuthCoordinator: ObservableObject {
 
     private func makeScope(for session: ProofKitAccountSession) throws -> ProofKitAuthenticatedScope {
         if let currentScope, currentScope.session.id == session.id {
-            return currentScope
+            if currentScope.session == session {
+                return currentScope
+            }
+
+            let updatedScope = ProofKitAuthenticatedScope(
+                session: session,
+                services: currentScope.services,
+                modelContainer: currentScope.modelContainer
+            )
+            self.currentScope = updatedScope
+            return updatedScope
         }
 
         let scope = ProofKitAuthenticatedScope(

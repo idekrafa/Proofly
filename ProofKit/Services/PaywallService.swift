@@ -12,9 +12,14 @@ protocol PaywallServicing {
 @MainActor
 final class PlaceholderPaywallService: PaywallServicing {
     private let purchaseEntitlements: any PurchaseEntitlementServicing
+    private let subscriptions: any SubscriptionServicing
 
-    init(purchaseEntitlements: any PurchaseEntitlementServicing) {
+    init(
+        purchaseEntitlements: any PurchaseEntitlementServicing,
+        subscriptions: any SubscriptionServicing
+    ) {
         self.purchaseEntitlements = purchaseEntitlements
+        self.subscriptions = subscriptions
     }
 
     func currentEntitlement() async -> ProofKitEntitlementSnapshot {
@@ -24,6 +29,16 @@ final class PlaceholderPaywallService: PaywallServicing {
                 source: .placeholderOverride,
                 updatedAt: .now
             )
+        }
+
+        if subscriptions.isConfigured {
+            do {
+                return try await subscriptions.currentEntitlementSnapshot()
+            } catch {
+                // Keep ProofKit usable if RevenueCat is temporarily unavailable.
+                // The Supabase entitlement fallback below is non-destructive and
+                // does not touch local SwiftData or file storage.
+            }
         }
 
         do {

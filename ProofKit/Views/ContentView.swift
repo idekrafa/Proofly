@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     let accountSession: ProofKitAccountSession?
@@ -7,7 +8,11 @@ struct ContentView: View {
     let onSignOut: () -> Void
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.proofKitServices) private var services
+    @Query(sort: \CaseFile.updatedAt, order: .reverse) private var cases: [CaseFile]
+    @StateObject private var caseListViewModel = CaseListViewModel()
     @State private var selectedTab: ProofKitRootTab = .overview
+    @State private var isShowingCreateCaseFlow = false
     @State private var hasHandledFirstCaseSeed = false
     @State private var firstCaseCreationRoute: ProofKitFirstCaseCreationRoute?
     @State private var firstCaseImportRoute: ProofKitFirstCaseImportRoute?
@@ -16,7 +21,8 @@ struct ContentView: View {
     @State private var pendingFirstCaseManualEntryRoute: ProofKitFirstCaseManualEntryRoute?
     @State private var pendingFirstCaseAhaRoute: ProofKitFirstCaseAhaRoute?
     @State private var firstCaseAhaRoute: ProofKitFirstCaseAhaRoute?
-    @State private var firstCaseNotice: ProofKitFirstCaseNotice?
+    @State private var contentNotice: ProofKitContentNotice?
+    @State private var displayedAccountSession: ProofKitAccountSession?
     @AppStorage(ProofKitSettingsStorageKeys.appearance) private var appearanceRawValue = ProofKitAppearancePreference.system.rawValue
 
     init(
@@ -27,6 +33,7 @@ struct ContentView: View {
         self.accountSession = accountSession
         self.firstCaseSeed = firstCaseSeed
         self.onSignOut = onSignOut
+        _displayedAccountSession = State(initialValue: accountSession)
     }
 
     private var preferredColorScheme: ColorScheme? {
@@ -34,39 +41,62 @@ struct ContentView: View {
     }
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            HomeView(accountSession: accountSession) {
+        TabView(selection: $selectedTab) { //main actual tabview
+            HomeView(accountSession: displayedAccountSession) {
                 selectedTab = .settings
             }
-                .tabItem {
-                    Label("Overview", systemImage: selectedTab == .overview ? "rectangle.grid.3x2.fill" : "rectangle.grid.3x2")
-                }
-                .tag(ProofKitRootTab.overview)
+            .tabItem {
+                Label("Overview", systemImage: selectedTab == .overview ? "rectangle.grid.3x2.fill" : "rectangle.grid.3x2")
+            }
+            .tag(ProofKitRootTab.overview)
 
             CasesView()
-            .tabItem {
-                Label("Cases", systemImage: selectedTab == .cases ? "folder.fill" : "folder")
-            }
-            .tag(ProofKitRootTab.cases)
+                .tabItem {
+                    Label("Cases", systemImage: selectedTab == .cases ? "folder.fill" : "folder")
+                }
+                .tag(ProofKitRootTab.cases)
 
             VaultView()
-            .tabItem {
-                Label("Vault", systemImage: selectedTab == .vault ? "shippingbox.fill" : "shippingbox")
-            }
-            .tag(ProofKitRootTab.vault)
+                .tabItem {
+                    Label("Vault", systemImage: selectedTab == .vault ? "shippingbox.fill" : "shippingbox")
+                }
+                .tag(ProofKitRootTab.vault)
 
-            GlobalSettingsView(onSignedOut: onSignOut)
-            .tabItem {
-                Label("Settings", systemImage: selectedTab == .settings ? "gearshape.fill" : "gearshape")
-            }
-            .tag(ProofKitRootTab.settings)
+            GlobalSettingsView(
+                accountSession: displayedAccountSession,
+                onAccountSessionUpdated: { updatedSession in
+                    displayedAccountSession = updatedSession
+                },
+                onSignedOut: onSignOut
+            )
+                .tabItem {
+                    Label("Settings", systemImage: selectedTab == .settings ? "gearshape.fill" : "gearshape")
+                }
+                .tag(ProofKitRootTab.settings)
         }
         .tint(Color(red: 0.02, green: 0.47, blue: 0.92))
         .preferredColorScheme(preferredColorScheme)
         .animation(ProofKitMotion.standard, value: selectedTab)
+        .onChange(of: accountSession) { _, updatedSession in
+            displayedAccountSession = updatedSession
+        }
         .task(id: firstCaseSeed?.id) {
             try? await Task.sleep(nanoseconds: 250_000_000)
             presentFirstCaseCreationIfNeeded()
+        }
+        .sheet(isPresented: $isShowingCreateCaseFlow) {
+            CreateCaseFlowView { draft in
+                let caseFile = caseListViewModel.createCase(
+                    in: modelContext,
+                    title: draft.title,
+                    caseType: draft.caseType,
+                    summary: draft.summary,
+                    notes: draft.notes
+                )
+                services.analytics.trackCaseCreated(caseFile, sourceScreen: selectedAnalyticsScreen)
+                selectedTab = .cases
+                isShowingCreateCaseFlow = false
+            }
         }
         .sheet(item: $firstCaseCreationRoute) { route in
             ProofKitFirstCaseCreationSheet(seed: route.seed) { details in
@@ -105,7 +135,7 @@ struct ContentView: View {
                 selectedTab = .cases
             }
         }
-        .alert(item: $firstCaseNotice) { notice in
+        .alert(item: $contentNotice) { notice in
             Alert(
                 title: Text(notice.title),
                 message: Text(notice.message),
@@ -114,13 +144,43 @@ struct ContentView: View {
         }
     }
 
+
     @MainActor
     private func presentFirstCaseCreationIfNeeded() {
         guard !hasHandledFirstCaseSeed, let firstCaseSeed else { return }
 
         hasHandledFirstCaseSeed = true
+        services.analytics.trackCaseCreateStarted(sourceScreen: .onboarding)
         firstCaseCreationRoute = ProofKitFirstCaseCreationRoute(seed: firstCaseSeed)
         ProofKitPendingOnboardingSeedStore.clear()
+    }
+
+    @MainActor
+    private func presentCreateCaseFlow() async {
+        let decision = await services.paywall.canCreateCase(existingCases: cases)
+        guard decision.isAllowed else {
+            contentNotice = ProofKitContentNotice(
+                title: decision.title,
+                message: decision.message
+            )
+            return
+        }
+
+        services.analytics.trackCaseCreateStarted(sourceScreen: selectedAnalyticsScreen)
+        isShowingCreateCaseFlow = true
+    }
+
+    private var selectedAnalyticsScreen: AnalyticsScreen {
+        switch selectedTab {
+        case .overview:
+            return .home
+        case .cases:
+            return .cases
+        case .vault:
+            return .vault
+        case .settings:
+            return .settings
+        }
     }
 
     @MainActor
@@ -146,12 +206,13 @@ struct ContentView: View {
 
         do {
             try modelContext.save()
+            services.analytics.trackCaseCreated(caseFile, sourceScreen: .onboarding)
             selectedTab = .cases
             firstCaseCreationRoute = nil
             queueFirstCaseImport(ProofKitFirstCaseImportRoute(caseFile: caseFile, seed: seed))
             return true
         } catch {
-            firstCaseNotice = ProofKitFirstCaseNotice(
+            contentNotice = ProofKitContentNotice(
                 title: "First Case Not Created",
                 message: "ProofKit could not create the starter case. Please try again."
             )
@@ -193,12 +254,14 @@ struct ContentView: View {
     }
 }
 
-private enum ProofKitRootTab: Hashable {
+private enum ProofKitRootTab: Hashable, CaseIterable {
     case overview
     case cases
     case vault
     case settings
 }
+
+
 
 private struct ProofKitFirstCaseCreationRoute: Identifiable {
     let seed: ProofKitOnboardingFirstCaseSeed
@@ -228,7 +291,7 @@ private struct ProofKitFirstCaseAhaRoute: Identifiable {
     var id: String { "aha-\(caseFile.id.uuidString)-\(proofCount)" }
 }
 
-private struct ProofKitFirstCaseNotice: Identifiable {
+private struct ProofKitContentNotice: Identifiable {
     let id = UUID()
     let title: String
     let message: String
@@ -261,10 +324,14 @@ private struct ProofKitFirstCaseCreationSheet: View {
         title.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var rookArtworkAssetName: String {
+        ProofKitFirstCaseRookArtwork.assetName(for: seed)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 18) {
                     intro
                     preselectedCaseCard
                     titleAndDetailsCard
@@ -279,13 +346,13 @@ private struct ProofKitFirstCaseCreationSheet: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 24)
-                .padding(.bottom, 114)
+                .padding(.top, 18)
+                .padding(.bottom, 28)
                 .frame(maxWidth: 620, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(ProofKitVisual.screenBackground.ignoresSafeArea())
-            .safeAreaInset(edge: .bottom) {
+            .safeAreaInset(edge: .bottom, spacing: 0) {
                 bottomBar
             }
             .navigationTitle("First Case")
@@ -300,15 +367,8 @@ private struct ProofKitFirstCaseCreationSheet: View {
     }
 
     private var intro: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 28, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 58, height: 58)
-                .background {
-                    Circle()
-                        .fill(ProofKitVisual.accentGradient)
-                }
+        VStack(alignment: .leading, spacing: 14) {
+            rookGuideCard
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Let’s build your first case")
@@ -324,6 +384,70 @@ private struct ProofKitFirstCaseCreationSheet: View {
             }
         }
         .proofKitAppear()
+    }
+
+    private var rookGuideCard: some View {
+        HStack(alignment: .center, spacing: 14) {
+            ZStack(alignment: .bottomTrailing) {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(ProofKitVisual.quietFill)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .stroke(ProofKitVisual.cardBorder, lineWidth: 1)
+                    }
+
+                Image(rookArtworkAssetName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 106, height: 106)
+//                    .padding(4)
+                    .accessibilityLabel("Rook proof keeper")
+
+//                Image(systemName: "sparkles")
+//                    .font(.caption.weight(.bold))
+//                    .foregroundStyle(.white)
+//                    .frame(width: 30, height: 30)
+//                    .background {
+//                        Circle()
+//                            .fill(ProofKitVisual.accentGradient)
+//                    }
+                    .overlay {
+                        Circle()
+                            .stroke(ProofKitVisual.screenBackground, lineWidth: 2)
+                    }
+                    .offset(x: 4, y: 3)
+                    .accessibilityHidden(true)
+            }
+            .frame(width: 118, height: 112)
+            .shadow(color: ProofKitVisual.accentSecondary.opacity(0.16), radius: 16, x: 0, y: 9)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Rook is ready")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(ProofKitVisual.accentSecondary)
+                    .textCase(.uppercase)
+                    .tracking(0.6)
+
+                Text("Rook will help turn this into a clean proof timeline.")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(ProofKitVisual.helperText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .layoutPriority(1)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(ProofKitVisual.surfaceGradient)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(ProofKitVisual.cardBorder, lineWidth: 1)
+        }
     }
 
     private var preselectedCaseCard: some View {
@@ -506,6 +630,72 @@ private struct ProofKitFirstCaseCreationSheet: View {
 private enum ProofKitFirstCaseFocusedField: Hashable {
     case title
     case details
+}
+
+private enum ProofKitFirstCaseRookArtwork {
+    private static let generalAssetName = "RookPurposeOther"
+    private static let fallbackAssetName = "rook_image"
+
+    static func assetName(for seed: ProofKitOnboardingFirstCaseSeed) -> String {
+        existingAssetName(preferredAssetName(for: seed))
+    }
+
+    private static func preferredAssetName(for seed: ProofKitOnboardingFirstCaseSeed) -> String {
+        switch seed.caseType {
+        case .refundWarrantyIssue:
+            return "RookPurposeRefund"
+        case .apartmentIssue, .tenantLandlord:
+            return "RookPurposeRental"
+        case .schoolCollegeIssue:
+            return "RookPurposeCollege"
+        case .unpaidFreelanceWork, .workplaceIssue, .workFreelanceIssue, .employment:
+            return "RookPurposeWork"
+        default:
+            break
+        }
+
+        let normalizedCategoryText = [seed.id, seed.caseTypeLabel]
+            .joined(separator: " ")
+            .lowercased()
+
+        if normalizedCategoryText.contains("refund") || normalizedCategoryText.contains("warranty") {
+            return "RookPurposeRefund"
+        }
+
+        if normalizedCategoryText.contains("apartment")
+            || normalizedCategoryText.contains("rent")
+            || normalizedCategoryText.contains("lease")
+            || normalizedCategoryText.contains("tenant")
+            || normalizedCategoryText.contains("landlord") {
+            return "RookPurposeRental"
+        }
+
+        if normalizedCategoryText.contains("school")
+            || normalizedCategoryText.contains("college")
+            || normalizedCategoryText.contains("university") {
+            return "RookPurposeCollege"
+        }
+
+        if normalizedCategoryText.contains("work")
+            || normalizedCategoryText.contains("freelance")
+            || normalizedCategoryText.contains("employment") {
+            return "RookPurposeWork"
+        }
+
+        return generalAssetName
+    }
+
+    private static func existingAssetName(_ preferredAssetName: String) -> String {
+        if UIImage(named: preferredAssetName) != nil {
+            return preferredAssetName
+        }
+
+        if UIImage(named: generalAssetName) != nil {
+            return generalAssetName
+        }
+
+        return fallbackAssetName
+    }
 }
 
 private struct ProofKitFirstCaseAhaSheet: View {

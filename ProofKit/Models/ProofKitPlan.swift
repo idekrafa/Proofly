@@ -131,6 +131,7 @@ enum ProofKitEntitlementSource: String, Codable {
     case placeholder
     case placeholderOverride
     case purchaseEntitlement
+    case revenueCat
 
     var displayName: String {
         switch self {
@@ -140,6 +141,8 @@ enum ProofKitEntitlementSource: String, Codable {
             "Placeholder override"
         case .purchaseEntitlement:
             "Purchase entitlement"
+        case .revenueCat:
+            "RevenueCat"
         }
     }
 }

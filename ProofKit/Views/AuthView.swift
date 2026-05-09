@@ -9,7 +9,7 @@ struct ProofKitAuthView: View {
 
     @State private var authMode: ProofKitAuthMode = .welcome
     @State private var emailBackDestination: ProofKitAuthMode = .landing
-    @State private var selectedPurpose: ProofKitOnboardingPurpose?
+    @State private var selectedPurpose: CaseCategory?
     @State private var onboardingDisplayName = ""
     @State private var isSignUpMode = false
     @State private var email = ""
@@ -483,7 +483,7 @@ struct ProofKitAuthView: View {
                     authMode = .purpose
                 case .purpose:
                     focusedField = nil
-                    authMode = .privacy
+                    authMode = .name
                 case .privacy:
                     focusedField = nil
                     authMode = .name
@@ -610,7 +610,7 @@ struct ProofKitAuthView: View {
         }
 
         if authMode == .purpose {
-            return "Back to privacy promise"
+            return "Back to name"
         }
 
         if authMode == .privacy {
@@ -626,6 +626,7 @@ struct ProofKitAuthView: View {
         ProofKitPendingOnboardingSeedStore.clear()
         onboardingDisplayName = ""
         confirmationPassword = ""
+        services.analytics.trackOnboardingStarted()
         authMode = .name
     }
 
@@ -634,7 +635,7 @@ struct ProofKitAuthView: View {
         onboardingDisplayName = displayName
         ProofKitPendingOnboardingSeedStore.saveProfileDisplayName(displayName)
         confirmationPassword = ""
-        authMode = .privacy
+        authMode = .purpose
     }
 
     private func continueFromPrivacyPromise() {
@@ -643,10 +644,11 @@ struct ProofKitAuthView: View {
         authMode = .purpose
     }
 
-    private func continueFromPurposeSelection(_ purpose: ProofKitOnboardingPurpose) {
+    private func continueFromPurposeSelection(_ purpose: CaseCategory) {
         focusedField = nil
         selectedPurpose = purpose
         ProofKitPendingOnboardingSeedStore.save(purpose.firstCaseSeed)
+        services.analytics.trackOnboardingCategorySelected(purpose)
         isSignUpMode = true
         confirmationPassword = ""
         emailBackDestination = .purposeAuth
@@ -709,6 +711,9 @@ struct ProofKitAuthView: View {
                     onboardingCategory: seed?.id,
                     onboardingDisplayName: profileDisplayName
                 )
+                if result.isNewAccount, let seed {
+                    services.analytics.trackOnboardingCompleted(category: CaseCategory.category(forID: seed.id))
+                }
                 await onAuthenticated(
                     result.session,
                     result.isNewAccount,
@@ -780,6 +785,9 @@ struct ProofKitAuthView: View {
                     ProofKitPendingOnboardingSeedStore.hasPendingAccountCreationAttempt(matching: result.session.email)
                 )
 
+                if shouldStartFirstCase {
+                    services.analytics.trackOnboardingCompleted(category: purposeSeed.flatMap { CaseCategory.category(forID: $0.id) })
+                }
                 await onAuthenticated(
                     result.session,
                     shouldStartFirstCase,

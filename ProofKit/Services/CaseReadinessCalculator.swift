@@ -36,31 +36,6 @@ struct CaseReadinessResult: Equatable {
         ].joined(separator: "|")
     }
 
-    func analyticsPayload(
-        caseIDHash: String,
-        userIDHash: String,
-        subscriptionTier: String,
-        createdAtAgeDays: Int
-    ) -> CaseReadinessAnalyticsPayload {
-        CaseReadinessAnalyticsPayload(
-            caseIDHash: caseIDHash,
-            userIDHash: userIDHash,
-            caseType: category.analyticsValue,
-            readinessScore: score,
-            readinessBucket: readinessBucket,
-            nextStep: nextStepLabel,
-            proofItemCount: counts.proofItemCount,
-            reviewedItemCount: counts.reviewedItemCount,
-            unreviewedItemCount: counts.unreviewedItemCount,
-            timelineItemCount: counts.timelineItemCount,
-            hasTitle: signals.hasTitle,
-            hasDescription: signals.hasDescription,
-            hasExportablePDF: signals.hasExportablePDF,
-            generatedExportCount: counts.generatedExportCount,
-            subscriptionTier: subscriptionTier,
-            createdAtAgeDays: createdAtAgeDays
-        )
-    }
 }
 
 struct CaseReadinessCounts: Equatable {
@@ -297,7 +272,7 @@ extension CaseFile {
         switch caseType {
         case .apartmentIssue, .tenantLandlord:
             return CaseReadinessCategory(
-                displayName: "Apartment",
+                displayName: "Housing lease",
                 analyticsValue: "apartment",
                 isSelected: true,
                 isSchool: false
@@ -309,7 +284,14 @@ extension CaseFile {
                 isSelected: true,
                 isSchool: false
             )
-        case .unpaidFreelanceWork, .workplaceIssue, .employment:
+        case .schoolCollegeIssue:
+            return CaseReadinessCategory(
+                displayName: "School",
+                analyticsValue: "school",
+                isSelected: true,
+                isSchool: true
+            )
+        case .unpaidFreelanceWork, .workplaceIssue, .workFreelanceIssue, .employment:
             return CaseReadinessCategory(
                 displayName: "Work",
                 analyticsValue: "work",
@@ -365,16 +347,20 @@ extension CaseFile {
         userNotes
             .components(separatedBy: .newlines)
             .compactMap { line -> String? in
-                let prefix = "Selected onboarding category:"
                 let trimmedLine = line.readinessTrimmedText
-                guard trimmedLine.localizedCaseInsensitiveContains(prefix) else {
-                    return nil
+
+                for prefix in ["Selected category:", "Selected onboarding category:"] {
+                    guard trimmedLine.localizedCaseInsensitiveContains(prefix) else {
+                        continue
+                    }
+
+                    let value = trimmedLine
+                        .replacingOccurrences(of: prefix, with: "", options: [.caseInsensitive])
+                        .readinessTrimmedText
+                    return value.isEmpty ? nil : value
                 }
 
-                let value = trimmedLine
-                    .replacingOccurrences(of: prefix, with: "", options: [.caseInsensitive])
-                    .readinessTrimmedText
-                return value.isEmpty ? nil : value
+                return nil
             }
             .first
     }
@@ -437,7 +423,7 @@ private extension String {
 
         if normalized.contains("rent") || normalized.contains("lease") || normalized.contains("apartment") {
             return CaseReadinessCategory(
-                displayName: "Apartment",
+                displayName: "Housing lease",
                 analyticsValue: "apartment",
                 isSelected: true,
                 isSchool: false

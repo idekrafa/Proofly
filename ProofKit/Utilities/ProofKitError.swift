@@ -7,6 +7,9 @@ enum ProofKitError: LocalizedError {
     case localOnlyViolation(String)
     case ocrFailed(String)
     case planLimitReached(String)
+    case revenueCatNotConfigured
+    case revenueCatSDKUnavailable
+    case revenueCatOfferingUnavailable(String)
     case supabaseNotConfigured
     case supabaseSDKUnavailable
     case remotePolicyViolation(String)
@@ -24,6 +27,12 @@ enum ProofKitError: LocalizedError {
         case .ocrFailed(let message):
             "OCR failed: \(message)"
         case .planLimitReached(let message):
+            message
+        case .revenueCatNotConfigured:
+            "RevenueCat is not configured for this build."
+        case .revenueCatSDKUnavailable:
+            "RevenueCat SDK is unavailable in this build."
+        case .revenueCatOfferingUnavailable(let message):
             message
         case .supabaseNotConfigured:
             "Supabase is not configured for this build."

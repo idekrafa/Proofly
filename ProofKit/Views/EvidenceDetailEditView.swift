@@ -26,25 +26,43 @@ struct EvidenceDetailEditView: View {
     @State private var isOriginalOCRExpanded = false
     @State private var originalFilePreviewURL: URL?
     @State private var isDeleteConfirmationPresented = false
+    @State private var savedSnapshot: EvidenceEditSnapshot
 
-    private let initialEventDate: Date?
-    private let initiallyHadUserProvidedEventDate: Bool
+    private static let editableProofTypeCategories: [EvidenceCategory] = [
+        .photo,
+        .screenshot,
+        .document,
+        .message,
+        .receipt,
+        .other
+    ]
 
     init(evidenceItem: EvidenceItem) {
         self.evidenceItem = evidenceItem
 
         let currentEventDate = evidenceItem.eventDate
-        self.initialEventDate = currentEventDate
-        self.initiallyHadUserProvidedEventDate = evidenceItem.userProvidedEventDate != nil
+        let editableTitle = Self.initialEditableTitle(for: evidenceItem)
+        let editableCategory = Self.editableProofTypeCategory(for: evidenceItem.category)
+        let initialSnapshot = EvidenceEditSnapshot(
+            hasEventDate: currentEventDate != nil,
+            eventDate: currentEventDate,
+            title: editableTitle.detailTrimmedText,
+            category: editableCategory,
+            userNote: evidenceItem.userNotes.detailTrimmedText,
+            cleanedNote: evidenceItem.userCleanedNote.detailTrimmedText,
+            whatThisProves: evidenceItem.userWhyThisMatters.detailTrimmedText,
+            userMarkedImportant: evidenceItem.userMarkedImportant
+        )
 
         _hasEventDate = State(initialValue: currentEventDate != nil)
         _eventDate = State(initialValue: currentEventDate ?? .now)
-        _title = State(initialValue: Self.initialEditableTitle(for: evidenceItem))
-        _category = State(initialValue: evidenceItem.category)
+        _title = State(initialValue: editableTitle)
+        _category = State(initialValue: editableCategory)
         _userNote = State(initialValue: evidenceItem.userNotes)
         _cleanedNote = State(initialValue: evidenceItem.userCleanedNote)
         _whyThisMatters = State(initialValue: evidenceItem.userWhyThisMatters)
         _userMarkedImportant = State(initialValue: evidenceItem.userMarkedImportant)
+        _savedSnapshot = State(initialValue: initialSnapshot)
     }
 
     private var primaryAttachment: Attachment? {
@@ -54,34 +72,57 @@ struct EvidenceDetailEditView: View {
     }
 
     private var canSave: Bool {
-        !title.detailTrimmedText.isEmpty
+        hasUnsavedChanges && !title.detailTrimmedText.isEmpty
+    }
+
+    private var hasUnsavedChanges: Bool {
+        !currentSnapshot.matches(savedSnapshot)
+    }
+
+    private var shouldShowProofNameSaveHelper: Bool {
+        hasUnsavedChanges && title.detailTrimmedText.isEmpty
+    }
+
+    private var currentSnapshot: EvidenceEditSnapshot {
+        EvidenceEditSnapshot(
+            hasEventDate: hasEventDate,
+            eventDate: hasEventDate ? eventDate : nil,
+            title: title.detailTrimmedText,
+            category: category,
+            userNote: userNote.detailTrimmedText,
+            cleanedNote: cleanedNote.detailTrimmedText,
+            whatThisProves: whyThisMatters.detailTrimmedText,
+            userMarkedImportant: userMarkedImportant
+        )
     }
 
     private var summaryTitle: String {
         let trimmedTitle = title.detailTrimmedText
-        return trimmedTitle.isEmpty ? "Add a clear evidence name" : trimmedTitle
+        return trimmedTitle.isEmpty ? "Add a clear proof name" : trimmedTitle
     }
 
     private var summaryTitleIsPlaceholder: Bool {
         title.detailTrimmedText.isEmpty
     }
 
-    private var evidenceTypeText: String {
-        if let primaryAttachment {
-            return primaryAttachment.attachmentType.displayName
-        }
+    private var proofTypeText: String {
+        Self.proofTypeDisplayName(for: category)
+    }
 
+    private var proofTypeSystemImage: String {
         switch category {
         case .photo:
-            return "Photo"
+            return "photo"
         case .screenshot:
-            return "Screenshot"
-        case .document, .contract, .receipt:
-            return "Document"
-        case .note, .message, .email:
-            return "Text Note"
+            return "rectangle.on.rectangle"
+        case .document, .contract, .note:
+            return "doc"
+        case .message, .email:
+            return "message"
+        case .receipt:
+            return "receipt"
         case .uncategorized, .other:
-            return "Manual record"
+            return "paperclip"
         }
     }
 
@@ -137,14 +178,6 @@ struct EvidenceDetailEditView: View {
         originalOCRText.isEmpty ? "No text detected" : "Text detected"
     }
 
-    private var attachmentSystemImage: String {
-        if let primaryAttachment {
-            return evidenceAttachmentSystemImage(for: primaryAttachment.attachmentType)
-        }
-
-        return "note.text"
-    }
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: ProofKitVisual.cardSpacing) {
@@ -158,6 +191,8 @@ struct EvidenceDetailEditView: View {
                     .proofKitAppear(delay: 0.12)
                 metadataSection
                     .proofKitAppear(delay: 0.16)
+                fileActionsSection
+                    .proofKitAppear(delay: 0.2)
             }
             .frame(maxWidth: 760, alignment: .leading)
             .frame(maxWidth: .infinity)
@@ -174,7 +209,7 @@ struct EvidenceDetailEditView: View {
         }
         .quickLookPreview($originalFilePreviewURL)
         .confirmationDialog(
-            "Delete this proof?",
+            "Delete proof from this case?",
             isPresented: $isDeleteConfirmationPresented,
             titleVisibility: .visible
         ) {
@@ -184,7 +219,7 @@ struct EvidenceDetailEditView: View {
 
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This removes the proof item and its linked local copy from ProofKit. It does not change the original in your Photos Library or Files app.")
+            Text("This removes the proof from this case. Your original file stays on this device unless you delete it separately.")
         }
         .animation(ProofKitMotion.standard, value: saveMessage)
         .animation(ProofKitMotion.standard, value: saveErrorMessage)
@@ -197,7 +232,7 @@ struct EvidenceDetailEditView: View {
         EvidenceDetailCard {
             VStack(alignment: .leading, spacing: 14) {
                 EvidenceDetailFieldHeader(
-                    title: "Evidence preview",
+                    title: "Proof preview",
                     subtitle: "Original file is stored locally and never overwritten."
                 )
 
@@ -217,8 +252,8 @@ struct EvidenceDetailEditView: View {
 
                         VStack(alignment: .leading, spacing: 7) {
                             EvidenceSummaryChip(
-                                systemImage: attachmentSystemImage,
-                                text: "Type: \(evidenceTypeText)"
+                                systemImage: proofTypeSystemImage,
+                                text: "Proof type: \(proofTypeText)"
                             )
                             EvidenceSummaryChip(
                                 systemImage: "photo.on.rectangle",
@@ -240,7 +275,7 @@ struct EvidenceDetailEditView: View {
         EvidenceDetailCard {
             VStack(alignment: .leading, spacing: ProofKitVisual.sectionSpacing) {
                 EvidenceDetailFieldHeader(
-                    title: "Evidence details",
+                    title: "Proof details",
                     subtitle: "Use a human-readable name for the proof. The original filename stays separate below."
                 )
 
@@ -270,7 +305,7 @@ struct EvidenceDetailEditView: View {
                 }
 
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
-                    EvidenceDetailFieldHeader(title: "Evidence name")
+                    EvidenceDetailFieldHeader(title: "Proof name")
 
                     TextField("Ceiling leak photo", text: $title, axis: .vertical)
                         .textFieldStyle(.plain)
@@ -279,18 +314,26 @@ struct EvidenceDetailEditView: View {
                         .padding(12)
                         .proofKitFieldBackground()
 
-                    Text("Example: Ceiling leak photo. Avoid using the filename as the evidence name.")
-                        .font(.footnote)
-                        .foregroundStyle(ProofKitVisual.helperText)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if shouldShowProofNameSaveHelper {
+                        Text("Add a proof name to save changes.")
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .transition(ProofKitMotion.compactInsertion)
+                    } else {
+                        Text("Example: Ceiling leak photo. Avoid using the filename as the proof name.")
+                            .font(.footnote)
+                            .foregroundStyle(ProofKitVisual.helperText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
-                    EvidenceDetailFieldHeader(title: "Category")
+                    EvidenceDetailFieldHeader(title: "Proof type")
 
-                    Picker("Category", selection: $category) {
-                        ForEach(EvidenceCategory.allCases) { category in
-                            Text(category.displayName)
+                    Picker("Proof type", selection: $category) {
+                        ForEach(Self.editableProofTypeCategories, id: \.id) { category in
+                            Text(Self.proofTypeDisplayName(for: category))
                                 .tag(category)
                         }
                     }
@@ -300,12 +343,6 @@ struct EvidenceDetailEditView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .proofKitFieldBackground()
                 }
-
-                EvidenceReadOnlyField(
-                    title: "Type",
-                    value: evidenceTypeText,
-                    systemImage: attachmentSystemImage
-                )
             }
         }
     }
@@ -320,22 +357,22 @@ struct EvidenceDetailEditView: View {
 
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
                     EvidenceDetailFieldHeader(
-                        title: "User note",
+                        title: "Your note",
                         subtitle: "Your original context and observations."
                     )
 
                     EvidenceDetailTextEditor(
                         text: $userNote,
                         minHeight: 112,
-                        accessibilityLabel: "User note"
+                        accessibilityLabel: "Your note"
                     )
                 }
 
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
                     HStack(alignment: .top, spacing: 12) {
                         EvidenceDetailFieldHeader(
-                            title: "Cleaned note",
-                            subtitle: "A tidy version you can use later in the case. AI cleanup does not change your original user note or OCR text."
+                            title: "AI-cleaned note",
+                            subtitle: "A tidy version you can use later in the case. AI cleanup does not change your note or OCR text."
                         )
 
                         Spacer(minLength: 12)
@@ -368,15 +405,22 @@ struct EvidenceDetailEditView: View {
                     EvidenceDetailTextEditor(
                         text: $cleanedNote,
                         minHeight: 112,
-                        accessibilityLabel: "Cleaned note"
+                        accessibilityLabel: "AI-cleaned note"
                     )
 
-                    Text("Only your user note, a relevant local OCR excerpt, and basic metadata are sent to the AI proxy after you tap the button. Raw images and files are never sent.")
+                    if userNote.detailTrimmedText.isEmpty {
+                        Text("Add a note to clean it up with AI.")
+                            .font(.caption)
+                            .foregroundStyle(ProofKitVisual.helperText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Text("AI only sees your note, selected OCR text, and basic details. Raw files stay on this device.")
                         .font(.caption)
                         .foregroundStyle(ProofKitVisual.helperText)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("AI cleanup requires an available AI credit. Local OCR and evidence editing do not use credits.")
+                    Text("Uses 1 AI credit. Local OCR and proof editing are free.")
                         .font(.caption)
                         .foregroundStyle(ProofKitVisual.helperText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -400,24 +444,24 @@ struct EvidenceDetailEditView: View {
 
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
                     EvidenceDetailFieldHeader(
-                        title: "Why this matters",
+                        title: "What this proves",
                         subtitle: "Describe what this record helps show or explain."
                     )
 
                     EvidenceDetailTextEditor(
                         text: $whyThisMatters,
                         minHeight: 92,
-                        accessibilityLabel: "Why this matters"
+                        accessibilityLabel: "What this proves"
                     )
                 }
 
                 Toggle(isOn: $userMarkedImportant) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Mark as important")
+                        Text("Mark important")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
 
-                        Text("Use this for records you want to review first when building the case.")
+                        Text("Show this first when building your timeline.")
                             .font(.footnote)
                             .foregroundStyle(ProofKitVisual.helperText)
                     }
@@ -504,17 +548,13 @@ struct EvidenceDetailEditView: View {
             VStack(alignment: .leading, spacing: 14) {
                 EvidenceDetailFieldHeader(
                     title: "File details",
-                    subtitle: "Metadata is shown separately from the evidence name so the proof reads clearly."
+                    subtitle: "Metadata is shown separately from the proof name so the proof reads clearly."
                 )
 
                 VStack(spacing: 0) {
                     EvidenceMetadataRow(
                         title: "Original file",
                         value: originalFilenameText
-                    )
-                    EvidenceMetadataRow(
-                        title: "Type",
-                        value: evidenceTypeText
                     )
                     EvidenceMetadataRow(
                         title: "Source",
@@ -533,6 +573,44 @@ struct EvidenceDetailEditView: View {
                         value: fileSizeText
                     )
                 }
+            }
+        }
+    }
+
+    private var fileActionsSection: some View {
+        EvidenceDetailCard {
+            VStack(alignment: .leading, spacing: ProofKitVisual.sectionSpacing) {
+                EvidenceDetailFieldHeader(
+                    title: "File actions",
+                    subtitle: "View the local original or remove this proof from the case."
+                )
+
+                VStack(spacing: 10) {
+                    Button {
+                        viewOriginalFile()
+                    } label: {
+                        Label("View original file", systemImage: "doc.viewfinder")
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
+                    .disabled(originalFileURL == nil)
+
+                    Button(role: .destructive) {
+                        isDeleteConfirmationPresented = true
+                    } label: {
+                        Label("Delete from case", systemImage: "trash")
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
+                    .tint(.red)
+                }
+                .font(.subheadline.weight(.semibold))
             }
         }
     }
@@ -566,32 +644,6 @@ struct EvidenceDetailEditView: View {
             .controlSize(.large)
             .tint(Color(.label))
             .disabled(!canSave)
-
-            HStack(spacing: 10) {
-                Button {
-                    viewOriginalFile()
-                } label: {
-                    Label("View original file", systemImage: "doc.viewfinder")
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
-                .disabled(originalFileURL == nil)
-
-                Button(role: .destructive) {
-                    isDeleteConfirmationPresented = true
-                } label: {
-                    Label("Delete from case", systemImage: "trash")
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
-            }
-            .font(.subheadline.weight(.semibold))
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)
@@ -636,6 +688,42 @@ struct EvidenceDetailEditView: View {
         ) != nil
     }
 
+    private static func editableProofTypeCategory(for category: EvidenceCategory) -> EvidenceCategory {
+        switch category {
+        case .photo:
+            return .photo
+        case .screenshot:
+            return .screenshot
+        case .document, .contract, .note:
+            return .document
+        case .message, .email:
+            return .message
+        case .receipt:
+            return .receipt
+        case .uncategorized, .other:
+            return .other
+        }
+    }
+
+    private static func proofTypeDisplayName(for category: EvidenceCategory) -> String {
+        switch editableProofTypeCategory(for: category) {
+        case .photo:
+            return "Photo"
+        case .screenshot:
+            return "Screenshot"
+        case .document:
+            return "Document"
+        case .message:
+            return "Message"
+        case .receipt:
+            return "Receipt"
+        case .other:
+            return "Other"
+        case .uncategorized, .email, .contract, .note:
+            return "Other"
+        }
+    }
+
     private func sourceDescription(for attachment: Attachment) -> String {
         if let source = importedMetadataValue("source", for: attachment) {
             switch source {
@@ -678,13 +766,17 @@ struct EvidenceDetailEditView: View {
         guard !trimmedTitle.isEmpty else {
             withAnimation(ProofKitMotion.standard) {
                 saveMessage = nil
-                saveErrorMessage = "Give this evidence a clear name before saving."
+                saveErrorMessage = nil
             }
             return
         }
 
+        let wasReviewed = evidenceItem.isReviewed
+
         evidenceItem.userTitle = trimmedTitle
-        evidenceItem.category = category
+        if shouldPersistProofType {
+            evidenceItem.category = category
+        }
         evidenceItem.userNotes = userNote.detailTrimmedText
         evidenceItem.userCleanedNote = cleanedNote.detailTrimmedText
         evidenceItem.userWhyThisMatters = whyThisMatters.detailTrimmedText
@@ -708,7 +800,13 @@ struct EvidenceDetailEditView: View {
 
         do {
             try modelContext.save()
+            services.analytics.trackTimelineItemEdited(evidenceItem)
+            if !wasReviewed {
+                services.analytics.trackProofReviewed(evidenceItem)
+                services.analytics.trackProofAddedToTimeline(evidenceItem)
+            }
             withAnimation(ProofKitMotion.standard) {
+                savedSnapshot = currentSnapshot
                 saveMessage = "Saved locally."
                 saveErrorMessage = nil
             }
@@ -761,10 +859,14 @@ struct EvidenceDetailEditView: View {
         guard !trimmedUserNote.isEmpty else {
             withAnimation(ProofKitMotion.standard) {
                 aiCleanupMessage = nil
-                aiCleanupErrorMessage = "Add a user note before cleaning it up with AI."
+                aiCleanupErrorMessage = "Add a note to clean it up with AI."
             }
             return
         }
+
+        let analyticsActionType = AnalyticsAIActionType.other
+        let analyticsStartedAt = Date()
+        services.analytics.trackAIActionStarted(actionType: analyticsActionType)
 
         withAnimation(ProofKitMotion.standard) {
             isCleaningNoteWithAI = true
@@ -807,11 +909,33 @@ struct EvidenceDetailEditView: View {
 
             try modelContext.save()
 
+            let durationMS = Self.analyticsDurationMS(since: analyticsStartedAt)
+            services.analytics.trackAIActionCompleted(
+                actionType: analyticsActionType,
+                creditsSpent: result.creditsUsed,
+                creditsRemaining: result.remainingCredits,
+                durationMS: durationMS
+            )
+            if let creditsUsed = result.creditsUsed, creditsUsed > 0 {
+                services.analytics.trackAICreditsSpent(
+                    actionType: analyticsActionType,
+                    creditsSpent: creditsUsed,
+                    creditsRemaining: result.remainingCredits
+                )
+            }
+
             withAnimation(ProofKitMotion.standard) {
+                savedSnapshot.userNote = trimmedUserNote
+                savedSnapshot.cleanedNote = rewrittenNote
                 aiCleanupMessage = cleanupSuccessMessage(for: result)
                 aiCleanupErrorMessage = nil
             }
         } catch {
+            services.analytics.trackAIActionFailed(
+                actionType: analyticsActionType,
+                durationMS: Self.analyticsDurationMS(since: analyticsStartedAt),
+                errorType: AnalyticsErrorType(error)
+            )
             withAnimation(ProofKitMotion.standard) {
                 aiCleanupMessage = nil
                 aiCleanupErrorMessage = cleanupErrorMessage(for: error)
@@ -843,12 +967,27 @@ struct EvidenceDetailEditView: View {
         return balance
     }
 
+    private var shouldPersistProofType: Bool {
+        category != savedSnapshot.category ||
+            Self.editableProofTypeCategories.contains(evidenceItem.category)
+    }
+
     private var shouldSaveUserEventDate: Bool {
         guard hasEventDate else { return false }
-        guard let initialEventDate else { return true }
 
-        return initiallyHadUserProvidedEventDate ||
-            !Calendar.current.isDate(eventDate, inSameDayAs: initialEventDate)
+        if evidenceItem.userProvidedEventDate != nil {
+            return true
+        }
+
+        guard let currentPersistedEventDate = evidenceItem.eventDate else {
+            return true
+        }
+
+        return !Calendar.current.isDate(eventDate, inSameDayAs: currentPersistedEventDate)
+    }
+
+    private static func analyticsDurationMS(since startDate: Date) -> Int {
+        max(0, Int(Date().timeIntervalSince(startDate) * 1_000))
     }
 
     private func formattedFileSize(_ bytes: Int64?) -> String {
@@ -861,27 +1000,27 @@ struct EvidenceDetailEditView: View {
 
     private func cleanupSuccessMessage(for result: AITaskRouteResult) -> String {
         if result.wasCacheHit {
-            return "Cleaned note restored from local cache. No new AI credits were used."
+            return "AI-cleaned note restored from local cache. No new AI credits were used."
         }
 
         if let remainingCredits = result.remainingCredits {
             if let creditsUsed = result.creditsUsed {
-                return "Cleaned note saved locally. \(creditsUsed) AI credit\(creditsUsed == 1 ? "" : "s") used server-side. \(remainingCredits) remaining."
+                return "AI-cleaned note saved locally. \(creditsUsed) AI credit\(creditsUsed == 1 ? "" : "s") used server-side. \(remainingCredits) remaining."
             }
 
-            return "Cleaned note saved locally. Credits were handled server-side. \(remainingCredits) remaining."
+            return "AI-cleaned note saved locally. Credits were handled server-side. \(remainingCredits) remaining."
         }
 
-        return "Cleaned note saved locally. Credits were handled server-side."
+        return "AI-cleaned note saved locally. Credits were handled server-side."
     }
 
     private func cleanupErrorMessage(for error: Error) -> String {
         if let proofKitError = error as? ProofKitError {
             switch proofKitError {
             case .supabaseNotConfigured:
-                return "AI credits are not configured for this build. Local OCR and evidence organization still work."
+                return "AI credits are not configured for this build. Local OCR and proof organization still work."
             case .supabaseSDKUnavailable:
-                return "AI credits are unavailable in this build. Local OCR and evidence organization still work."
+                return "AI credits are unavailable in this build. Local OCR and proof organization still work."
             default:
                 break
             }
@@ -893,6 +1032,39 @@ struct EvidenceDetailEditView: View {
         }
 
         return "ProofKit could not clean up this note. Please try again."
+    }
+}
+
+private struct EvidenceEditSnapshot {
+    var hasEventDate: Bool
+    var eventDate: Date?
+    var title: String
+    var category: EvidenceCategory
+    var userNote: String
+    var cleanedNote: String
+    var whatThisProves: String
+    var userMarkedImportant: Bool
+
+    func matches(_ other: EvidenceEditSnapshot, calendar: Calendar = .current) -> Bool {
+        hasEventDate == other.hasEventDate &&
+            eventDateMatches(other.eventDate, calendar: calendar) &&
+            title == other.title &&
+            category == other.category &&
+            userNote == other.userNote &&
+            cleanedNote == other.cleanedNote &&
+            whatThisProves == other.whatThisProves &&
+            userMarkedImportant == other.userMarkedImportant
+    }
+
+    private func eventDateMatches(_ otherDate: Date?, calendar: Calendar) -> Bool {
+        switch (eventDate, otherDate) {
+        case (nil, nil):
+            return true
+        case let (lhs?, rhs?):
+            return calendar.isDate(lhs, inSameDayAs: rhs)
+        default:
+            return false
+        }
     }
 }
 
@@ -993,35 +1165,6 @@ private struct EvidenceSummaryChip: View {
             Capsule(style: .continuous)
                 .fill(ProofKitVisual.fieldBackground)
         }
-    }
-}
-
-private struct EvidenceReadOnlyField: View {
-    let title: String
-    let value: String
-    let systemImage: String
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.footnote)
-                    .foregroundStyle(ProofKitVisual.helperText)
-
-                Text(value.isEmpty ? "—" : value)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            Image(systemName: systemImage)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(ProofKitVisual.helperText)
-                .accessibilityHidden(true)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .proofKitFieldBackground()
     }
 }
 

@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		E10C0DEF0000000000000001 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = E10C0DEF0000000000000003 /* Supabase */; };
+		E10C0DF00000000000000001 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = E10C0DF00000000000000004 /* RevenueCat */; };
+		E10C0DF00000000000000002 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = E10C0DF00000000000000005 /* RevenueCatUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,7 +43,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E10C0E00000000000000001 /* PostHog in Frameworks */,
 				E10C0DEF0000000000000001 /* Supabase in Frameworks */,
+				E10C0DF00000000000000001 /* RevenueCat in Frameworks */,
+				E10C0DF00000000000000002 /* RevenueCatUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -85,7 +90,10 @@
 			);
 			name = ProofKit;
 			packageProductDependencies = (
+				E10C0E00000000000000003 /* PostHog */,
 				E10C0DEF0000000000000003 /* Supabase */,
+				E10C0DF00000000000000004 /* RevenueCat */,
+				E10C0DF00000000000000005 /* RevenueCatUI */,
 			);
 			productName = ProofKit;
 			productReference = 9E4370192FAB8198000BF1B2 /* ProofKit.app */;
@@ -103,6 +111,11 @@
 				TargetAttributes = {
 					9E4370182FAB8198000BF1B2 = {
 						CreatedOnToolsVersion = 26.2;
+						SystemCapabilities = {
+							com.apple.InAppPurchase = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -116,7 +129,9 @@
 			mainGroup = 9E4370102FAB8198000BF1B2;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				E10C0E00000000000000002 /* XCRemoteSwiftPackageReference "posthog-ios" */,
 				E10C0DEF0000000000000002 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				E10C0DF00000000000000003 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9E43701A2FAB8198000BF1B2 /* Products */;
@@ -282,6 +297,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ProofKit/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -313,6 +329,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ProofKit/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -356,6 +373,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		E10C0E00000000000000002 /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.58.0;
+			};
+		};
 		E10C0DEF0000000000000002 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/supabase/supabase-swift.git";
@@ -364,13 +389,36 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		E10C0DF00000000000000003 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.67.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		E10C0E00000000000000003 /* PostHog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E10C0E00000000000000002 /* XCRemoteSwiftPackageReference "posthog-ios" */;
+			productName = PostHog;
+		};
 		E10C0DEF0000000000000003 /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E10C0DEF0000000000000002 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
+		};
+		E10C0DF00000000000000004 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E10C0DF00000000000000003 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
+		E10C0DF00000000000000005 /* RevenueCatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E10C0DF00000000000000003 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCatUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

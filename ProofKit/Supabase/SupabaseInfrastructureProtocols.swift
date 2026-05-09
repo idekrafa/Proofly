@@ -10,6 +10,8 @@ enum ProofKitOAuthProvider: String, CaseIterable, Identifiable {
 protocol AccountServicing {
     var isConfigured: Bool { get }
     func currentSession(onboardingCategory: String?, onboardingDisplayName: String?) async throws -> ProofKitAccountAuthResult?
+    func updateProfileDisplayName(_ displayName: String) async throws -> ProofKitAccountSession
+    func requestEmailChange(to email: String) async throws
     func signInWithPassword(email: String, password: String) async throws -> ProofKitAccountAuthResult
     func signUpWithPassword(
         email: String,

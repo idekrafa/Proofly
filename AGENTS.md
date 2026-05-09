@@ -15,3 +15,13 @@ When working in this project, Codex must:
 - Avoid storing user-owned data only in temporary/cache locations unless the data is intentionally disposable and clearly documented as such.
 - Before completing any persistence-related change, document the data-loss assessment and verification performed in `tasks/todo.md`.
 - If migration behavior cannot be verified, clearly call that out before considering the work complete.
+
+## P1: Keep simple UI changes fast and proportional
+
+For clearly scoped UI edits like adding, moving, styling, or wiring a single button, Codex must:
+
+- Make the code change directly and keep the task focused.
+- Avoid broad refactors, full clean builds, DerivedData cleanup, dependency reinstalls, or unrelated environment work unless the user explicitly asks or the quick change cannot be checked otherwise.
+- Prefer fast static verification (`git diff --check`, targeted code inspection, or a small focused compile check if already cheap).
+- If a full build is blocked by local environment issues such as low disk space, stop and report that instead of spending extra time cleaning or debugging the environment.
+- Treat a simple button/UI tweak as a minutes-scale task; with high or extra-high reasoning, the extra reasoning should improve precision, not expand scope or runtime.

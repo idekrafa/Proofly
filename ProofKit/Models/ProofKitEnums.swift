@@ -6,6 +6,8 @@ enum CaseType: String, CaseIterable, Codable, Identifiable {
     case unpaidFreelanceWork
     case refundWarrantyIssue
     case workplaceIssue
+    case schoolCollegeIssue
+    case workFreelanceIssue
     case insuranceIssue
     case smallClaims
     case tenantLandlord
@@ -23,19 +25,23 @@ enum CaseType: String, CaseIterable, Codable, Identifiable {
         case .general:
             "General"
         case .apartmentIssue:
-            "Apartment Issue"
+            "Housing Lease"
         case .unpaidFreelanceWork:
-            "Unpaid Freelance Work"
+            "Work or Freelance Issue"
         case .refundWarrantyIssue:
-            "Refund / Warranty Issue"
+            "Refund or Warranty Issue"
         case .workplaceIssue:
-            "Workplace Issue"
+            "Work or Freelance Issue"
+        case .schoolCollegeIssue:
+            "School or College Issue"
+        case .workFreelanceIssue:
+            "Work or Freelance Issue"
         case .insuranceIssue:
             "Insurance Issue"
         case .smallClaims:
             "Small Claims"
         case .tenantLandlord:
-            "Rent / Lease"
+            "Housing Lease"
         case .employment:
             "Employment"
         case .consumer:

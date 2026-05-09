@@ -4,9 +4,11 @@ import UIKit
 
 struct EvidenceInboxView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.proofKitServices) private var services
 
     let caseFile: CaseFile
     @Binding private var skippedEvidenceIDs: Set<UUID>
+    @State private var didTrackReviewOpened = false
 
     init(
         caseFile: CaseFile,
@@ -68,6 +70,7 @@ struct EvidenceInboxView: View {
         }
         .padding(.top, 8)
         .padding(.bottom, 88)
+        .onAppear(perform: trackReviewOpenedIfNeeded)
     }
 
     private var reviewHeader: some View {
@@ -116,6 +119,8 @@ struct EvidenceInboxView: View {
 
         do {
             try modelContext.save()
+            services.analytics.trackProofReviewed(evidenceItem)
+            services.analytics.trackProofAddedToTimeline(evidenceItem)
         } catch {
             // Keep the card visible if a local save fails.
             withAnimation(ProofKitMotion.standard) {
@@ -129,6 +134,13 @@ struct EvidenceInboxView: View {
         withAnimation(ProofKitMotion.standard) {
             _ = skippedEvidenceIDs.insert(evidenceItem.id)
         }
+        services.analytics.trackProofSkipped(evidenceItem)
+    }
+
+    private func trackReviewOpenedIfNeeded() {
+        guard !didTrackReviewOpened, !reviewItems.isEmpty else { return }
+        didTrackReviewOpened = true
+        services.analytics.trackOCRReviewOpened(caseFile: caseFile)
     }
 }
 

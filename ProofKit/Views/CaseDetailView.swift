@@ -1,19 +1,24 @@
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct CaseDetailView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.proofKitServices) private var services
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Bindable var caseFile: CaseFile
     @State private var selectedSection: CaseDetailSection = .timeline
     @State private var sectionTransitionDirection: CaseDetailSectionTransitionDirection = .forward
+    @State private var sectionTransitionUsesHorizontalMotion = true
     @State private var activeAddProofSheet: AddProofSheet?
     @State private var paywallNotice: PaywallAccessDecision?
     @State private var skippedReadinessEvidenceIDs: Set<UUID> = []
-    @State private var subscriptionTier = "unknown"
-    @State private var hasLoadedAnalyticsContext = false
+    @State private var hasTrackedInitialOpen = false
     @State private var lastTrackedReadinessSignature: String?
+    @State private var isDeleteCaseConfirmationPresented = false
+    @State private var caseDeletionNotice: CaseDetailDeletionNotice?
 
     private var readiness: CaseReadinessResult {
         CaseReadinessCalculator.calculate(
@@ -23,11 +28,11 @@ struct CaseDetailView: View {
     }
 
     private var readinessAnalyticsSignature: String {
-        "\(readiness.analyticsSignature)|\(subscriptionTier)"
+        readiness.analyticsSignature
     }
 
     var body: some View {
-        ScrollView {
+        ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 20) {
                 header
 
@@ -45,8 +50,9 @@ struct CaseDetailView: View {
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 20)
             .padding(.top, 18)
-            .padding(.bottom, selectedSection == .timeline ? 112 : 48)
+            .padding(.bottom, bottomContentPadding)
         }
+        .scrollBounceBehavior(.basedOnSize, axes: .vertical)
         .background(ProofKitVisual.screenBackground.ignoresSafeArea())
         .tint(ProofKitVisual.accent)
         .navigationTitle("Case")
@@ -79,11 +85,31 @@ struct CaseDetailView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
+        .alert(item: $caseDeletionNotice) { notice in
+            Alert(
+                title: Text(notice.title),
+                message: Text(notice.message),
+                dismissButton: .default(Text("OK"))
+            )
+        }
+        .confirmationDialog(
+            "Delete this case?",
+            isPresented: $isDeleteCaseConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Delete case", role: .destructive) {
+                deleteCurrentCase()
+            }
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(deleteCaseConfirmationMessage)
+        }
         .task {
-            await loadReadinessAnalyticsContext()
+            trackInitialOpenAndReadiness()
         }
         .onChange(of: readinessAnalyticsSignature) { _, _ in
-            trackReadinessIfReady()
+            trackReadinessIfNeeded()
         }
     }
 
@@ -97,7 +123,22 @@ struct CaseDetailView: View {
     }
 
     private var sectionContentTransition: AnyTransition {
-        reduceMotion ? .opacity : ProofKitMotion.horizontalCardTransition(forward: sectionTransitionDirection == .forward)
+        if reduceMotion || !sectionTransitionUsesHorizontalMotion {
+            return .opacity
+        }
+
+        return ProofKitMotion.horizontalCardTransition(forward: sectionTransitionDirection == .forward)
+    }
+
+    private var bottomContentPadding: CGFloat {
+        switch selectedSection {
+        case .timeline:
+            112
+        case .manage:
+            140
+        case .inbox, .export:
+            96
+        }
     }
 
     private enum AddProofSheet: Identifiable {
@@ -130,7 +171,9 @@ struct CaseDetailView: View {
 
         let updateSection = {
             sectionTransitionDirection = CaseDetailSectionTransitionDirection(from: selectedSection, to: newSection)
+            sectionTransitionUsesHorizontalMotion = selectedSection != .manage && newSection != .manage
             selectedSection = newSection
+            trackSectionOpened(newSection)
         }
 
         if reduceMotion {
@@ -154,15 +197,7 @@ struct CaseDetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 14) {
-            titleActionLayout
-
-            if !caseFile.caseDetailSummaryText.isEmpty {
-                Text(caseFile.caseDetailSummaryText)
-                    .font(.subheadline)
-                    .foregroundStyle(ProofKitVisual.helperText)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            headerHeroLayout
 
             CaseWorkspaceProgressSummary(
                 readiness: readiness
@@ -182,23 +217,62 @@ struct CaseDetailView: View {
         .proofKitAppear()
     }
 
-    private var titleActionLayout: some View {
+    private var headerHeroLayout: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 18) {
+            regularHeaderHeroLayout
+            compactHeaderHeroLayout
+        }
+    }
+
+    private var regularHeaderHeroLayout: some View {
+        HStack(alignment: .top, spacing: 12) {
+            headerTextStack
+                .frame(minWidth: 188, maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+
+            headerArtworkActionStack(size: 116)
+        }
+    }
+
+    private var compactHeaderHeroLayout: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
                 titleAndMetadata
                     .layoutPriority(1)
 
-                Spacer(minLength: 14)
+                Spacer(minLength: 8)
 
-                addProofButton
-                    .padding(.top, 1)
+                headerRookArtwork(size: 88)
+                    .padding(.top, -4)
             }
 
-            VStack(alignment: .leading, spacing: 12) {
-                titleAndMetadata
-                addProofButton
-            }
+            summaryText
+
+            addProofButton
         }
+    }
+
+    private var headerTextStack: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            titleAndMetadata
+            summaryText
+        }
+    }
+
+    private func headerArtworkActionStack(size: CGFloat) -> some View {
+        VStack(alignment: .trailing, spacing: 10) {
+            headerRookArtwork(size: size)
+
+            addProofButton
+        }
+        .frame(width: size + 10, alignment: .trailing)
+    }
+
+    private func headerRookArtwork(size: CGFloat) -> some View {
+        CaseDetailHeaderRookArtwork(
+            assetName: caseFile.caseDetailRookArtworkAssetName,
+            size: size
+        )
     }
 
     private var titleAndMetadata: some View {
@@ -206,13 +280,23 @@ struct CaseDetailView: View {
             Text(caseFile.caseDetailDisplayTitle)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.primary)
-                .lineLimit(2)
                 .minimumScaleFactor(0.92)
                 .fixedSize(horizontal: false, vertical: true)
 
             metadataPills
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var summaryText: some View {
+        if !caseFile.caseDetailSummaryText.isEmpty {
+            Text(caseFile.caseDetailSummaryText)
+                .font(.subheadline)
+                .foregroundStyle(ProofKitVisual.helperText)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private var addProofButton: some View {
@@ -248,6 +332,12 @@ struct CaseDetailView: View {
 
                 MetadataPill(text: caseFile.evidenceItems.count.evidenceItemCountText)
             }
+
+            VStack(alignment: .leading, spacing: 6) {
+                MetadataPill(text: readiness.category.displayName)
+                MetadataPill(text: caseFile.status.displayName)
+                MetadataPill(text: caseFile.evidenceItems.count.evidenceItemCountText)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -270,8 +360,16 @@ struct CaseDetailView: View {
                 ) {
                     Task { await showAddProofOptions() }
                 }
-            case .settings:
-                CaseSettingsView(caseFile: caseFile)
+            case .manage:
+                CaseSettingsView(
+                    caseFile: caseFile,
+                    onRequestExportPDF: {
+                        animateSectionChange(to: .export)
+                    },
+                    onRequestDeleteCase: {
+                        isDeleteCaseConfirmationPresented = true
+                    }
+                )
             }
         }
         .id(selectedSection)
@@ -280,30 +378,50 @@ struct CaseDetailView: View {
     }
 
     @MainActor
-    private func loadReadinessAnalyticsContext() async {
-        guard !hasLoadedAnalyticsContext else { return }
-        let entitlement = await services.paywall.currentEntitlement()
-        subscriptionTier = entitlement.plan.rawValue
-        hasLoadedAnalyticsContext = true
-        trackReadinessIfReady()
+    private func trackInitialOpenAndReadiness() {
+        guard !hasTrackedInitialOpen else { return }
+        hasTrackedInitialOpen = true
+        services.analytics.trackCaseOpened(caseFile, sourceScreen: .caseDetail)
+        trackSectionOpened(selectedSection)
+        trackReadinessIfNeeded()
     }
 
     @MainActor
-    private func trackReadinessIfReady() {
-        guard hasLoadedAnalyticsContext else { return }
-
+    private func trackReadinessIfNeeded() {
         let signature = readinessAnalyticsSignature
         guard signature != lastTrackedReadinessSignature else { return }
         lastTrackedReadinessSignature = signature
+        services.analytics.trackTimelineReadyStateChanged(caseFile: caseFile, readiness: readiness)
+    }
 
-        services.analytics.trackCaseReadinessCalculated(
-            readiness.analyticsPayload(
-                caseIDHash: AnalyticsHashing.sha256(caseFile.id.uuidString),
-                userIDHash: services.analytics.currentUserIDHash,
-                subscriptionTier: subscriptionTier,
-                createdAtAgeDays: caseFile.createdAt.caseReadinessAgeInDays
+    private func trackSectionOpened(_ section: CaseDetailSection) {
+        switch section {
+        case .timeline:
+            services.analytics.trackTimelineOpened(caseFile: caseFile)
+        case .inbox:
+            break
+        case .manage:
+            services.analytics.trackCaseManageOpened(caseFile)
+        case .export:
+            break
+        }
+    }
+
+    private var deleteCaseConfirmationMessage: String {
+        "This removes the case timeline, proof links, notes, and local case data from this device. This can’t be undone."
+    }
+
+    private func deleteCurrentCase() {
+        do {
+            try CaseDeletionService.deleteCase(caseFile, modelContext: modelContext)
+            services.analytics.trackCaseDeleted(caseFile)
+            dismiss()
+        } catch {
+            caseDeletionNotice = CaseDetailDeletionNotice(
+                title: "Case not deleted",
+                message: "This case could not be deleted. Please try again."
             )
-        )
+        }
     }
 }
 
@@ -311,7 +429,7 @@ private enum CaseDetailSection: String, CaseIterable, Identifiable {
     case timeline
     case inbox
     case export
-    case settings
+    case manage
 
     var id: String { rawValue }
 
@@ -323,8 +441,8 @@ private enum CaseDetailSection: String, CaseIterable, Identifiable {
             "Inbox"
         case .export:
             "Export"
-        case .settings:
-            "Settings"
+        case .manage:
+            "Manage"
         }
     }
 
@@ -340,6 +458,12 @@ private enum CaseDetailSectionTransitionDirection {
     init(from oldSection: CaseDetailSection, to newSection: CaseDetailSection) {
         self = newSection.orderIndex > oldSection.orderIndex ? .forward : .backward
     }
+}
+
+private struct CaseDetailDeletionNotice: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
 }
 
 private struct MetadataPill: View {
@@ -358,6 +482,41 @@ private struct MetadataPill: View {
                 Capsule(style: .continuous)
                     .fill(ProofKitVisual.quietFill)
             }
+    }
+}
+
+private struct CaseDetailHeaderRookArtwork: View {
+    let assetName: String
+    let size: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            ProofKitVisual.accentSecondary.opacity(0.24),
+                            ProofKitVisual.accent.opacity(0.10),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: size * 0.08,
+                        endRadius: size * 0.66
+                    )
+                )
+                .frame(width: size * 1.18, height: size * 1.18)
+                .blur(radius: 6)
+
+            Image(assetName)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .shadow(color: Color.black.opacity(0.30), radius: 12, x: 0, y: 7)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
     }
 }
 
@@ -426,11 +585,47 @@ private extension CaseFile {
     }
 
     var caseDetailSummaryText: String {
+        let trimmedSummary = userSummary.caseDetailTrimmedText
+        if !trimmedSummary.isEmpty {
+            return trimmedSummary
+        }
+
         if caseReadinessCategory.isSchool {
             return "Deadlines, emails, essays, documents, and confirmations — organized into one timeline."
         }
 
-        return userSummary.caseDetailTrimmedText
+        return trimmedSummary
+    }
+
+    var caseDetailRookArtworkAssetName: String {
+        CaseDetailRookArtwork.assetName(for: caseReadinessCategory.analyticsValue)
+    }
+}
+
+private enum CaseDetailRookArtwork {
+    private static let generalAssetName = "RookPurposeOther"
+
+    static func assetName(for categoryAnalyticsValue: String) -> String {
+        let preferredAssetName: String
+
+        switch categoryAnalyticsValue {
+        case "apartment":
+            preferredAssetName = "RookPurposeRental"
+        case "refund":
+            preferredAssetName = "RookPurposeRefund"
+        case "school":
+            preferredAssetName = "RookPurposeCollege"
+        case "work":
+            preferredAssetName = "RookPurposeWork"
+        default:
+            preferredAssetName = generalAssetName
+        }
+
+        return existingAssetName(preferredAssetName)
+    }
+
+    private static func existingAssetName(_ preferredAssetName: String) -> String {
+        UIImage(named: preferredAssetName) == nil ? generalAssetName : preferredAssetName
     }
 }
 

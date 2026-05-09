@@ -154,6 +154,7 @@ struct AddProofImportView: View {
             .disabled(isImporting || evidenceSlotsAreFull)
 
             Button {
+                services.analytics.trackProofAddStarted(caseFile: caseFile, proofType: .note, sourceScreen: .addProof)
                 onManualEntryRequested()
             } label: {
                 AddProofOptionRow(
@@ -223,6 +224,8 @@ struct AddProofImportView: View {
     }
 
     private func importSelectedPhotoItems(_ items: [PhotosPickerItem]) async {
+        services.analytics.trackProofAddStarted(caseFile: caseFile, proofType: .photo, sourceScreen: .addProof)
+
         withAnimation(ProofKitMotion.standard) {
             isImporting = true
             importErrorMessage = nil
@@ -236,6 +239,7 @@ struct AddProofImportView: View {
                     isImporting = false
                     selectedPhotoItems = []
                 }
+                services.analytics.trackProofImportFailed(proofType: .photo, errorType: .subscriptionFailed)
                 return
             }
 
@@ -281,13 +285,18 @@ struct AddProofImportView: View {
                     isImporting = false
                     selectedPhotoItems = []
                 }
+                services.analytics.trackProofImportFailed(proofType: .photo, errorType: .importFailed)
                 return
             }
 
             try modelContext.save()
+            importedEvidenceItems.forEach { evidenceItem in
+                services.analytics.trackProofAdded(evidenceItem, caseFile: caseFile)
+            }
             onImportComplete(importedEvidenceItems)
             dismiss()
         } catch {
+            services.analytics.trackProofImportFailed(proofType: .photo, errorType: .importFailed)
             withAnimation(ProofKitMotion.standard) {
                 importErrorMessage = "Images could not be imported. Please try again."
             }
@@ -304,6 +313,7 @@ struct AddProofImportView: View {
         case .success(let urls):
             await importDocumentURLs(urls)
         case .failure:
+            services.analytics.trackProofImportFailed(proofType: .pdf, errorType: .importFailed)
             withAnimation(ProofKitMotion.standard) {
                 importErrorMessage = "Documents could not be selected. Please try again."
             }
@@ -313,6 +323,8 @@ struct AddProofImportView: View {
     private func importDocumentURLs(_ urls: [URL]) async {
         let documentURLs = urls.filter { !$0.lastPathComponent.isEmpty }
         guard !documentURLs.isEmpty else { return }
+        let startedProofType = documentURLs.first.map(documentProofType(for:)) ?? .pdf
+        services.analytics.trackProofAddStarted(caseFile: caseFile, proofType: startedProofType, sourceScreen: .addProof)
 
         withAnimation(ProofKitMotion.standard) {
             isImporting = true
@@ -326,6 +338,7 @@ struct AddProofImportView: View {
                     importErrorMessage = decision.message
                     isImporting = false
                 }
+                services.analytics.trackProofImportFailed(proofType: startedProofType, errorType: .subscriptionFailed)
                 return
             }
 
@@ -360,13 +373,18 @@ struct AddProofImportView: View {
                     importErrorMessage = "No documents were imported. Please choose a PDF or document and try again."
                     isImporting = false
                 }
+                services.analytics.trackProofImportFailed(proofType: startedProofType, errorType: .importFailed)
                 return
             }
 
             try modelContext.save()
+            importedEvidenceItems.forEach { evidenceItem in
+                services.analytics.trackProofAdded(evidenceItem, caseFile: caseFile)
+            }
             onImportComplete(importedEvidenceItems)
             dismiss()
         } catch {
+            services.analytics.trackProofImportFailed(proofType: startedProofType, errorType: .importFailed)
             withAnimation(ProofKitMotion.standard) {
                 importErrorMessage = "Documents could not be imported. Please try again."
             }
@@ -530,6 +548,7 @@ struct AddProofImportView: View {
             attachment.originalOCRTextBlocksJSON = textBlocksJSON
             attachment.updatedAt = now
         } catch {
+            services.analytics.trackProofImportFailed(proofType: .photo, errorType: .ocrFailed)
             // Keep the imported image even if Vision cannot recognize text in it.
             // OCR remains local-only; no remote fallback is attempted.
         }
@@ -606,6 +625,11 @@ struct AddProofImportView: View {
         }
 
         return .document
+    }
+
+    private func documentProofType(for url: URL) -> AnalyticsProofType {
+        let contentType = UTType(filenameExtension: url.pathExtension)
+        return contentType?.conforms(to: .pdf) == true ? .pdf : .other
     }
 
     private func importedMetadataJSON(
@@ -696,7 +720,7 @@ private struct AddProofOptionButtonStyle: ButtonStyle {
     AddProofImportView(
         caseFile: CaseFile(
             caseType: .apartmentIssue,
-            userTitle: "Apartment repair timeline"
+            userTitle: "Housing lease timeline"
         ),
         onManualEntryRequested: {},
         onImportComplete: { _ in }
