@@ -64,7 +64,7 @@ enum CaseCategory: String, CaseIterable, Identifiable, Hashable {
 //        case .workFreelanceIssue:
 //            "Contracts, invoices, schedules, messages, and payment records."
         case .other:
-            "Use ProofKit for any situation where you need a clean proof timeline."
+            "Use Proofly for any situation where you need a clean proof timeline."
         }
     }
 
@@ -94,7 +94,7 @@ enum CaseCategory: String, CaseIterable, Identifiable, Hashable {
 //        case .workFreelanceIssue:
 //            "Organize contracts, invoices, and messages."
         case .other:
-            "ProofKit has your back —\norganize proof for whatever\nlife throws at you."
+            "Proofly has your back —\norganize proof for whatever\nlife throws at you."
         }
     }
 

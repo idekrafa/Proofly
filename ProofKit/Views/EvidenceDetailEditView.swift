@@ -683,7 +683,7 @@ struct EvidenceDetailEditView: View {
         }
 
         return trimmedValue.range(
-            of: #"^ProofKit Image [0-9]+(\.[A-Za-z0-9]+)?$"#,
+            of: #"^(ProofKit|Proofly) Image [0-9]+(\.[A-Za-z0-9]+)?$"#,
             options: [.regularExpression, .caseInsensitive]
         ) != nil
     }
@@ -1031,7 +1031,7 @@ struct EvidenceDetailEditView: View {
             return description
         }
 
-        return "ProofKit could not clean up this note. Please try again."
+        return "Proofly could not clean up this note. Please try again."
     }
 }
 

@@ -73,7 +73,7 @@ struct CreateCaseFlowView: View {
             Text(step == .documentationType ? "What are you documenting?" : "Name this case")
                 .font(.title2.weight(.semibold))
 
-            Text(step == .documentationType ? "Choose the closest fit. This only helps organize your records." : "ProofKit started with a suggested title. You can change it anytime.")
+            Text(step == .documentationType ? "Choose the closest fit. This only helps organize your records." : "Proofly started with a suggested title. You can change it anytime.")
                 .font(.subheadline)
                 .foregroundStyle(ProofKitVisual.helperText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -147,7 +147,7 @@ struct CreateCaseFlowView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Text("ProofKit will create a local case file. You can add records, build a timeline, and export a case PDF later.")
+            Text("Proofly will create a local case file. You can add records, build a timeline, and export a case PDF later.")
                 .font(.footnote)
                 .foregroundStyle(ProofKitVisual.helperText)
                 .fixedSize(horizontal: false, vertical: true)

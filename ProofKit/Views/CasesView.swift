@@ -290,10 +290,10 @@ struct CasesView: View {
 
     private var deleteCaseConfirmationMessage: String {
         guard let casePendingDeletion else {
-            return "This removes the selected case from ProofKit. Original proof files stay in the Vault and on this device."
+            return "This removes the selected case from Proofly. Original proof files stay in the Vault and on this device."
         }
 
-        return "This removes “\(casePendingDeletion.casesDisplayTitle)” and its timeline, notes, proof entries, and export records from ProofKit. Original proof files stay in the Vault and on this device."
+        return "This removes “\(casePendingDeletion.casesDisplayTitle)” and its timeline, notes, proof entries, and export records from Proofly. Original proof files stay in the Vault and on this device."
     }
 
     private func deletePendingCase() {

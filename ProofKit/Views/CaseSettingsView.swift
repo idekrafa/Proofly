@@ -265,7 +265,7 @@ struct CaseSettingsView: View {
             modelContext.rollback()
             notice = CaseManageNotice(
                 title: failureTitle,
-                message: "ProofKit could not save this change. Please try again."
+                message: "Proofly could not save this change. Please try again."
             )
             return false
         }
@@ -281,7 +281,7 @@ struct CaseSettingsView: View {
         } catch {
             notice = CaseManageNotice(
                 title: "Couldn’t export case data",
-                message: "ProofKit could not prepare this case export. Please try again."
+                message: "Proofly could not prepare this case export. Please try again."
             )
         }
 
@@ -343,7 +343,7 @@ struct CaseSettingsView: View {
             modelContext.rollback()
             notice = CaseManageNotice(
                 title: "Files not deleted",
-                message: "ProofKit could not delete the generated case files. Original imported proof files were not touched."
+                message: "Proofly could not delete the generated case files. Original imported proof files were not touched."
             )
         }
     }
@@ -361,7 +361,7 @@ struct CaseSettingsView: View {
 
         let data = try encoder.encode(snapshot)
         let exportDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appending(path: "ProofKitCaseExports")
+            .appending(path: "ProoflyCaseExports")
             .appending(path: caseFile.id.uuidString)
         try FileManager.default.createDirectory(
             at: exportDirectory,
@@ -370,7 +370,7 @@ struct CaseSettingsView: View {
 
         let timestamp = Self.exportFilenameDateFormatter.string(from: .now)
         let safeTitle = caseFile.userTitle.manageFilenameSlug(fallback: "case")
-        let url = exportDirectory.appending(path: "proofkit-\(safeTitle)-\(timestamp).json")
+        let url = exportDirectory.appending(path: "proofly-\(safeTitle)-\(timestamp).json")
         try data.write(to: url, options: [.atomic])
 
         return CaseDataExportFile(url: url, caseTitle: caseFile.userTitle.manageTrimmedText)

@@ -101,7 +101,7 @@ struct ProofKitAuthView: View {
                 .frame(height: welcomeHeroTitleSpacing(for: proxy))
 
             VStack(alignment: .leading, spacing: 18) {
-                Text("Welcome to ProofKit")
+                Text("Welcome to Proofly")
                     .font(.system(size: welcomeTitleSize(for: proxy), weight: .bold, design: .rounded))
                     .tracking(-0.9)
                     .foregroundStyle(.white)
@@ -217,7 +217,7 @@ struct ProofKitAuthView: View {
                 .frame(height: landingHeroTitleSpacing(for: proxy))
 
             authHeadline(
-                title: "Sign in to use ProofKit",
+                title: "Sign in to use Proofly",
                 subtitle: "Your cases stay private on this device."
             )
             .proofKitAppear(delay: reduceMotion ? 0 : 0.08)
@@ -599,7 +599,7 @@ struct ProofKitAuthView: View {
             case .purpose:
                 return "Back to proof purpose"
             case .purposeAuth:
-                return "Back to sign in to use ProofKit"
+                return "Back to sign in to use Proofly"
             case .landing, .email:
                 return "Back to sign in options"
             }
@@ -733,7 +733,7 @@ struct ProofKitAuthView: View {
 
         let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
         guard cleanEmail.contains("@") else {
-            notice = ProofKitAuthNotice(title: "Email Required", message: "Enter the email address for your ProofKit account.")
+            notice = ProofKitAuthNotice(title: "Email Required", message: "Enter the email address for your Proofly account.")
             focusedField = .email
             return
         }
@@ -823,7 +823,7 @@ struct ProofKitAuthView: View {
                 try await services.account.sendMagicLink(email: cleanEmail)
                 notice = ProofKitAuthNotice(
                     title: "Check Your Email",
-                    message: "We sent a secure ProofKit sign-in link to \(cleanEmail)."
+                    message: "We sent a secure Proofly sign-in link to \(cleanEmail)."
                 )
             } catch {
                 notice = ProofKitAuthNotice(title: "Couldn’t Send Link", message: Self.message(for: error))
@@ -924,7 +924,7 @@ struct ProofKitSignupSuccessView: View {
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
 
-                Text(email.map { "Opening your private ProofKit workspace for \($0)." } ?? "Opening your private ProofKit workspace.")
+                Text(email.map { "Opening your private Proofly workspace for \($0)." } ?? "Opening your private Proofly workspace.")
                     .font(.system(size: 18, weight: .regular, design: .rounded))
                     .foregroundStyle(ProofKitAuthPalette.secondaryText)
                     .multilineTextAlignment(.center)

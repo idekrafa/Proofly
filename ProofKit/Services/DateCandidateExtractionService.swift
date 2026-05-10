@@ -29,7 +29,7 @@ struct DateCandidateExtractionService: DateCandidateExtracting {
                 date: importedAt,
                 source: .importedMetadata,
                 confidence: 0.35,
-                label: "Imported into ProofKit",
+                label: "Imported into Proofly",
                 rawValue: ISO8601DateFormatter().string(from: importedAt)
             )
         )

@@ -201,7 +201,7 @@ struct GlobalSettingsView: View {
     private var accountSection: some View {
         settingsSection(
             title: "Account",
-            copy: "Used for your ProofKit account and exported packets.",
+            copy: "Used for your Proofly account and exported packets.",
             delay: 0.03
         ) {
             SettingsGroup {
@@ -329,7 +329,7 @@ struct GlobalSettingsView: View {
                     showsChevron: true
                 ) {
                     services.analytics.trackFeedbackStarted()
-                    openMail(subject: "ProofKit Feedback")
+                    openMail(subject: "Proofly Feedback")
                 }
 
                 SettingsDivider()
@@ -341,7 +341,7 @@ struct GlobalSettingsView: View {
                     showsChevron: true
                 ) {
                     services.analytics.trackSupportOpened()
-                    openMail(subject: "ProofKit Support")
+                    openMail(subject: "Proofly Support")
                 }
 
                 SettingsDivider()
@@ -353,7 +353,7 @@ struct GlobalSettingsView: View {
                     showsChevron: true
                 ) {
                     services.analytics.trackSupportOpened()
-                    openMail(subject: "ProofKit Bug Report")
+                    openMail(subject: "Proofly Bug Report")
                 }
             }
         }
@@ -365,7 +365,7 @@ struct GlobalSettingsView: View {
                 SettingsButtonRow(
                     icon: "checkmark.seal.fill",
                     iconColor: ProofKitVisual.accent,
-                    title: "About ProofKit",
+                    title: "About Proofly",
                     showsChevron: true
                 ) {
                     infoSheet = .aboutProofKit
@@ -511,7 +511,7 @@ struct GlobalSettingsView: View {
             onAccountSessionUpdated(updatedSession)
             settingsNotice = SettingsNotice(
                 title: "Name Updated",
-                message: "Your ProofKit profile name was updated in Supabase."
+                message: "Your Proofly profile name was updated in Supabase."
             )
         } catch {
             settingsNotice = SettingsNotice(
@@ -535,7 +535,7 @@ struct GlobalSettingsView: View {
         if normalized == accountSession?.email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
             settingsNotice = SettingsNotice(
                 title: "Email Unchanged",
-                message: "That is already the email address for this ProofKit account."
+                message: "That is already the email address for this Proofly account."
             )
             return
         }
@@ -553,7 +553,7 @@ struct GlobalSettingsView: View {
             SettingsAccountProfileStore.clearEmail(for: accountSession)
             settingsNotice = SettingsNotice(
                 title: "Confirm Your New Email",
-                message: "Supabase sent a confirmation email to \(normalized). Your ProofKit account email will update after you confirm it."
+                message: "Supabase sent a confirmation email to \(normalized). Your Proofly account email will update after you confirm it."
             )
         } catch {
             settingsNotice = SettingsNotice(
@@ -626,7 +626,7 @@ struct GlobalSettingsView: View {
     private func openMail(subject: String) {
         var components = URLComponents()
         components.scheme = "mailto"
-        components.path = "support@proofkit.app"
+        components.path = "support@proofly.app"
         components.queryItems = [
             URLQueryItem(name: "subject", value: subject)
         ]
@@ -660,14 +660,14 @@ struct GlobalSettingsView: View {
 
         let data = try encoder.encode(snapshot)
         let exportDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appending(path: "ProofKitSettingsExports")
+            .appending(path: "ProoflySettingsExports")
         try FileManager.default.createDirectory(
             at: exportDirectory,
             withIntermediateDirectories: true
         )
 
         let timestamp = Self.exportFilenameDateFormatter.string(from: .now)
-        let url = exportDirectory.appending(path: "proofkit-data-\(timestamp).json")
+        let url = exportDirectory.appending(path: "proofly-data-\(timestamp).json")
         try data.write(to: url, options: [.atomic])
 
         return SettingsExportFile(url: url, caseCount: caseFiles.count)
@@ -702,7 +702,7 @@ struct GlobalSettingsView: View {
         if snapshot.caseCount == 0, snapshot.fileURLs.isEmpty {
             return SettingsNotice(
                 title: "No Local Data Found",
-                message: "ProofKit did not find local cases, proof files, OCR text, or packets to delete on this device."
+                message: "Proofly did not find local cases, proof files, OCR text, or packets to delete on this device."
             )
         }
 
@@ -993,7 +993,7 @@ private struct SettingsEditNameSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 18) {
-                Text("This updates your ProofKit profile name in Supabase and refreshes your home greeting.")
+                Text("This updates your Proofly profile name in Supabase and refreshes your home greeting.")
                     .font(.subheadline)
                     .foregroundStyle(ProofKitVisual.helperText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1073,7 +1073,7 @@ private struct SettingsEditEmailSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 18) {
-                Text("Supabase will send a confirmation email. Your ProofKit account email changes only after you confirm the new address.")
+                Text("Supabase will send a confirmation email. Your Proofly account email changes only after you confirm the new address.")
                     .font(.subheadline)
                     .foregroundStyle(ProofKitVisual.helperText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1215,7 +1215,7 @@ private enum SettingsInfoPresentation: String, Identifiable {
         case .localFirst:
             "Local-first storage"
         case .aboutProofKit:
-            "About ProofKit"
+            "About Proofly"
         case .aboutRook:
             "About Rook"
         }
@@ -1246,11 +1246,11 @@ private enum SettingsInfoPresentation: String, Identifiable {
     var message: String {
         switch self {
         case .localFirst:
-            "ProofKit keeps your cases and proof private on this device unless you choose to export or share them."
+            "Proofly keeps your cases and proof private on this device unless you choose to export or share them."
         case .aboutProofKit:
-            "ProofKit helps you organize screenshots, receipts, notes, and documents into a clear proof timeline. Your core proof records stay local-first on this device unless you choose to export or share them."
+            "Proofly helps you organize screenshots, receipts, notes, and documents into a clear proof timeline. Your core proof records stay local-first on this device unless you choose to export or share them."
         case .aboutRook:
-            "Rook is ProofKit’s little proof keeper — a calm guide for turning messy screenshots and receipts into a clear timeline."
+            "Rook is Proofly’s little proof keeper — a calm guide for turning messy screenshots and receipts into a clear timeline."
         }
     }
 }
@@ -1439,7 +1439,7 @@ private enum SettingsConfirmation: String, Identifiable {
     var message: String {
         switch self {
         case .deleteLocalData:
-            "This removes ProofKit data stored on this device. Export anything important first. This can’t be undone."
+            "This removes Proofly data stored on this device. Export anything important first. This can’t be undone."
         }
     }
 

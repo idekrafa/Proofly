@@ -33,7 +33,7 @@ struct HomeView: View {
             return accountSession.welcomeBackGreeting
         }
 
-        return cases.isEmpty ? "Welcome to ProofKit" : "Welcome back"
+        return cases.isEmpty ? "Welcome to Proofly" : "Welcome back"
     }
 
     private var headerSubtitle: String {

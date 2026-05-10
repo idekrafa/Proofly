@@ -33,7 +33,7 @@ struct TimelineView: View {
                 PlaceholderPanel(
                     systemImage: "calendar",
                     title: "Timeline is empty",
-                    message: "Add your first proof item when you are ready. ProofKit will place dated items into a calm chronological view.",
+                    message: "Add your first proof item when you are ready. Proofly will place dated items into a calm chronological view.",
                     steps: [
                         PlaceholderStep(
                             systemImage: "plus",
@@ -589,7 +589,7 @@ private extension String {
 
     var isGenericProofKitImageTitle: Bool {
         range(
-            of: #"^ProofKit Image [0-9]+$"#,
+            of: #"^(ProofKit|Proofly) Image [0-9]+$"#,
             options: [.regularExpression, .caseInsensitive]
         ) != nil
     }

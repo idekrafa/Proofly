@@ -151,7 +151,7 @@ struct PaywallLimitsCard: View {
                     .fill(ProofKitVisual.fieldBackground)
             }
 
-            Text(entitlement.source == .revenueCat ? "RevenueCat checks the Pro entitlement. Local cases, proof files, OCR text, and exports remain stored in ProofKit’s account-scoped local storage." : "Purchases are placeholder-backed for now. RevenueCat can replace this entitlement source without changing local proof storage.")
+            Text(entitlement.source == .revenueCat ? "RevenueCat checks the Pro entitlement. Local cases, proof files, OCR text, and exports remain stored in Proofly’s account-scoped local storage." : "Purchases are placeholder-backed for now. RevenueCat can replace this entitlement source without changing local proof storage.")
                 .font(.caption)
                 .foregroundStyle(ProofKitVisual.helperText)
                 .fixedSize(horizontal: false, vertical: true)

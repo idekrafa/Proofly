@@ -636,7 +636,7 @@ private extension String {
         }
 
         return normalized.range(
-            of: #"^proofkit image\s+\d+$"#,
+            of: #"^(proofkit|proofly) image\s+\d+$"#,
             options: .regularExpression
         ) != nil
     }

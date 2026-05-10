@@ -600,7 +600,7 @@ struct AddProofImportView: View {
     private func originalFilename(at index: Int, contentType: UTType?) -> String {
         let number = index + 1
         let fileExtension = contentType?.preferredFilenameExtension ?? "jpg"
-        return "ProofKit Image \(number).\(fileExtension)"
+        return "Proofly Image \(number).\(fileExtension)"
     }
 
     private func draftTitle(from filename: String) -> String {

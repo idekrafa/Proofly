@@ -86,7 +86,7 @@ struct PDFExportService: PDFExportServicing {
     }
 
     private static func safeFilename(_ value: String) -> String {
-        let fallback = "ProofKit-Evidence-Case"
+        let fallback = "Proofly-Evidence-Case"
         let illegalCharacters = CharacterSet(charactersIn: "/\\?%*|\"<>:")
         let cleaned = value
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -183,15 +183,15 @@ private final class PDFCaseRenderer {
 
     static func caseTitle(for caseFile: CaseFile) -> String {
         let title = caseFile.userTitle.trimmedForPDF
-        return title.isEmpty ? "ProofKit Evidence Case" : "\(title) Evidence Case"
+        return title.isEmpty ? "Proofly Evidence Case" : "\(title) Evidence Case"
     }
 
     func render(to destinationURL: URL) throws {
         let format = UIGraphicsPDFRendererFormat()
         format.documentInfo = [
             kCGPDFContextTitle as String: caseTitleValue,
-            kCGPDFContextCreator as String: "ProofKit",
-            kCGPDFContextAuthor as String: "ProofKit"
+            kCGPDFContextCreator as String: "Proofly",
+            kCGPDFContextAuthor as String: "Proofly"
         ]
 
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect, format: format)
@@ -254,7 +254,7 @@ private final class PDFCaseRenderer {
         ]
         _ = drawMetadataGrid(metadata, x: x, y: y, columns: 2)
 
-        let note = "Generated locally from records stored on this device. No AI-generated text or remote image processing was used for this case. ProofKit does not provide legal advice."
+        let note = "Generated locally from records stored on this device. No AI-generated text or remote image processing was used for this case. Proofly does not provide legal advice."
         drawText(
             note,
             in: CGRect(x: x, y: 620, width: contentWidth * 0.78, height: 70),
@@ -409,7 +409,7 @@ private final class PDFCaseRenderer {
         drawTextBlock(
             context,
             title: "Statement page",
-            text: "This page is intentionally left as a placeholder for a statement or cover note prepared outside of ProofKit. ProofKit does not provide legal advice or generate this statement.",
+            text: "This page is intentionally left as a placeholder for a statement or cover note prepared outside of Proofly. Proofly does not provide legal advice or generate this statement.",
             emptyText: "",
             maxCharacters: 800
         )
@@ -1017,7 +1017,7 @@ private final class PDFCaseRenderer {
 
     private var footerGeneratedText: String {
         if request.includeProofKitWatermark {
-            return "Free export • Generated with ProofKit • \(Self.shortDateTimeFormatter.string(from: request.generatedAt))"
+            return "Free export • Generated with Proofly • \(Self.shortDateTimeFormatter.string(from: request.generatedAt))"
         }
 
         return "Created \(Self.shortDateTimeFormatter.string(from: request.generatedAt))"
@@ -1343,6 +1343,6 @@ private extension String {
         let value = trimmedForPDF
         guard value.count > maxCharacters else { return value }
         let endIndex = value.index(value.startIndex, offsetBy: maxCharacters)
-        return "\(value[..<endIndex])…\n\n[Additional text remains in the original ProofKit record.]"
+        return "\(value[..<endIndex])…\n\n[Additional text remains in the original Proofly record.]"
     }
 }

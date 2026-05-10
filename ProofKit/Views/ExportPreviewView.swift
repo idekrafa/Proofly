@@ -619,7 +619,7 @@ struct ExportPreviewView: View {
             let now = result.generatedAt
             let caseExport = ExportPacket(
                 userPacketTitle: result.caseTitle,
-                userPacketNotes: "Generated locally from current ProofKit proof.",
+                userPacketNotes: "Generated locally from current Proofly proof.",
                 localPDFFilePath: result.url.path(percentEncoded: false),
                 fileSizeBytes: result.fileSizeBytes,
                 pageCount: result.pageCount,
@@ -668,7 +668,7 @@ struct ExportPreviewView: View {
     private var exportDirectory: URL {
         FileManager.default
             .urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appending(path: "ProofKit")
+            .appending(path: "Proofly")
             .appending(path: "Exports")
             .appending(path: "Cases")
             .appending(path: caseFile.id.uuidString)
@@ -693,7 +693,7 @@ struct ExportPreviewView: View {
             "watermarked": access.isWatermarked,
             "watermarkPlacement": access.isWatermarked ? "footer" : "none",
             "diagonalWatermark": false,
-            "freeExportWatermark": access.isWatermarked ? "Footer: Generated with ProofKit" : ""
+            "freeExportWatermark": access.isWatermarked ? "Footer: Generated with Proofly" : ""
         ]
 
         guard let data = try? JSONSerialization.data(withJSONObject: values, options: [.sortedKeys]),
@@ -712,11 +712,11 @@ struct ExportPreviewView: View {
     private var exportPlanMessage: String {
         switch exportAccess.plan {
         case .free:
-            "Free export adds a small footer-only ProofKit mark. No diagonal watermark."
+            "Free export adds a small footer-only Proofly mark. No diagonal watermark."
         case .paidUrgentExport:
-            "Paid Urgent Export creates one final PDF for this case without a ProofKit watermark."
+            "Paid Urgent Export creates one final PDF for this case without a Proofly watermark."
         case .pro:
-            "Pro export creates PDFs without a ProofKit watermark."
+            "Pro export creates PDFs without a Proofly watermark."
         }
     }
 

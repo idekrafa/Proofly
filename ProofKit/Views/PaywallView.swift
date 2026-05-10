@@ -290,7 +290,7 @@ struct PaywallView: View {
             .lineLimit(1)
             .minimumScaleFactor(0.78)
 
-            Text("Cancel anytime. ProofKit is an organization tool, not legal advice.")
+            Text("Cancel anytime. Proofly is an organization tool, not legal advice.")
                 .font(.caption2)
                 .foregroundStyle(ProofKitPaywallStyle.mutedInk)
                 .multilineTextAlignment(.center)
@@ -326,8 +326,8 @@ enum ProofKitPaywallStyle {
 }
 
 enum ProofKitPaywallLinks {
-    static let termsURL = URL(string: "https://proofkit.app/terms")!
-    static let privacyURL = URL(string: "https://proofkit.app/privacy")!
+    static let termsURL = URL(string: "https://proofly.app/terms")!
+    static let privacyURL = URL(string: "https://proofly.app/privacy")!
 }
 
 private extension View {

@@ -131,7 +131,7 @@ struct ProofKitOnboardingPurposeView: View {
                         .foregroundStyle(.white)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("ProofKit will create the right packet structure for your situation.")
+                    Text("Proofly will create the right packet structure for your situation.")
                         .font(.system(size: subtitleSize(for: proxy), weight: .regular, design: .rounded))
                         .tracking(-0.18)
                         .foregroundStyle(ProofKitAuthPalette.secondaryText)

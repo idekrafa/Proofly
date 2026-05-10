@@ -78,7 +78,7 @@ extension SupabaseInfrastructureService: AccountServicing {
         let normalizedDisplayName = try Self.normalizedDisplayName(displayName)
         let client = try configuredClient
         guard let session = client.auth.currentSession else {
-            throw ProofKitError.remotePolicyViolation("Sign in before updating your ProofKit profile.")
+            throw ProofKitError.remotePolicyViolation("Sign in before updating your Proofly profile.")
         }
 
         _ = try await registerProfile(
@@ -169,7 +169,7 @@ extension SupabaseInfrastructureService: AccountServicing {
 
         guard let session = response.session else {
             throw ProofKitError.remotePolicyViolation(
-                "Check your email to confirm your account, then return to ProofKit to open your private workspace."
+                "Check your email to confirm your account, then return to Proofly to open your private workspace."
             )
         }
 

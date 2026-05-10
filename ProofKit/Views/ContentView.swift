@@ -214,7 +214,7 @@ struct ContentView: View {
         } catch {
             contentNotice = ProofKitContentNotice(
                 title: "First Case Not Created",
-                message: "ProofKit could not create the starter case. Please try again."
+                message: "Proofly could not create the starter case. Please try again."
             )
             return false
         }
@@ -556,7 +556,7 @@ private struct ProofKitFirstCaseCreationSheet: View {
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.primary)
 
-                Text("Next, ProofKit will help you import the proof that fits this case.")
+                Text("Next, Proofly will help you import the proof that fits this case.")
                     .font(.subheadline)
                     .foregroundStyle(ProofKitVisual.helperText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -777,7 +777,7 @@ private struct ProofKitFirstCaseAhaSheet: View {
     }
 
     private var ahaBody: String {
-        "ProofKit started “\(route.caseFile.userTitle)” and kept your proof local to this device. You can keep adding proof or manage the case anytime."
+        "Proofly started “\(route.caseFile.userTitle)” and kept your proof local to this device. You can keep adding proof or manage the case anytime."
     }
 }
 

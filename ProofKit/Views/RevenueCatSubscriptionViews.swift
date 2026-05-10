@@ -48,7 +48,7 @@ struct RevenueCatSubscriptionManagementCard: View {
                     packageList
                 }
             } else {
-                Text("Add `PROOFKIT_REVENUECAT_API_KEY` to `Config/ProofKit.local.xcconfig` or your CI secret-backed xcconfig to enable subscriptions for this build.")
+                Text("Add the RevenueCat API key to local or CI build settings to enable subscriptions for this build.")
                     .font(.subheadline)
                     .foregroundStyle(ProofKitVisual.helperText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -97,7 +97,7 @@ struct RevenueCatSubscriptionManagementCard: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text("ProofKit Pro")
+                Text("Proofly Pro")
                     .font(.headline)
                     .foregroundStyle(.primary)
 
@@ -114,7 +114,7 @@ struct RevenueCatSubscriptionManagementCard: View {
                     }
             }
 
-            Text("RevenueCat unlocks Pro from the `pro` or `proofkit_pro` entitlement. Weekly and monthly packages should map to App Store product IDs `proofkit_pro_weekly` and `proofkit_pro_monthly`.")
+            Text("RevenueCat unlocks Pro from the configured entitlement. Weekly and monthly packages should map to the configured App Store product IDs.")
                 .font(.caption)
                 .foregroundStyle(ProofKitVisual.helperText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -126,7 +126,7 @@ struct RevenueCatSubscriptionManagementCard: View {
             Button {
                 showingCustomPaywall = true
             } label: {
-                Label("Open ProofKit Paywall", systemImage: "crown.fill")
+                Label("Open Proofly Paywall", systemImage: "crown.fill")
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
@@ -160,7 +160,7 @@ struct RevenueCatSubscriptionManagementCard: View {
     @ViewBuilder
     private var packageList: some View {
         if offering.availablePackages.isEmpty {
-            Text("No weekly/monthly packages were returned. In RevenueCat, make a current Offering with Weekly and Monthly packages attached to `proofkit_pro_weekly` and `proofkit_pro_monthly`, and attach both products to the Pro entitlement.")
+            Text("No weekly/monthly packages were returned. In RevenueCat, make a current Offering with Weekly and Monthly packages, and attach both products to the Pro entitlement.")
                 .font(.subheadline)
                 .foregroundStyle(ProofKitVisual.helperText)
                 .fixedSize(horizontal: false, vertical: true)

@@ -353,8 +353,8 @@ final class RevenueCatSubscriptionService: SubscriptionServicing {
                 customerInfo: snapshot,
                 userCancelled: false,
                 message: snapshot.isProofKitProActive
-                ? "ProofKit Pro is active."
-                : "Purchase completed, but Pro is not active yet. Check that the product is attached to the `pro` or `proofkit_pro` entitlement in RevenueCat."
+                ? "Proofly Pro is active."
+                : "Purchase completed, but Pro is not active yet. Check that the product is attached to the configured Pro entitlement in RevenueCat."
             )
         } catch {
             return RevenueCatPurchaseOutcome(
@@ -387,7 +387,7 @@ final class RevenueCatSubscriptionService: SubscriptionServicing {
                 customerInfo: snapshot,
                 userCancelled: false,
                 message: snapshot.isProofKitProActive
-                ? "Purchases restored. ProofKit Pro is active."
+                ? "Purchases restored. Proofly Pro is active."
                 : "Restore finished, but no active Pro entitlement was found for this App Store account."
             )
         } catch {
@@ -503,7 +503,7 @@ final class RevenueCatSubscriptionService: SubscriptionServicing {
             packageIdentifier: package.identifier,
             productIdentifier: storeProduct.productIdentifier,
             title: storeProduct.localizedTitle.isEmpty ? product.displayName : storeProduct.localizedTitle,
-            subtitle: storeProduct.localizedDescription.isEmpty ? "Unlock ProofKit Pro" : storeProduct.localizedDescription,
+            subtitle: storeProduct.localizedDescription.isEmpty ? "Unlock Proofly Pro" : storeProduct.localizedDescription,
             localizedPrice: package.localizedPriceString,
             localizedIntroductoryPrice: package.localizedIntroductoryPriceString
         )

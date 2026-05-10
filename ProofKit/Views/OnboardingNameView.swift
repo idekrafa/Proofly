@@ -104,7 +104,7 @@ struct ProofKitOnboardingNameView: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityLabel("What should we call you?")
 
-                        Text("Rook will use your name to personalize Proofkit. You can change it at any time.")
+                        Text("Rook will use your name to personalize Proofly. You can change it at any time.")
                             .font(.system(size: subtitleSize(for: proxy), weight: .regular, design: .rounded))
                             .tracking(-0.22)
                             .lineSpacing(2)

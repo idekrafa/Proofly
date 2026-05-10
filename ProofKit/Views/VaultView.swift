@@ -169,7 +169,7 @@ struct VaultView: View {
                     renameText = ""
                 }
             } message: {
-                Text("Update the name shown inside ProofKit.")
+                Text("Update the name shown inside Proofly.")
             }
             .confirmationDialog(
                 "Delete file?",
