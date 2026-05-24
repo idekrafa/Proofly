@@ -5,7 +5,7 @@ import UIKit
 
 struct ProofKitAuthView: View {
     private let services: ServiceContainer
-    private let onAuthenticated: (ProofKitAccountSession, Bool, ProofKitOnboardingFirstCaseSeed?) async -> Void
+    private let onAuthenticated: @MainActor (ProofKitAccountSession, Bool, ProofKitOnboardingFirstCaseSeed?) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -25,7 +25,7 @@ struct ProofKitAuthView: View {
     init(
         services: ServiceContainer,
         initialErrorMessage: String? = nil,
-        onAuthenticated: @escaping (ProofKitAccountSession, Bool, ProofKitOnboardingFirstCaseSeed?) async -> Void
+        onAuthenticated: @escaping @MainActor (ProofKitAccountSession, Bool, ProofKitOnboardingFirstCaseSeed?) -> Void
     ) {
         self.services = services
         self.onAuthenticated = onAuthenticated
@@ -717,7 +717,7 @@ struct ProofKitAuthView: View {
                 if result.isNewAccount, let seed {
                     services.analytics.trackOnboardingCompleted(category: CaseCategory.category(forID: seed.id))
                 }
-                await onAuthenticated(
+                onAuthenticated(
                     result.session,
                     result.isNewAccount,
                     result.isNewAccount ? seed : nil
@@ -749,7 +749,7 @@ struct ProofKitAuthView: View {
                 if result.isNewAccount, let seed {
                     services.analytics.trackOnboardingCompleted(category: CaseCategory.category(forID: seed.id))
                 }
-                await onAuthenticated(
+                onAuthenticated(
                     result.session,
                     result.isNewAccount,
                     result.isNewAccount ? seed : nil
@@ -825,7 +825,7 @@ struct ProofKitAuthView: View {
                 if shouldStartFirstCase {
                     services.analytics.trackOnboardingCompleted(category: purposeSeed.flatMap { CaseCategory.category(forID: $0.id) })
                 }
-                await onAuthenticated(
+                onAuthenticated(
                     result.session,
                     shouldStartFirstCase,
                     shouldStartFirstCase ? purposeSeed : nil

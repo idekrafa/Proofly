@@ -39,8 +39,8 @@ struct GlobalSettingsView: View {
     private static let supportEmailAddress = "hello@proofly.me"
 
     private let initialAccountSession: ProofKitAccountSession?
-    private let onAccountSessionUpdated: (ProofKitAccountSession) -> Void
-    let onSignedOut: () -> Void
+    private let onAccountSessionUpdated: @MainActor (ProofKitAccountSession) -> Void
+    let onSignedOut: @MainActor () -> Void
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
@@ -53,13 +53,14 @@ struct GlobalSettingsView: View {
     @State private var accountProfile = SettingsEditableAccountProfile.empty
     @State private var aiCreditsText = "Checking…"
     @State private var settingsNotice: SettingsNotice?
-    @State private var confirmation: SettingsConfirmation?
     @State private var exportFile: SettingsExportFile?
     @State private var infoSheet: SettingsInfoPresentation?
     @State private var isPreparingExport = false
     @State private var isSigningOut = false
     @State private var isDeletingAccount = false
     @State private var isDeletingLocalData = false
+    @State private var isDeleteAccountConfirmationPresented = false
+    @State private var isDeleteLocalDataConfirmationPresented = false
     @State private var showingNameEditor = false
     @State private var showingEmailEditor = false
     @State private var showingPaywall = false
@@ -69,8 +70,8 @@ struct GlobalSettingsView: View {
 
     init(
         accountSession: ProofKitAccountSession? = nil,
-        onAccountSessionUpdated: @escaping (ProofKitAccountSession) -> Void = { _ in },
-        onSignedOut: @escaping () -> Void = {}
+        onAccountSessionUpdated: @escaping @MainActor (ProofKitAccountSession) -> Void = { _ in },
+        onSignedOut: @escaping @MainActor () -> Void = {}
     ) {
         self.initialAccountSession = accountSession
         self.onAccountSessionUpdated = onAccountSessionUpdated
@@ -212,15 +213,31 @@ struct GlobalSettingsView: View {
                     dismissButton: .default(Text("OK"))
                 )
             }
-            .alert(item: $confirmation) { confirmation in
-                Alert(
-                    title: Text(confirmation.title),
-                    message: Text(confirmation.message),
-                    primaryButton: .destructive(Text(confirmation.confirmTitle)) {
-                        perform(confirmation)
-                    },
-                    secondaryButton: .cancel(Text("Cancel"))
-                )
+            .confirmationDialog(
+                "Delete account?",
+                isPresented: $isDeleteAccountConfirmationPresented,
+                titleVisibility: .visible
+            ) {
+                Button("Delete account", role: .destructive) {
+                    Task { await deleteAccount() }
+                }
+
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This permanently deletes your Proofly account from our servers and signs you out. Local cases and proof files stay on this device; export anything important first.")
+            }
+            .confirmationDialog(
+                "Delete local data?",
+                isPresented: $isDeleteLocalDataConfirmationPresented,
+                titleVisibility: .visible
+            ) {
+                Button("Delete local data", role: .destructive) {
+                    Task { await deleteLocalData() }
+                }
+
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This removes Proofly data stored on this device. Export anything important first. This can’t be undone.")
             }
         }
     }
@@ -392,7 +409,7 @@ struct GlobalSettingsView: View {
                     titleColor: .red,
                     isLoading: isDeletingLocalData
                 ) {
-                    confirmation = .deleteLocalData
+                    isDeleteLocalDataConfirmationPresented = true
                 }
                 .disabled(isDeletingLocalData)
             }
@@ -495,7 +512,7 @@ struct GlobalSettingsView: View {
                     titleColor: .red,
                     isLoading: isDeletingAccount
                 ) {
-                    confirmation = .deleteAccount
+                    isDeleteAccountConfirmationPresented = true
                 }
                 .disabled(isSigningOut || isDeletingAccount)
 
@@ -681,15 +698,6 @@ struct GlobalSettingsView: View {
                 title: "Couldn’t Request Email Change",
                 message: Self.message(for: error)
             )
-        }
-    }
-
-    private func perform(_ confirmation: SettingsConfirmation) {
-        switch confirmation {
-        case .deleteAccount:
-            Task { await deleteAccount() }
-        case .deleteLocalData:
-            Task { await deleteLocalData() }
         }
     }
 
@@ -1619,40 +1627,6 @@ private struct SettingsNotice: Identifiable {
     let id = UUID()
     let title: String
     let message: String
-}
-
-private enum SettingsConfirmation: String, Identifiable {
-    case deleteAccount
-    case deleteLocalData
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .deleteAccount:
-            "Delete account?"
-        case .deleteLocalData:
-            "Delete local data?"
-        }
-    }
-
-    var message: String {
-        switch self {
-        case .deleteAccount:
-            "This permanently deletes your Proofly account from our servers and signs you out. Local cases and proof files stay on this device; export anything important first."
-        case .deleteLocalData:
-            "This removes Proofly data stored on this device. Export anything important first. This can’t be undone."
-        }
-    }
-
-    var confirmTitle: String {
-        switch self {
-        case .deleteAccount:
-            "Delete account"
-        case .deleteLocalData:
-            "Delete local data"
-        }
-    }
 }
 
 private struct SettingsExportFile: Identifiable {

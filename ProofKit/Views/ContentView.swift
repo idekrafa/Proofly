@@ -5,7 +5,7 @@ import UIKit
 struct ContentView: View {
     let accountSession: ProofKitAccountSession?
     let firstCaseSeed: ProofKitOnboardingFirstCaseSeed?
-    let onSignOut: () -> Void
+    let onSignOut: @MainActor () -> Void
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.proofKitServices) private var services
@@ -30,7 +30,7 @@ struct ContentView: View {
     init(
         accountSession: ProofKitAccountSession? = nil,
         firstCaseSeed: ProofKitOnboardingFirstCaseSeed? = nil,
-        onSignOut: @escaping () -> Void = {}
+        onSignOut: @escaping @MainActor () -> Void = {}
     ) {
         self.accountSession = accountSession
         self.firstCaseSeed = firstCaseSeed

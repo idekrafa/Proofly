@@ -21,7 +21,7 @@ struct ProofKitRootView: View {
 
             case .signedOut:
                 ProofKitAuthView(services: services) { session, isFirstTimeSignup, firstCaseSeed in
-                    await coordinator.activate(
+                    coordinator.scheduleActivation(
                         session: session,
                         isFirstTimeSignup: isFirstTimeSignup,
                         firstCaseSeed: firstCaseSeed
@@ -41,7 +41,7 @@ struct ProofKitRootView: View {
 
             case .configurationError(let message):
                 ProofKitAuthView(services: services, initialErrorMessage: message) { session, isFirstTimeSignup, firstCaseSeed in
-                    await coordinator.activate(
+                    coordinator.scheduleActivation(
                         session: session,
                         isFirstTimeSignup: isFirstTimeSignup,
                         firstCaseSeed: firstCaseSeed
@@ -65,6 +65,9 @@ final class ProofKitAuthCoordinator: ObservableObject {
     private let services: ServiceContainer
     private var hasBootstrapped = false
     private var currentScope: ProofKitAuthenticatedScope?
+    private var retiringScopes: [UUID: ProofKitAuthenticatedScope] = [:]
+    private var activationTask: Task<Void, Never>?
+    private var scopeReleaseTasks: [UUID: Task<Void, Never>] = [:]
 
     init(services: ServiceContainer) {
         self.services = services
@@ -81,7 +84,7 @@ final class ProofKitAuthCoordinator: ObservableObject {
 
         guard services.account.isConfigured else {
             await services.subscriptions.resetCustomerForSignedOutState()
-            state = .signedOut
+            transitionToSignedOut()
             return
         }
 
@@ -106,14 +109,34 @@ final class ProofKitAuthCoordinator: ObservableObject {
                 state = try .authenticated(makeScope(for: result.session), firstCaseSeed: firstCaseSeed)
             } else {
                 await services.subscriptions.resetCustomerForSignedOutState()
-                state = .signedOut
+                transitionToSignedOut()
             }
         } catch {
             state = .configurationError(Self.message(for: error))
         }
     }
 
-    func activate(
+    func scheduleActivation(
+        session: ProofKitAccountSession,
+        isFirstTimeSignup: Bool,
+        firstCaseSeed: ProofKitOnboardingFirstCaseSeed?
+    ) {
+        activationTask?.cancel()
+        state = .checking
+
+        activationTask = Task { @MainActor [weak self] in
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+
+            await self?.activate(
+                session: session,
+                isFirstTimeSignup: isFirstTimeSignup,
+                firstCaseSeed: firstCaseSeed
+            )
+        }
+    }
+
+    private func activate(
         session: ProofKitAccountSession,
         isFirstTimeSignup: Bool,
         firstCaseSeed: ProofKitOnboardingFirstCaseSeed?
@@ -140,11 +163,13 @@ final class ProofKitAuthCoordinator: ObservableObject {
     }
 
     func accountDidSignOut() {
+        activationTask?.cancel()
+        activationTask = nil
+
         Task {
             await services.subscriptions.resetCustomerForSignedOutState()
         }
-        currentScope = nil
-        state = .signedOut
+        transitionToSignedOut()
     }
 
     func handleAuthCallback(_ url: URL) {
@@ -167,6 +192,24 @@ final class ProofKitAuthCoordinator: ObservableObject {
             return updatedScope
         }
 
+        if let retiringScope = retiringScopes[session.id] {
+            scopeReleaseTasks[session.id]?.cancel()
+            scopeReleaseTasks[session.id] = nil
+            retiringScopes[session.id] = nil
+
+            let updatedScope = ProofKitAuthenticatedScope(
+                session: session,
+                services: retiringScope.services,
+                modelContainer: retiringScope.modelContainer
+            )
+            currentScope = updatedScope
+            return updatedScope
+        }
+
+        if let currentScope {
+            retire(scope: currentScope)
+        }
+
         let scope = ProofKitAuthenticatedScope(
             session: session,
             services: try services.scoped(to: session),
@@ -175,6 +218,32 @@ final class ProofKitAuthCoordinator: ObservableObject {
 
         currentScope = scope
         return scope
+    }
+
+    private func transitionToSignedOut() {
+        retireCurrentScopeAfterTransition()
+        state = .signedOut
+    }
+
+    private func retireCurrentScopeAfterTransition() {
+        guard let currentScope else {
+            return
+        }
+
+        retire(scope: currentScope)
+        self.currentScope = nil
+    }
+
+    private func retire(scope: ProofKitAuthenticatedScope) {
+        let sessionID = scope.session.id
+        retiringScopes[sessionID] = scope
+        scopeReleaseTasks[sessionID]?.cancel()
+        scopeReleaseTasks[sessionID] = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            self?.retiringScopes[sessionID] = nil
+            self?.scopeReleaseTasks[sessionID] = nil
+        }
     }
 
     private static func message(for error: Error) -> String {

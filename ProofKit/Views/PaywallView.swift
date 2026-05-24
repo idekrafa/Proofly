@@ -48,18 +48,27 @@ struct PaywallView: View {
         }
         .onChange(of: purchaseManager.shouldDismissForActiveEntitlement) { _, shouldDismiss in
             guard shouldDismiss, !didDismissForEntitlement else { return }
-            didDismissForEntitlement = true
-            Task { @MainActor in
-                await onPurchaseCompleted()
-                dismiss()
-            }
+            dismissForActiveEntitlement()
         }
         .alert(item: $purchaseManager.notice) { notice in
             Alert(
                 title: Text(notice.title),
                 message: Text(notice.message),
-                dismissButton: .default(Text("OK"))
+                dismissButton: .default(Text(notice.buttonTitle)) {
+                    guard notice.action == .dismissPaywallForActiveEntitlement else { return }
+                    dismissForActiveEntitlement()
+                }
             )
+        }
+    }
+
+    private func dismissForActiveEntitlement() {
+        guard !didDismissForEntitlement else { return }
+        didDismissForEntitlement = true
+
+        Task { @MainActor in
+            await onPurchaseCompleted()
+            dismiss()
         }
     }
 
@@ -364,8 +373,8 @@ enum ProofKitPaywallStyle {
 }
 
 enum ProofKitPaywallLinks {
-    static let termsURL = URL(string: "https://proofly.app/terms")!
-    static let privacyURL = URL(string: "https://proofly.app/privacy")!
+    static let termsURL = URL(string: "https://www.proofly.me/terms")!
+    static let privacyURL = URL(string: "https://www.proofly.me/privacy")!
 }
 
 private extension View {

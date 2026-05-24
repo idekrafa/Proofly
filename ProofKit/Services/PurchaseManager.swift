@@ -72,6 +72,25 @@ struct PurchaseManagerNotice: Identifiable, Equatable {
     let id = UUID()
     let title: String
     let message: String
+    let buttonTitle: String
+    let action: Action
+
+    enum Action: Equatable {
+        case acknowledge
+        case dismissPaywallForActiveEntitlement
+    }
+
+    init(
+        title: String,
+        message: String,
+        buttonTitle: String = "OK",
+        action: Action = .acknowledge
+    ) {
+        self.title = title
+        self.message = message
+        self.buttonTitle = buttonTitle
+        self.action = action
+    }
 
     static func == (lhs: PurchaseManagerNotice, rhs: PurchaseManagerNotice) -> Bool {
         lhs.id == rhs.id
@@ -146,7 +165,7 @@ final class PurchaseManager: ObservableObject {
         defer { isPurchasing = false }
 
         let outcome = await subscriptions.purchase(selectedPackage)
-        handle(outcome, fallbackTitle: "Couldn’t Start Purchase")
+        handlePurchase(outcome, fallbackTitle: "Couldn’t Start Purchase")
         return outcome
     }
 
@@ -164,7 +183,7 @@ final class PurchaseManager: ObservableObject {
         defer { isRestoring = false }
 
         let outcome = await subscriptions.restorePurchases()
-        handle(outcome, fallbackTitle: "Couldn’t Restore Purchases")
+        handleRestore(outcome, fallbackTitle: "Couldn’t Restore Purchases")
     }
 
     private func loadOffering() async {
@@ -224,12 +243,30 @@ final class PurchaseManager: ObservableObject {
         }
     }
 
-    private func handle(_ outcome: RevenueCatPurchaseOutcome, fallbackTitle: String) {
+    private func handlePurchase(_ outcome: RevenueCatPurchaseOutcome, fallbackTitle: String) {
+        if outcome.customerInfo?.isProofKitProActive == true {
+            notice = PurchaseManagerNotice(
+                title: "Welcome to Proofly Pro",
+                message: "You’re all set. Unlimited cases, unlimited proof, clean exports, and your Pro AI credits are ready.",
+                buttonTitle: "Start Organizing",
+                action: .dismissPaywallForActiveEntitlement
+            )
+            return
+        }
+
+        handleInactiveOutcome(outcome, fallbackTitle: fallbackTitle)
+    }
+
+    private func handleRestore(_ outcome: RevenueCatPurchaseOutcome, fallbackTitle: String) {
         if outcome.customerInfo?.isProofKitProActive == true {
             shouldDismissForActiveEntitlement = true
             return
         }
 
+        handleInactiveOutcome(outcome, fallbackTitle: fallbackTitle)
+    }
+
+    private func handleInactiveOutcome(_ outcome: RevenueCatPurchaseOutcome, fallbackTitle: String) {
         guard !outcome.userCancelled else { return }
 
         notice = PurchaseManagerNotice(
