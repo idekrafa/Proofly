@@ -8,26 +8,43 @@ struct PaywallPlanOption: Equatable, Identifiable {
     var id: String { product.id }
     var title: String { product.displayName }
 
-    var subtitle: String {
+    var subtitle: String? {
         switch product {
         case .weekly:
-            "Flexible access for short sprints."
+            nil
         case .monthly:
-            "Best for keeping every case organized."
+            "Best value for keeping every case organized."
         }
     }
 
     var creditLine: String {
-        switch product {
-        case .weekly:
-            "15 AI credits / week"
-        case .monthly:
-            "75 AI credits / month"
-        }
+        product.creditLineText
     }
 
     var priceText: String {
         package?.displayPrice ?? product.fallbackPrice
+    }
+
+    var renewalPriceText: String {
+        let price = priceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !price.contains("/") else { return price }
+
+        switch product {
+        case .weekly:
+            return "\(price)/week"
+        case .monthly:
+            return "\(price)/month"
+        }
+    }
+
+    var trialLine: String? {
+        guard product == .weekly else { return nil }
+
+        if let duration = package?.introductoryOfferDurationText {
+            return "Start with a free trial for \(duration) and 3 AI credits. Then \(renewalPriceText) after trial."
+        }
+
+        return "Start with the free trial shown at checkout and 3 AI credits. Then \(renewalPriceText) after trial."
     }
 
     var badgeText: String? {
@@ -35,7 +52,7 @@ struct PaywallPlanOption: Equatable, Identifiable {
     }
 
     var accessibilityDescription: String {
-        [title, priceText, creditLine, subtitle, badgeText].compactMap { $0 }.joined(separator: ", ")
+        [title, renewalPriceText, creditLine, trialLine, subtitle, badgeText].compactMap { $0 }.joined(separator: ", ")
     }
 }
 
@@ -65,7 +82,7 @@ struct PurchaseManagerNotice: Identifiable, Equatable {
 final class PurchaseManager: ObservableObject {
     @Published private(set) var offering = RevenueCatOfferingSnapshot.empty
     @Published private(set) var offeringState: PaywallOfferingState = .idle
-    @Published var selectedProduct: ProofKitSubscriptionProduct = .monthly
+    @Published var selectedProduct: ProofKitSubscriptionProduct = .weekly
     @Published private(set) var isPurchasing = false
     @Published private(set) var isRestoring = false
     @Published var notice: PurchaseManagerNotice?

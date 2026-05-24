@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftData
 import SwiftUI
 
@@ -5,6 +6,7 @@ struct ManualEvidenceEntryView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(\.proofKitServices) private var services
+    @Environment(\.requestReview) private var requestReview
 
     @Bindable var caseFile: CaseFile
     let onSave: (EvidenceItem) -> Void
@@ -277,6 +279,9 @@ struct ManualEvidenceEntryView: View {
             services.analytics.trackProofAdded(evidenceItem, caseFile: caseFile)
             services.analytics.trackTimelineItemCreated(evidenceItem)
             services.analytics.trackProofAddedToTimeline(evidenceItem)
+            if AppReviewPromptCoordinator.shared.shouldRequestTimelineProofReview() {
+                requestReview()
+            }
             onSave(evidenceItem)
             dismiss()
         } catch {

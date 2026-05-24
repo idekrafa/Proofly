@@ -1,0 +1,138 @@
+{
+  "apartment_issue": {
+    "fixtureID": "apartment_issue",
+    "caseTitle": "Synthetic Apartment Repair Timeline",
+    "caseType": "housing",
+    "privacySentinel": "SYNTH_APT_LEAK_SENTINEL_MAINTENANCE_DRIP_4931",
+    "fakeFilename": "synthetic_apartment_window_photo.jpg",
+    "fakeLocalPath": "/private/var/mobile/Containers/Data/Application/SYNTH-APT/Documents/synthetic_apartment_window_photo.jpg",
+    "summary": "A fully synthetic rental repair dispute about recurring window leaks and delayed maintenance responses.",
+    "notes": [
+      "SYNTH_APT_LEAK_SENTINEL_MAINTENANCE_DRIP_4931 Tenant reported a bedroom window leak after two fake rainstorms.",
+      "Maintenance replied on 2026-02-04 that a vendor would inspect the sealant during the next dry day.",
+      "On 2026-02-10 the synthetic tenant sent a follow-up noting a towel had to be replaced and the wall felt damp.",
+      "On 2026-02-14 the property office marked the ticket complete even though the resident had not confirmed the repair."
+    ],
+    "messages": [
+      {
+        "date": "2026-02-02",
+        "from": "tenant",
+        "body": "Hi, this is a synthetic maintenance message. Water is entering around the left bedroom window after rain."
+      },
+      {
+        "date": "2026-02-04",
+        "from": "maintenance",
+        "body": "We opened work order FAKE-APT-221 and plan to inspect the sealant when weather permits."
+      },
+      {
+        "date": "2026-02-10",
+        "from": "tenant",
+        "body": "Following up with a fake timeline note: the window leaked again last night and the wall still feels damp."
+      }
+    ],
+    "ocr": "Synthetic OCR excerpt only: work order FAKE-APT-221, window seal inspection pending, no real address, no real names.",
+    "promptText": "## Synthetic apartment issue\nSYNTH_APT_LEAK_SENTINEL_MAINTENANCE_DRIP_4931\n2026-02-02: Tenant reports water around bedroom window.\n2026-02-04: Maintenance opens FAKE-APT-221 and says vendor will inspect sealant.\n2026-02-10: Tenant follows up after another fake rainstorm.\n2026-02-14: Office marks ticket complete before tenant confirmation.\nNote: all names, dates, messages, and OCR text in this fixture are synthetic."
+  },
+  "refund_fight": {
+    "fixtureID": "refund_fight",
+    "caseTitle": "Synthetic Refund Request Timeline",
+    "caseType": "refund",
+    "privacySentinel": "SYNTH_REFUND_SENTINEL_ORDER_8842",
+    "fakeFilename": "synthetic_refund_receipt.pdf",
+    "fakeLocalPath": "/private/var/mobile/Containers/Data/Application/SYNTH-REFUND/Documents/synthetic_refund_receipt.pdf",
+    "summary": "A fully synthetic purchase/refund timeline for a delayed online order.",
+    "notes": [
+      "SYNTH_REFUND_SENTINEL_ORDER_8842 Customer bought a fictional desk lamp on 2026-03-01.",
+      "The fake shipping notice said delivery by 2026-03-06, but the item never arrived.",
+      "Support replied with a canned message on 2026-03-08 and asked the customer to wait two more business days.",
+      "The synthetic customer requested a refund again on 2026-03-12."
+    ],
+    "messages": [
+      {
+        "date": "2026-03-01",
+        "from": "customer",
+        "body": "Synthetic order placed for a desk lamp, order FAKE-RF-8842."
+      },
+      {
+        "date": "2026-03-08",
+        "from": "support",
+        "body": "We are checking the carrier scan and will update this fictional support ticket soon."
+      },
+      {
+        "date": "2026-03-12",
+        "from": "customer",
+        "body": "Please refund the fake order because no delivery scan has appeared."
+      }
+    ],
+    "ocr": "Synthetic receipt OCR: order FAKE-RF-8842, item desk lamp, amount 41.20 USD, no real merchant.",
+    "promptText": "## Synthetic refund issue\nSYNTH_REFUND_SENTINEL_ORDER_8842\n2026-03-01: Fake desk lamp order placed.\n2026-03-06: Expected delivery date passes.\n2026-03-08: Support asks customer to wait two more business days.\n2026-03-12: Customer asks for refund again.\nNo real merchant, receipt, or personal details are included."
+  },
+  "school_college_issue": {
+    "fixtureID": "school_college_issue",
+    "caseTitle": "Synthetic College Admin Timeline",
+    "caseType": "school",
+    "privacySentinel": "SYNTH_SCHOOL_SENTINEL_ASSIGNMENT_5510",
+    "fakeFilename": "synthetic_assignment_email.png",
+    "fakeLocalPath": "/private/var/mobile/Containers/Data/Application/SYNTH-SCHOOL/Documents/synthetic_assignment_email.png",
+    "summary": "A fully synthetic school/admin timeline about assignment submission and advising messages.",
+    "notes": [
+      "SYNTH_SCHOOL_SENTINEL_ASSIGNMENT_5510 Student submitted a fictional lab report on 2026-04-05.",
+      "The learning portal showed a fake timestamp but the gradebook did not update.",
+      "Advisor email on 2026-04-09 said the department would review the submission log.",
+      "The synthetic student saved screenshots and notes but no real school data."
+    ],
+    "messages": [
+      {
+        "date": "2026-04-05",
+        "from": "student",
+        "body": "Submitted fake lab report to the fictional portal before 11:59 PM."
+      },
+      {
+        "date": "2026-04-07",
+        "from": "instructor",
+        "body": "I do not see the synthetic submission in the gradebook yet."
+      },
+      {
+        "date": "2026-04-09",
+        "from": "advisor",
+        "body": "The department will review the fictional submission log."
+      }
+    ],
+    "ocr": "Synthetic portal OCR: assignment FAKE-LAB-17, submitted 2026-04-05 22:13, no real student or campus.",
+    "promptText": "## Synthetic school issue\nSYNTH_SCHOOL_SENTINEL_ASSIGNMENT_5510\n2026-04-05: Fake lab report submitted.\n2026-04-07: Instructor says gradebook has not updated.\n2026-04-09: Advisor says department will review fictional submission log.\nAll school names, emails, and records are synthetic."
+  },
+  "freelance_work_issue": {
+    "fixtureID": "freelance_work_issue",
+    "caseTitle": "Synthetic Freelance Scope Timeline",
+    "caseType": "work",
+    "privacySentinel": "SYNTH_WORK_SENTINEL_INVOICE_7307",
+    "fakeFilename": "synthetic_freelance_invoice.pdf",
+    "fakeLocalPath": "/private/var/mobile/Containers/Data/Application/SYNTH-WORK/Documents/synthetic_freelance_invoice.pdf",
+    "summary": "A fully synthetic freelance timeline about invoice, scope changes, and delivery notes.",
+    "notes": [
+      "SYNTH_WORK_SENTINEL_INVOICE_7307 Freelancer sent a fictional invoice for a mock brochure project.",
+      "Client requested extra pages on 2026-01-18 after approving the original scope.",
+      "Freelancer delivered the synthetic draft on 2026-01-22 and asked whether the added pages should be billed separately.",
+      "The fake client acknowledged the draft but did not answer the billing question."
+    ],
+    "messages": [
+      {
+        "date": "2026-01-10",
+        "from": "freelancer",
+        "body": "Synthetic scope: four-page brochure draft plus one revision round."
+      },
+      {
+        "date": "2026-01-18",
+        "from": "client",
+        "body": "Can we add two more fictional pages to the brochure?"
+      },
+      {
+        "date": "2026-01-22",
+        "from": "freelancer",
+        "body": "Draft delivered. Please confirm whether the added pages are outside the original fake scope."
+      }
+    ],
+    "ocr": "Synthetic invoice OCR: invoice FAKE-FR-7307, brochure draft, no real company or bank details.",
+    "promptText": "## Synthetic freelance issue\nSYNTH_WORK_SENTINEL_INVOICE_7307\n2026-01-10: Fake four-page brochure scope agreed.\n2026-01-18: Client asks for two extra fictional pages.\n2026-01-22: Draft delivered and billing question sent.\nNo real client, invoice, or work files are included."
+  }
+}

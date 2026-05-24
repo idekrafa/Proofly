@@ -26,5 +26,8 @@ Config/ProofKit.local.xcconfig
 # Local Codex/task notes
 tasks/
 
+# Generated E2E reports
+test-results/
+
 # Supabase local CLI state
 supabase/.temp/

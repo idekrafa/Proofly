@@ -1,3 +1,5 @@
+import AuthenticationServices
+import CryptoKit
 import SwiftUI
 import UIKit
 
@@ -17,6 +19,7 @@ struct ProofKitAuthView: View {
     @State private var confirmationPassword = ""
     @State private var isWorking = false
     @State private var notice: ProofKitAuthNotice?
+    @State private var appleSignInCoordinator = ProofKitNativeAppleSignInCoordinator()
     @FocusState private var focusedField: ProofKitAuthField?
 
     init(
@@ -370,7 +373,7 @@ struct ProofKitAuthView: View {
                         .font(.system(size: 25, weight: .semibold))
                         .offset(y: -1)
                 },
-                action: { authenticateWithOAuth(.apple) }
+                action: { authenticateWithApple() }
             )
 
             ProofKitAuthButton(
@@ -727,6 +730,40 @@ struct ProofKitAuthView: View {
         }
     }
 
+    private func authenticateWithApple() {
+        guard ensureConfigured() else { return }
+        guard !isWorking else { return }
+        resignAuthFocus()
+        isWorking = true
+
+        Task { @MainActor in
+            do {
+                let seed = selectedPurpose?.firstCaseSeed
+                let profileDisplayName = onboardingProfileDisplayName(for: seed)
+                let authorization = try await appleSignInCoordinator.signIn()
+                let result = try await services.account.signInWithApple(
+                    authorization.credential,
+                    onboardingCategory: seed?.id,
+                    onboardingDisplayName: profileDisplayName
+                )
+                if result.isNewAccount, let seed {
+                    services.analytics.trackOnboardingCompleted(category: CaseCategory.category(forID: seed.id))
+                }
+                await onAuthenticated(
+                    result.session,
+                    result.isNewAccount,
+                    result.isNewAccount ? seed : nil
+                )
+                return
+            } catch {
+                if !Self.isAppleSignInCancellation(error) {
+                    notice = ProofKitAuthNotice(title: "Couldn’t Sign In", message: Self.message(for: error))
+                }
+            }
+            isWorking = false
+        }
+    }
+
     private func submitEmailPasswordAuth() {
         guard ensureConfigured() else { return }
         guard !isWorking else { return }
@@ -870,6 +907,11 @@ struct ProofKitAuthView: View {
         return error.localizedDescription
     }
 
+    private static func isAppleSignInCancellation(_ error: Error) -> Bool {
+        guard let authorizationError = error as? ASAuthorizationError else { return false }
+        return authorizationError.code == .canceled
+    }
+
     private static func isEmailConfirmationRequired(_ error: Error) -> Bool {
         if case ProofKitError.remotePolicyViolation(let message) = error {
             return message.localizedCaseInsensitiveContains("check your email")
@@ -933,6 +975,142 @@ struct ProofKitSignupSuccessView: View {
             .proofKitAppear()
         }
         .preferredColorScheme(.dark)
+    }
+}
+
+private struct ProofKitAppleAuthorization {
+    let credential: ProofKitAppleSignInCredential
+}
+
+@MainActor
+private final class ProofKitNativeAppleSignInCoordinator: NSObject {
+    private var continuation: CheckedContinuation<ProofKitAppleAuthorization, Error>?
+    private var currentNonce: String?
+
+    func signIn() async throws -> ProofKitAppleAuthorization {
+        try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+            let nonce = Self.randomNonceString()
+            currentNonce = nonce
+
+            let request = ASAuthorizationAppleIDProvider().createRequest()
+            request.requestedScopes = [.email, .fullName]
+            request.nonce = Self.sha256(nonce)
+
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            controller.delegate = self
+            controller.presentationContextProvider = self
+            controller.performRequests()
+        }
+    }
+
+    private func finish(_ result: Result<ProofKitAppleAuthorization, Error>) {
+        let continuation = continuation
+        self.continuation = nil
+        currentNonce = nil
+
+        switch result {
+        case .success(let authorization):
+            continuation?.resume(returning: authorization)
+        case .failure(let error):
+            continuation?.resume(throwing: error)
+        }
+    }
+
+    private static func randomNonceString(length: Int = 32) -> String {
+        precondition(length > 0)
+        let charset = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        var result = ""
+        var remainingLength = length
+
+        while remainingLength > 0 {
+            var random: UInt8 = 0
+            let status = SecRandomCopyBytes(kSecRandomDefault, 1, &random)
+            guard status == errSecSuccess else {
+                fatalError("Unable to generate nonce.")
+            }
+
+            if random < charset.count {
+                result.append(charset[Int(random)])
+                remainingLength -= 1
+            }
+        }
+
+        return result
+    }
+
+    private static func sha256(_ input: String) -> String {
+        let inputData = Data(input.utf8)
+        let hashedData = SHA256.hash(data: inputData)
+        return hashedData.map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+extension ProofKitNativeAppleSignInCoordinator: ASAuthorizationControllerDelegate {
+    nonisolated func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithAuthorization authorization: ASAuthorization
+    ) {
+        Task { @MainActor in
+            guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+                finish(.failure(ProofKitError.remotePolicyViolation("Apple did not return an Apple ID credential.")))
+                return
+            }
+
+            guard
+                let tokenData = appleIDCredential.identityToken,
+                let identityToken = String(data: tokenData, encoding: .utf8)
+            else {
+                finish(.failure(ProofKitError.remotePolicyViolation("Apple did not return an identity token.")))
+                return
+            }
+
+            finish(
+                .success(
+                    ProofKitAppleAuthorization(
+                        credential: ProofKitAppleSignInCredential(
+                            identityToken: identityToken,
+                            nonce: currentNonce,
+                            email: appleIDCredential.email,
+                            givenName: appleIDCredential.fullName?.givenName,
+                            middleName: appleIDCredential.fullName?.middleName,
+                            familyName: appleIDCredential.fullName?.familyName
+                        )
+                    )
+                )
+            )
+        }
+    }
+
+    nonisolated func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithError error: Error
+    ) {
+        Task { @MainActor in
+            finish(.failure(error))
+        }
+    }
+}
+
+extension ProofKitNativeAppleSignInCoordinator: ASAuthorizationControllerPresentationContextProviding {
+    nonisolated func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        DispatchQueue.main.sync {
+            let windowScenes = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+            if let keyWindow = windowScenes.flatMap(\.windows).first(where: { $0.isKeyWindow }) {
+                return keyWindow
+            }
+
+            if #available(iOS 26.0, *), let windowScene = windowScenes.first {
+                return ASPresentationAnchor(windowScene: windowScene)
+            }
+
+            if #unavailable(iOS 26.0) {
+                return ASPresentationAnchor(frame: .zero)
+            }
+
+            preconditionFailure("Sign in with Apple requires an active window scene.")
+        }
     }
 }
 

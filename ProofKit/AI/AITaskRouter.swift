@@ -22,22 +22,98 @@ protocol AITaskRoutingServicing {
         _ taskType: AITaskType,
         for evidenceItem: EvidenceItem,
         in modelContext: ModelContext,
-        userTriggered: Bool
+        userTriggered: Bool,
+        idempotencyKey: String?
     ) async throws -> AITaskRouteResult
 
     func route(
         _ taskType: AITaskType,
         for caseFile: CaseFile,
         in modelContext: ModelContext,
-        userTriggered: Bool
+        userTriggered: Bool,
+        idempotencyKey: String?
+    ) async throws -> AITaskRouteResult
+
+    func routeStreaming(
+        _ taskType: AITaskType,
+        for caseFile: CaseFile,
+        in modelContext: ModelContext,
+        userTriggered: Bool,
+        idempotencyKey: String?,
+        onDelta: @escaping @MainActor (String) -> Void
     ) async throws -> AITaskRouteResult
 
     func cleanUpNote(
         for evidenceItem: EvidenceItem,
         userNote: String,
         in modelContext: ModelContext,
-        userTriggered: Bool
+        userTriggered: Bool,
+        idempotencyKey: String?
     ) async throws -> AITaskRouteResult
+}
+
+extension AITaskRoutingServicing {
+    func route(
+        _ taskType: AITaskType,
+        for evidenceItem: EvidenceItem,
+        in modelContext: ModelContext,
+        userTriggered: Bool
+    ) async throws -> AITaskRouteResult {
+        try await route(
+            taskType,
+            for: evidenceItem,
+            in: modelContext,
+            userTriggered: userTriggered,
+            idempotencyKey: nil
+        )
+    }
+
+    func route(
+        _ taskType: AITaskType,
+        for caseFile: CaseFile,
+        in modelContext: ModelContext,
+        userTriggered: Bool
+    ) async throws -> AITaskRouteResult {
+        try await route(
+            taskType,
+            for: caseFile,
+            in: modelContext,
+            userTriggered: userTriggered,
+            idempotencyKey: nil
+        )
+    }
+
+    func routeStreaming(
+        _ taskType: AITaskType,
+        for caseFile: CaseFile,
+        in modelContext: ModelContext,
+        userTriggered: Bool,
+        onDelta: @escaping @MainActor (String) -> Void
+    ) async throws -> AITaskRouteResult {
+        try await routeStreaming(
+            taskType,
+            for: caseFile,
+            in: modelContext,
+            userTriggered: userTriggered,
+            idempotencyKey: nil,
+            onDelta: onDelta
+        )
+    }
+
+    func cleanUpNote(
+        for evidenceItem: EvidenceItem,
+        userNote: String,
+        in modelContext: ModelContext,
+        userTriggered: Bool
+    ) async throws -> AITaskRouteResult {
+        try await cleanUpNote(
+            for: evidenceItem,
+            userNote: userNote,
+            in: modelContext,
+            userTriggered: userTriggered,
+            idempotencyKey: nil
+        )
+    }
 }
 
 @MainActor
@@ -60,7 +136,8 @@ final class AITaskRouter: AITaskRoutingServicing {
         _ taskType: AITaskType,
         for evidenceItem: EvidenceItem,
         in modelContext: ModelContext,
-        userTriggered: Bool
+        userTriggered: Bool,
+        idempotencyKey: String? = nil
     ) async throws -> AITaskRouteResult {
         guard !taskType.isCaseLevelTask else {
             throw ProofKitError.remotePolicyViolation("\(taskType.displayName) requires a case, not a single proof item.")
@@ -71,14 +148,15 @@ final class AITaskRouter: AITaskRoutingServicing {
         }
 
         let payload = buildEvidencePayload(taskType: taskType, evidenceItem: evidenceItem, userTriggered: userTriggered)
-        return try await execute(payload, modelContext: modelContext, caseFile: evidenceItem.caseFile, evidenceItem: evidenceItem)
+        return try await execute(payload, modelContext: modelContext, caseFile: evidenceItem.caseFile, evidenceItem: evidenceItem, idempotencyKey: idempotencyKey)
     }
 
     func route(
         _ taskType: AITaskType,
         for caseFile: CaseFile,
         in modelContext: ModelContext,
-        userTriggered: Bool
+        userTriggered: Bool,
+        idempotencyKey: String? = nil
     ) async throws -> AITaskRouteResult {
         guard taskType.isCaseLevelTask else {
             throw ProofKitError.remotePolicyViolation("\(taskType.displayName) requires a single proof item.")
@@ -89,14 +167,42 @@ final class AITaskRouter: AITaskRoutingServicing {
         }
 
         let payload = buildCasePayload(taskType: taskType, caseFile: caseFile, userTriggered: userTriggered)
-        return try await execute(payload, modelContext: modelContext, caseFile: caseFile, evidenceItem: nil)
+        return try await execute(payload, modelContext: modelContext, caseFile: caseFile, evidenceItem: nil, idempotencyKey: idempotencyKey)
+    }
+
+    func routeStreaming(
+        _ taskType: AITaskType,
+        for caseFile: CaseFile,
+        in modelContext: ModelContext,
+        userTriggered: Bool,
+        idempotencyKey: String? = nil,
+        onDelta: @escaping @MainActor (String) -> Void
+    ) async throws -> AITaskRouteResult {
+        guard taskType.isCaseLevelTask else {
+            throw ProofKitError.remotePolicyViolation("\(taskType.displayName) requires a single proof item.")
+        }
+
+        guard userTriggered else {
+            throw ProofKitError.localOnlyViolation("AI tasks must be explicitly triggered by the user.")
+        }
+
+        let payload = buildCasePayload(taskType: taskType, caseFile: caseFile, userTriggered: userTriggered)
+        return try await executeStreaming(
+            payload,
+            modelContext: modelContext,
+            caseFile: caseFile,
+            evidenceItem: nil,
+            idempotencyKey: idempotencyKey,
+            onDelta: onDelta
+        )
     }
 
     func cleanUpNote(
         for evidenceItem: EvidenceItem,
         userNote: String,
         in modelContext: ModelContext,
-        userTriggered: Bool
+        userTriggered: Bool,
+        idempotencyKey: String? = nil
     ) async throws -> AITaskRouteResult {
         guard userTriggered else {
             throw ProofKitError.localOnlyViolation("AI cleanup must be explicitly triggered by the user.")
@@ -112,7 +218,7 @@ final class AITaskRouter: AITaskRoutingServicing {
             userNote: trimmedUserNote,
             userTriggered: userTriggered
         )
-        return try await execute(payload, modelContext: modelContext, caseFile: evidenceItem.caseFile, evidenceItem: evidenceItem)
+        return try await execute(payload, modelContext: modelContext, caseFile: evidenceItem.caseFile, evidenceItem: evidenceItem, idempotencyKey: idempotencyKey)
     }
 }
 
@@ -134,7 +240,8 @@ private extension AITaskRouter {
         _ payload: Payload,
         modelContext: ModelContext,
         caseFile: CaseFile?,
-        evidenceItem: EvidenceItem?
+        evidenceItem: EvidenceItem?,
+        idempotencyKey: String?
     ) async throws -> AITaskRouteResult {
         if let cached = try cachedResult(for: payload, in: modelContext) {
             return cached
@@ -149,12 +256,70 @@ private extension AITaskRouter {
             evidenceItemIDs: payload.evidenceItemIDs,
             metadata: payload.metadata,
             userTriggered: payload.userTriggered,
-            idempotencyKey: payload.inputHash
+            idempotencyKey: idempotencyKey ?? payload.inputHash
         )
 
         let response = try await aiProxy.invokeTextOnlyAI(proxyRequest)
         let cache = try store(response: response, for: payload, in: modelContext, caseFile: caseFile, evidenceItem: evidenceItem)
 
+        return AITaskRouteResult(
+            taskType: payload.taskType,
+            caseID: payload.caseID,
+            evidenceItemID: payload.evidenceItemID,
+            inputHash: payload.inputHash,
+            compressedTextInput: payload.compressedTextInput,
+            outputText: response.outputText,
+            responseMetadata: response.metadata ?? [:],
+            creditsUsed: response.creditsUsed,
+            remainingCredits: response.remainingCredits,
+            cacheID: cache.id,
+            wasCacheHit: false
+        )
+    }
+
+    func executeStreaming(
+        _ payload: Payload,
+        modelContext: ModelContext,
+        caseFile: CaseFile?,
+        evidenceItem: EvidenceItem?,
+        idempotencyKey: String?,
+        onDelta: @escaping @MainActor (String) -> Void
+    ) async throws -> AITaskRouteResult {
+        if let cached = try cachedResult(for: payload, in: modelContext) {
+            onDelta(cached.outputText)
+            return cached
+        }
+
+        let proxyRequest = AIProxyTextRequest(
+            taskType: payload.taskType,
+            compressedTextInput: payload.compressedTextInput,
+            inputHash: payload.inputHash,
+            caseID: payload.caseID,
+            evidenceItemID: payload.evidenceItemID,
+            evidenceItemIDs: payload.evidenceItemIDs,
+            metadata: payload.metadata,
+            userTriggered: payload.userTriggered,
+            idempotencyKey: idempotencyKey ?? payload.inputHash,
+            stream: true
+        )
+
+        var finalResponse: AIProxyTextResponse?
+        for try await event in aiProxy.streamTextOnlyAI(proxyRequest) {
+            switch event {
+            case .started:
+                continue
+            case .textDelta(let text):
+                onDelta(text)
+            case .completed(let response):
+                finalResponse = response
+            }
+        }
+
+        guard let response = finalResponse else {
+            throw ProofKitError.remotePolicyViolation("AI proxy stream ended before returning a result.")
+        }
+
+        let cache = try store(response: response, for: payload, in: modelContext, caseFile: caseFile, evidenceItem: evidenceItem)
         return AITaskRouteResult(
             taskType: payload.taskType,
             caseID: payload.caseID,
@@ -325,9 +490,7 @@ private extension AITaskRouter {
         ]
 
         let attachmentOCR = item.sortedAttachments
-            .map { attachment in
-                safeAttachmentLabel(attachment) + "\n" + attachment.originalOCRText
-            }
+            .map(\.originalOCRText)
             .joined(separator: "\n\n")
         sections.append(.ocr("Attachment OCR excerpts", attachmentOCR))
 
@@ -352,7 +515,11 @@ private extension AITaskRouter {
     }
 
     func caseSections(for caseFile: CaseFile, taskType: AITaskType) -> [AITextSection] {
-        [
+        if taskType == .summarizeTimeline {
+            return timelineSummarySections(for: caseFile, taskType: taskType)
+        }
+
+        return [
             .metadata("Task", taskDirective(for: taskType)),
             .metadata("Case metadata", caseMetadataText(for: caseFile)),
             .user("User case title", caseFile.userTitle),
@@ -362,40 +529,49 @@ private extension AITaskRouter {
         ]
     }
 
+    func timelineSummarySections(for caseFile: CaseFile, taskType: AITaskType) -> [AITextSection] {
+        let selectedItems = selectedTimelineEvidenceItems(for: caseFile)
+        return [
+            AITextSection(title: "Task", text: taskDirective(for: taskType), maxCharacters: 240),
+            AITextSection(title: "Case snapshot", text: caseMetadataText(for: caseFile), maxCharacters: 420),
+            AITextSection(title: "Evidence selection note", text: timelineSelectionNote(totalCount: caseFile.evidenceItems.count, selectedCount: selectedItems.count), maxCharacters: 360),
+            AITextSection(title: "User case title", text: caseFile.userTitle, maxCharacters: 180),
+            AITextSection(title: "Short case context", text: conciseCaseContext(for: caseFile), maxCharacters: 700),
+            AITextSection(title: "Selected timeline excerpts", text: timelineSummaryEvidenceText(for: selectedItems), maxCharacters: 5_800)
+        ]
+    }
+
     func taskDirective(for taskType: AITaskType) -> String {
         switch taskType {
         case .rewriteNote:
-            "Rewrite the user's note into a clearer neutral professional record. Do not add facts. Do not give legal advice."
+            "Clean up the user's note for clarity while preserving its meaning."
         case .suggestTitle:
-            "Suggest a short factual evidence title using only the provided text and metadata."
+            "Suggest a short factual evidence title."
         case .classifyEvidence:
-            "Choose the best evidence category from the allowed categories using only the provided text and metadata."
+            "Choose the best evidence category from the allowed categories."
         case .summarizeItem:
-            "Summarize this proof item in neutral, concise language. Do not add facts. Do not give legal advice."
+            "Summarize this proof item in concise neutral language."
         case .summarizeTimeline:
-            "Summarize the local timeline chronologically using only provided evidence excerpts and metadata."
+            "Create a concise chronological timeline summary from selected local excerpts."
         case .finalCaseNarrative:
-            "Draft a neutral case narrative from the documented records. Do not add facts. Do not give legal advice."
+            "Polish the documented records into a neutral proof-packet narrative."
         }
     }
 
     func evidenceMetadataText(for item: EvidenceItem) -> String {
         [
-            "evidenceItemID: \(item.id.uuidString)",
-            "caseID: \(item.caseFile?.id.uuidString ?? "none")",
+            "caseType: \(item.caseFile?.caseType.rawValue ?? "none")",
             "category: \(item.category.rawValue)",
             "eventDate: \(formattedDate(item.eventDate))",
             "eventDateSource: \(item.eventDateSource.rawValue)",
             "important: \(item.userMarkedImportant)",
             "reviewed: \(item.isReviewed)",
-            "attachmentCount: \(item.attachments.count)",
-            "attachments: \(item.sortedAttachments.map(safeAttachmentLabel).joined(separator: " | "))"
+            "attachmentCount: \(item.attachments.count)"
         ].joined(separator: "\n")
     }
 
     func caseMetadataText(for caseFile: CaseFile) -> String {
         [
-            "caseID: \(caseFile.id.uuidString)",
             "caseType: \(caseFile.caseType.rawValue)",
             "status: \(caseFile.status.rawValue)",
             "evidenceCount: \(caseFile.evidenceItems.count)",
@@ -404,16 +580,88 @@ private extension AITaskRouter {
         ].joined(separator: "\n")
     }
 
+    func conciseCaseContext(for caseFile: CaseFile) -> String {
+        [
+            ("summary excerpt", caseFile.userSummary.aiRoutingCollapsedWhitespace.truncatedForAIRouting(to: 320)),
+            ("note excerpt", caseFile.userNotes.aiRoutingCollapsedWhitespace.truncatedForAIRouting(to: 320))
+        ]
+        .filter { !$0.1.isEmpty }
+        .map { "\($0.0): \($0.1)" }
+        .joined(separator: "\n")
+    }
+
+    func selectedTimelineEvidenceItems(for caseFile: CaseFile, limit: Int = 12) -> [EvidenceItem] {
+        let sortedItems = caseFile.sortedEvidenceItems
+        guard sortedItems.count > limit else { return sortedItems }
+
+        var selectedIDs = Set<UUID>()
+        var selectedItems: [EvidenceItem] = []
+
+        func add(_ items: [EvidenceItem]) {
+            for item in items where selectedItems.count < limit {
+                guard !selectedIDs.contains(item.id) else { continue }
+                selectedIDs.insert(item.id)
+                selectedItems.append(item)
+            }
+        }
+
+        add(sortedItems.filter(\.userMarkedImportant))
+        add(sortedItems.filter { $0.eventDate != nil })
+        add(sortedItems.sorted { lhs, rhs in
+            let lhsDate = lhs.eventDate ?? lhs.updatedAt
+            let rhsDate = rhs.eventDate ?? rhs.updatedAt
+            return lhsDate > rhsDate
+        })
+
+        return selectedItems.sorted { lhs, rhs in
+            let lhsDate = lhs.eventDate ?? lhs.createdAt
+            let rhsDate = rhs.eventDate ?? rhs.createdAt
+            return lhsDate < rhsDate
+        }
+    }
+
+    func timelineSelectionNote(totalCount: Int, selectedCount: Int) -> String {
+        guard totalCount > selectedCount else {
+            return "All \(totalCount) proof item\(totalCount == 1 ? "" : "s") are included. Local excerpts are capped per item."
+        }
+
+        return "Selected \(selectedCount) of \(totalCount) proof items. Selection prioritized user-marked important items, dated items, and recent items. Only selected excerpts are included."
+    }
+
+    func timelineSummaryEvidenceText(for items: [EvidenceItem]) -> String {
+        items.map { item in
+            let note = item.userCleanedNote.aiRoutingTrimmedText.isEmpty ? item.userNotes : item.userCleanedNote
+            return """
+            Proof item
+            date: \(formattedDate(item.eventDate))
+            category: \(item.category.rawValue)
+            important: \(item.userMarkedImportant)
+            title excerpt: \(item.userTitle.aiRoutingCollapsedWhitespace.truncatedForAIRouting(to: 120))
+            note excerpt: \(note.aiRoutingCollapsedWhitespace.truncatedForAIRouting(to: 260))
+            why this matters excerpt: \(item.userWhyThisMatters.aiRoutingCollapsedWhitespace.truncatedForAIRouting(to: 180))
+            OCR excerpt: \(timelineOCRExcerpt(for: item))
+            """
+        }
+        .joined(separator: "\n\n---\n\n")
+    }
+
+    func timelineOCRExcerpt(for item: EvidenceItem) -> String {
+        ([item.originalOCRText] + item.sortedAttachments.map(\.originalOCRText))
+            .map(\.aiRoutingCollapsedWhitespace)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .truncatedForAIRouting(to: 320)
+    }
+
     func evidenceTimelineText(for caseFile: CaseFile) -> String {
         caseFile.sortedEvidenceItems.map { item in
             let note = item.userCleanedNote.aiRoutingTrimmedText.isEmpty ? item.userNotes : item.userCleanedNote
             return """
             Proof item
-            id: \(item.id.uuidString)
             date: \(formattedDate(item.eventDate))
             category: \(item.category.rawValue)
             important: \(item.userMarkedImportant)
-            title: \(item.userTitle)
+            title excerpt: \(item.userTitle.aiRoutingCollapsedWhitespace.truncatedForAIRouting(to: 180))
             note excerpt: \(note.aiRoutingCollapsedWhitespace.truncatedForAIRouting(to: 500))
             why this matters: \(item.userWhyThisMatters.aiRoutingCollapsedWhitespace.truncatedForAIRouting(to: 350))
             OCR excerpt: \(item.originalOCRText.aiRoutingCollapsedWhitespace.truncatedForAIRouting(to: 650))
@@ -474,17 +722,13 @@ private extension AITaskRouter {
         sanitizeMetadata([
             "task": taskType.rawValue,
             "source": "evidenceItem",
-            "caseID": item.caseFile?.id.uuidString ?? "",
-            "evidenceItemID": item.id.uuidString,
             "caseType": item.caseFile?.caseType.rawValue ?? "",
             "category": item.category.rawValue,
             "eventDate": formattedDate(item.eventDate),
             "eventDateSource": item.eventDateSource.rawValue,
             "important": String(item.userMarkedImportant),
             "reviewed": String(item.isReviewed),
-            "attachmentCount": String(item.attachments.count),
-            "attachmentTypes": item.sortedAttachments.map { $0.attachmentType.rawValue }.joined(separator: ","),
-            "originalFilenames": item.sortedAttachments.map { $0.originalFilename.lastPathComponentOnly }.joined(separator: ",")
+            "attachmentCount": String(item.attachments.count)
         ])
     }
 
@@ -492,12 +736,10 @@ private extension AITaskRouter {
         sanitizeMetadata([
             "task": taskType.rawValue,
             "source": "caseFile",
-            "caseID": caseFile.id.uuidString,
             "caseType": caseFile.caseType.rawValue,
             "status": caseFile.status.rawValue,
             "evidenceCount": String(caseFile.evidenceItems.count),
-            "importantEvidenceCount": String(caseFile.evidenceItems.filter(\.userMarkedImportant).count),
-            "evidenceItemIDs": caseFile.sortedEvidenceItems.map { $0.id.uuidString }.joined(separator: ",")
+            "importantEvidenceCount": String(caseFile.evidenceItems.filter(\.userMarkedImportant).count)
         ])
     }
 
@@ -508,16 +750,6 @@ private extension AITaskRouter {
             guard !key.isEmpty, !value.isEmpty else { return }
             partialResult[key] = value
         }
-    }
-
-    func safeAttachmentLabel(_ attachment: Attachment) -> String {
-        [
-            attachment.attachmentType.rawValue,
-            attachment.originalFilename.lastPathComponentOnly,
-            attachment.fileSizeBytes.map { "\($0) bytes" } ?? ""
-        ]
-        .filter { !$0.isEmpty }
-        .joined(separator: " · ")
     }
 
     func formattedDate(_ date: Date?) -> String {

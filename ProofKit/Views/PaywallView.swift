@@ -123,7 +123,7 @@ struct PaywallView: View {
                     .minimumScaleFactor(0.82)
                     .lineLimit(2)
 
-                Text("Build clean timelines, polish notes with AI, and export professional proof packets when life gets messy.")
+                Text("Start your free trial")
                     .font(.body.weight(.medium))
                     .foregroundStyle(ProofKitPaywallStyle.mutedInk)
                     .multilineTextAlignment(.center)
@@ -139,7 +139,10 @@ struct PaywallView: View {
         VStack(alignment: .leading, spacing: 14) {
             PaywallBenefitRow(text: "Organize screenshots, photos, notes, and documents")
             PaywallBenefitRow(text: "Turn messy proof into a clear timeline")
-            PaywallBenefitRow(text: "AI tools for notes, timelines, and packet polish")
+            PaywallBenefitRow(text: "Full Pro access during trial, including unlimited cases, unlimited proof, clean exports, and 3 AI credits")
+            PaywallBenefitRow(text: "Weekly Pro includes 15 AI credits/week")
+            PaywallBenefitRow(text: "Monthly Pro includes 75 AI credits/month")
+            PaywallBenefitRow(text: "Cancel anytime before the trial ends")
             PaywallBenefitRow(text: "Raw files stay on your device")
         }
         .padding(18)
@@ -229,7 +232,7 @@ struct PaywallView: View {
                             .tint(.white)
                     }
 
-                    Text(purchaseManager.isPurchasing ? "Starting…" : "Start organizing my proof")
+                    Text(purchaseButtonTitle)
                         .font(.headline.weight(.bold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
@@ -244,9 +247,9 @@ struct PaywallView: View {
             }
             .buttonStyle(ProofKitCardButtonStyle())
             .disabled(!purchaseManager.canPurchaseSelectedPlan)
-            .accessibilityLabel("Start organizing my proof")
+            .accessibilityLabel(purchaseButtonTitle)
 
-            Text("AI only uses selected text and details when you ask.")
+            Text(billingDisclosureText)
                 .font(.caption.weight(.medium))
                 .foregroundStyle(ProofKitPaywallStyle.mutedInk)
                 .multilineTextAlignment(.center)
@@ -290,7 +293,7 @@ struct PaywallView: View {
             .lineLimit(1)
             .minimumScaleFactor(0.78)
 
-            Text("Cancel anytime. Proofly is an organization tool, not legal advice.")
+            Text("Cancel anytime before the trial ends to avoid being charged. Proofly is an organization tool, not legal advice.")
                 .font(.caption2)
                 .foregroundStyle(ProofKitPaywallStyle.mutedInk)
                 .multilineTextAlignment(.center)
@@ -310,6 +313,41 @@ struct PaywallView: View {
                         .fill(ProofKitPaywallStyle.border)
                         .frame(height: 1)
                 }
+        }
+    }
+
+    private var selectedPlanOption: PaywallPlanOption {
+        PaywallPlanOption(
+            product: purchaseManager.selectedProduct,
+            package: purchaseManager.selectedPackage
+        )
+    }
+
+    private var purchaseButtonTitle: String {
+        if purchaseManager.isPurchasing {
+            return "Starting…"
+        }
+
+        switch purchaseManager.selectedProduct {
+        case .weekly:
+            return "Start free trial"
+        case .monthly:
+            return "Continue with Monthly Pro"
+        }
+    }
+
+    private var billingDisclosureText: String {
+        let selectedPlan = selectedPlanOption
+
+        switch selectedPlan.product {
+        case .weekly:
+            let trialText = selectedPlan.package?.introductoryOfferDurationText.map {
+                "Your free trial lasts \($0)."
+            } ?? "The App Store checkout shows your exact free-trial length."
+
+            return "\(trialText) Then \(selectedPlan.renewalPriceText) after trial. Trial includes full Pro access and 3 AI credits. Weekly Pro includes 15 AI credits/week."
+        case .monthly:
+            return "Monthly Pro is \(selectedPlan.renewalPriceText) and includes 75 AI credits/month."
         }
     }
 }

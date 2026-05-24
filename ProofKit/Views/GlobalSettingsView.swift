@@ -36,6 +36,8 @@ enum ProofKitAppearancePreference: String, CaseIterable, Identifiable {
 }
 
 struct GlobalSettingsView: View {
+    private static let supportEmailAddress = "hello@proofly.me"
+
     private let initialAccountSession: ProofKitAccountSession?
     private let onAccountSessionUpdated: (ProofKitAccountSession) -> Void
     let onSignedOut: () -> Void
@@ -55,10 +57,13 @@ struct GlobalSettingsView: View {
     @State private var exportFile: SettingsExportFile?
     @State private var infoSheet: SettingsInfoPresentation?
     @State private var isPreparingExport = false
+    @State private var isSigningOut = false
+    @State private var isDeletingAccount = false
     @State private var isDeletingLocalData = false
     @State private var showingNameEditor = false
     @State private var showingEmailEditor = false
     @State private var showingPaywall = false
+    @State private var showingAppStatus = false
     @State private var didTrackSettingsOpened = false
     @AppStorage(AnalyticsService.optOutStorageKey) private var analyticsOptOut = false
 
@@ -92,7 +97,39 @@ struct GlobalSettingsView: View {
     }
 
     private var planStatusText: String {
-        entitlement.plan == .pro ? "Pro" : "Free"
+        entitlement.statusDisplayText
+    }
+
+    private var localCaseCountText: String {
+        caseFiles.count == 1 ? "1 case" : "\(caseFiles.count) cases"
+    }
+
+    private var localProofItemCount: Int {
+        caseFiles.reduce(0) { total, caseFile in
+            total + caseFile.evidenceItems.count
+        }
+    }
+
+    private var localProofItemCountText: String {
+        localProofItemCount.evidenceItemCountText
+    }
+
+    private var localExportCount: Int {
+        caseFiles.reduce(0) { total, caseFile in
+            total + caseFile.exportPackets.count
+        }
+    }
+
+    private var localExportCountText: String {
+        localExportCount == 1 ? "1 export" : "\(localExportCount) exports"
+    }
+
+    private var localLastUpdatedText: String {
+        guard let updatedAt = caseFiles.first?.updatedAt else {
+            return "No cases yet"
+        }
+
+        return ProofKitDateFormatting.shortDateTime(updatedAt)
     }
 
     private var analyticsEnabledBinding: Binding<Bool> {
@@ -116,6 +153,7 @@ struct GlobalSettingsView: View {
                     privacySection
                     supportSection
                     aboutSection
+                    accountActionsSection
                 }
                 .frame(maxWidth: 760, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .top)
@@ -153,6 +191,12 @@ struct GlobalSettingsView: View {
                 PaywallView {
                     await loadSettings()
                 }
+            }
+            .sheet(isPresented: $showingAppStatus) {
+                AppStatusView(
+                    healthMonitor: services.serviceHealth,
+                    queue: services.aiQueue
+                )
             }
             .sheet(item: $infoSheet) { sheet in
                 SettingsInfoSheetView(sheet: sheet)
@@ -271,6 +315,42 @@ struct GlobalSettingsView: View {
     private var privacySection: some View {
         settingsSection(title: "Privacy & data", delay: 0.09) {
             SettingsGroup {
+                SettingsValueRow(
+                    icon: "folder.fill",
+                    iconColor: ProofKitVisual.accent,
+                    title: "Local cases",
+                    value: localCaseCountText
+                )
+
+                SettingsDivider()
+
+                SettingsValueRow(
+                    icon: "doc.text.image.fill",
+                    iconColor: ProofKitVisual.accentSecondary,
+                    title: "Proof items",
+                    value: localProofItemCountText
+                )
+
+                SettingsDivider()
+
+                SettingsValueRow(
+                    icon: "doc.richtext.fill",
+                    iconColor: ProofKitVisual.accent,
+                    title: "Exports",
+                    value: localExportCountText
+                )
+
+                SettingsDivider()
+
+                SettingsValueRow(
+                    icon: "clock.fill",
+                    iconColor: ProofKitVisual.helperText,
+                    title: "Last updated",
+                    value: localLastUpdatedText
+                )
+
+                SettingsDivider()
+
                 SettingsButtonRow(
                     icon: "lock.fill",
                     iconColor: ProofKitVisual.accentSecondary,
@@ -329,19 +409,19 @@ struct GlobalSettingsView: View {
                     showsChevron: true
                 ) {
                     services.analytics.trackFeedbackStarted()
-                    openMail(subject: "Proofly Feedback")
+                    openMail(subject: "Proofly Feedback", prompt: "Tell us what would make Proofly better:")
                 }
 
                 SettingsDivider()
 
-                SettingsButtonRow(
+                SettingsValueButtonRow(
                     icon: "envelope.badge.fill",
                     iconColor: ProofKitVisual.accent,
                     title: "Contact support",
-                    showsChevron: true
+                    value: Self.supportEmailAddress
                 ) {
                     services.analytics.trackSupportOpened()
-                    openMail(subject: "Proofly Support")
+                    openMail(subject: "Proofly Support", prompt: "How can we help?")
                 }
 
                 SettingsDivider()
@@ -353,7 +433,18 @@ struct GlobalSettingsView: View {
                     showsChevron: true
                 ) {
                     services.analytics.trackSupportOpened()
-                    openMail(subject: "Proofly Bug Report")
+                    openMail(subject: "Proofly Bug Report", prompt: "What happened?")
+                }
+
+                SettingsDivider()
+
+                SettingsButtonRow(
+                    icon: "waveform.path.ecg.rectangle.fill",
+                    iconColor: ProofKitVisual.accent,
+                    title: "App Status",
+                    showsChevron: true
+                ) {
+                    showingAppStatus = true
                 }
             }
         }
@@ -390,6 +481,36 @@ struct GlobalSettingsView: View {
                     title: "Version",
                     value: SettingsAppVersionText.current
                 )
+            }
+        }
+    }
+
+    private var accountActionsSection: some View {
+        settingsSection(title: "Account actions", delay: 0.18) {
+            SettingsGroup {
+                SettingsButtonRow(
+                    icon: "person.crop.circle.badge.xmark",
+                    iconColor: .red,
+                    title: isDeletingAccount ? "Deleting account..." : "Delete account",
+                    titleColor: .red,
+                    isLoading: isDeletingAccount
+                ) {
+                    confirmation = .deleteAccount
+                }
+                .disabled(isSigningOut || isDeletingAccount)
+
+                SettingsDivider()
+
+                SettingsButtonRow(
+                    icon: "rectangle.portrait.and.arrow.right",
+                    iconColor: .orange,
+                    title: isSigningOut ? "Signing out..." : "Sign out",
+                    titleColor: .orange,
+                    isLoading: isSigningOut
+                ) {
+                    Task { await signOut() }
+                }
+                .disabled(isSigningOut || isDeletingAccount)
             }
         }
     }
@@ -465,12 +586,12 @@ struct GlobalSettingsView: View {
     }
 
     private static func includedCreditsText(for entitlement: ProofKitEntitlementSnapshot) -> String {
-        let credits = entitlement.limits.monthlyAICredits
+        let credits = entitlement.includedAICredits
         if credits <= 0 {
             return "Not included"
         }
 
-        return entitlement.limits.aiCreditsRenewMonthly ? "\(credits)/month included" : "\(credits) included"
+        return "\(credits) \(entitlement.aiCreditRenewalText.lowercased()) included"
     }
 
     @MainActor
@@ -565,8 +686,53 @@ struct GlobalSettingsView: View {
 
     private func perform(_ confirmation: SettingsConfirmation) {
         switch confirmation {
+        case .deleteAccount:
+            Task { await deleteAccount() }
         case .deleteLocalData:
             Task { await deleteLocalData() }
+        }
+    }
+
+    @MainActor
+    private func signOut() async {
+        guard !isSigningOut, !isDeletingAccount else { return }
+        isSigningOut = true
+        defer { isSigningOut = false }
+
+        do {
+            try await services.account.signOut()
+            onSignedOut()
+        } catch {
+            settingsNotice = SettingsNotice(
+                title: "Couldn’t Sign Out",
+                message: Self.message(for: error)
+            )
+        }
+    }
+
+    @MainActor
+    private func deleteAccount() async {
+        guard !isDeletingAccount, !isSigningOut else { return }
+
+        guard services.account.isConfigured else {
+            settingsNotice = SettingsNotice(
+                title: "Account Services Unavailable",
+                message: "Supabase account services are not configured in this build, so your server account can’t be deleted here."
+            )
+            return
+        }
+
+        isDeletingAccount = true
+        defer { isDeletingAccount = false }
+
+        do {
+            try await services.account.deleteAccount()
+            onSignedOut()
+        } catch {
+            settingsNotice = SettingsNotice(
+                title: "Couldn’t Delete Account",
+                message: Self.message(for: error)
+            )
         }
     }
 
@@ -623,17 +789,48 @@ struct GlobalSettingsView: View {
         }
     }
 
-    private func openMail(subject: String) {
+    private func openMail(subject: String, prompt: String) {
         var components = URLComponents()
         components.scheme = "mailto"
-        components.path = "support@proofly.app"
+        components.path = Self.supportEmailAddress
         components.queryItems = [
-            URLQueryItem(name: "subject", value: subject)
+            URLQueryItem(name: "subject", value: subject),
+            URLQueryItem(name: "body", value: supportEmailBody(prompt: prompt))
         ]
 
-        if let url = components.url {
-            openURL(url)
+        guard let url = components.url else {
+            settingsNotice = Self.mailUnavailableNotice(subject: subject)
+            return
         }
+
+        openURL(url) { accepted in
+            guard !accepted else { return }
+            settingsNotice = Self.mailUnavailableNotice(subject: subject)
+        }
+    }
+
+    private func supportEmailBody(prompt: String) -> String {
+        [
+            prompt,
+            "",
+            "",
+            "---",
+            "App version: \(SettingsAppVersionText.current)",
+            "Account state: \(accountSession == nil ? "Signed out/local" : "Signed in")",
+            "Plan: \(planStatusText)",
+            "AI credits: \(aiCreditsText)",
+            "Local cases: \(localCaseCountText)",
+            "Proof items: \(localProofItemCountText)",
+            "Exports: \(localExportCountText)",
+            "Last updated: \(localLastUpdatedText)"
+        ].joined(separator: "\n")
+    }
+
+    private static func mailUnavailableNotice(subject: String) -> SettingsNotice {
+        SettingsNotice(
+            title: "Email App Not Available",
+            message: "Open your email app and send a message to \(supportEmailAddress) with the subject \"\(subject)\"."
+        )
     }
 
     private static func writeDataExport(
@@ -1425,12 +1622,15 @@ private struct SettingsNotice: Identifiable {
 }
 
 private enum SettingsConfirmation: String, Identifiable {
+    case deleteAccount
     case deleteLocalData
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .deleteAccount:
+            "Delete account?"
         case .deleteLocalData:
             "Delete local data?"
         }
@@ -1438,6 +1638,8 @@ private enum SettingsConfirmation: String, Identifiable {
 
     var message: String {
         switch self {
+        case .deleteAccount:
+            "This permanently deletes your Proofly account from our servers and signs you out. Local cases and proof files stay on this device; export anything important first."
         case .deleteLocalData:
             "This removes Proofly data stored on this device. Export anything important first. This can’t be undone."
         }
@@ -1445,6 +1647,8 @@ private enum SettingsConfirmation: String, Identifiable {
 
     var confirmTitle: String {
         switch self {
+        case .deleteAccount:
+            "Delete account"
         case .deleteLocalData:
             "Delete local data"
         }

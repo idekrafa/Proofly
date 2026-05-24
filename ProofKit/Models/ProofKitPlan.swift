@@ -10,7 +10,7 @@ enum ProofKitPlan: String, CaseIterable, Codable, Identifiable {
     var displayName: String {
         switch self {
         case .free:
-            "Free"
+            "No active Pro"
         case .paidUrgentExport:
             "Paid urgent export"
         case .pro:
@@ -24,7 +24,7 @@ enum ProofKitPlan: String, CaseIterable, Codable, Identifiable {
             ProofKitPlanLimits(
                 activeCaseLimit: 1,
                 evidenceItemLimit: 20,
-                monthlyAICredits: 5,
+                monthlyAICredits: 0,
                 aiCreditsRenewMonthly: true,
                 finalCaseExportLimit: nil,
                 exportsAreWatermarked: true
@@ -33,7 +33,7 @@ enum ProofKitPlan: String, CaseIterable, Codable, Identifiable {
             ProofKitPlanLimits(
                 activeCaseLimit: 1,
                 evidenceItemLimit: 75,
-                monthlyAICredits: 25,
+                monthlyAICredits: 0,
                 aiCreditsRenewMonthly: false,
                 finalCaseExportLimit: 1,
                 exportsAreWatermarked: false
@@ -42,7 +42,7 @@ enum ProofKitPlan: String, CaseIterable, Codable, Identifiable {
             ProofKitPlanLimits(
                 activeCaseLimit: nil,
                 evidenceItemLimit: nil,
-                monthlyAICredits: 100,
+                monthlyAICredits: 75,
                 aiCreditsRenewMonthly: true,
                 finalCaseExportLimit: nil,
                 exportsAreWatermarked: false
@@ -115,7 +115,8 @@ struct ProofKitPlanLimits: Codable, Equatable {
     }
 
     var aiCreditLimitText: String {
-        "\(monthlyAICredits) AI credit\(monthlyAICredits == 1 ? "" : "s")\(aiCreditsRenewMonthly ? "/month" : "")"
+        guard monthlyAICredits > 0 else { return "No AI credits" }
+        return "\(monthlyAICredits) AI credit\(monthlyAICredits == 1 ? "" : "s")\(aiCreditsRenewMonthly ? "/month" : "")"
     }
 
     var exportLimitText: String {
@@ -147,13 +148,91 @@ enum ProofKitEntitlementSource: String, Codable {
     }
 }
 
+enum ProofKitSubscriptionStatus: String, Codable, Equatable {
+    case trialing
+    case activeWeekly = "active_weekly"
+    case activeMonthly = "active_monthly"
+    case expired
+    case cancelled
+    case billingRetry = "billing_retry"
+    case revokedOrRefunded = "revoked_or_refunded"
+
+    var displayName: String {
+        switch self {
+        case .trialing:
+            "Trial"
+        case .activeWeekly:
+            "Weekly Pro"
+        case .activeMonthly:
+            "Monthly Pro"
+        case .expired:
+            "Expired"
+        case .cancelled:
+            "Cancelled"
+        case .billingRetry:
+            "Billing retry"
+        case .revokedOrRefunded:
+            "Revoked or refunded"
+        }
+    }
+
+    var allowsAI: Bool {
+        switch self {
+        case .trialing, .activeWeekly, .activeMonthly:
+            true
+        case .expired, .cancelled, .billingRetry, .revokedOrRefunded:
+            false
+        }
+    }
+}
+
 struct ProofKitEntitlementSnapshot: Equatable {
     let plan: ProofKitPlan
     let source: ProofKitEntitlementSource
     let updatedAt: Date
+    let subscriptionProduct: ProofKitSubscriptionProduct?
+    let subscriptionStatus: ProofKitSubscriptionStatus
 
     var limits: ProofKitPlanLimits { plan.limits }
-    var includedAICredits: Int { limits.monthlyAICredits }
+    var includedAICredits: Int {
+        guard subscriptionStatus.allowsAI || plan == .pro else { return 0 }
+        if subscriptionStatus == .trialing { return ProofKitTrialPolicy.aiCreditAllowance }
+        return subscriptionProduct?.includedAICredits ?? limits.monthlyAICredits
+    }
+
+    var aiCreditRenewalText: String {
+        if subscriptionStatus == .trialing {
+            return "Trial, then weekly"
+        }
+
+        if let subscriptionProduct {
+            return subscriptionProduct.creditRenewalText
+        }
+
+        return limits.aiCreditsRenewMonthly ? "Monthly" : "One-time"
+    }
+
+    var statusDisplayText: String {
+        if plan == .pro {
+            return subscriptionStatus.displayName
+        }
+
+        return plan.displayName
+    }
+
+    init(
+        plan: ProofKitPlan,
+        source: ProofKitEntitlementSource,
+        updatedAt: Date,
+        subscriptionProduct: ProofKitSubscriptionProduct? = nil,
+        subscriptionStatus: ProofKitSubscriptionStatus? = nil
+    ) {
+        self.plan = plan
+        self.source = source
+        self.updatedAt = updatedAt
+        self.subscriptionProduct = subscriptionProduct
+        self.subscriptionStatus = subscriptionStatus ?? (plan == .pro ? .activeMonthly : .expired)
+    }
 
     static func placeholder(_ plan: ProofKitPlan = .free) -> ProofKitEntitlementSnapshot {
         ProofKitEntitlementSnapshot(
@@ -180,6 +259,39 @@ struct PaywallAccessDecision: Equatable, Identifiable {
         message: "",
         suggestedPlan: nil
     )
+}
+
+extension ProofKitSubscriptionProduct {
+    var includedAICredits: Int {
+        switch self {
+        case .weekly:
+            15
+        case .monthly:
+            75
+        }
+    }
+
+    var creditRenewalText: String {
+        switch self {
+        case .weekly:
+            "Weekly"
+        case .monthly:
+            "Monthly"
+        }
+    }
+
+    var creditLineText: String {
+        switch self {
+        case .weekly:
+            "15 AI credits/week"
+        case .monthly:
+            "75 AI credits/month"
+        }
+    }
+}
+
+enum ProofKitTrialPolicy {
+    static let aiCreditAllowance = 3
 }
 
 struct ProofKitExportAccess: Equatable {

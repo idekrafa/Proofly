@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftData
 import SwiftUI
 import UIKit
@@ -5,6 +6,7 @@ import UIKit
 struct EvidenceInboxView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.proofKitServices) private var services
+    @Environment(\.requestReview) private var requestReview
 
     let caseFile: CaseFile
     @Binding private var skippedEvidenceIDs: Set<UUID>
@@ -121,6 +123,9 @@ struct EvidenceInboxView: View {
             try modelContext.save()
             services.analytics.trackProofReviewed(evidenceItem)
             services.analytics.trackProofAddedToTimeline(evidenceItem)
+            if AppReviewPromptCoordinator.shared.shouldRequestTimelineProofReview() {
+                requestReview()
+            }
         } catch {
             // Keep the card visible if a local save fails.
             withAnimation(ProofKitMotion.standard) {

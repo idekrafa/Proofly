@@ -1,4 +1,5 @@
 import QuickLook
+import StoreKit
 import SwiftData
 import SwiftUI
 import UIKit
@@ -7,6 +8,7 @@ struct EvidenceDetailEditView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(\.proofKitServices) private var services
+    @Environment(\.requestReview) private var requestReview
 
     @Bindable var evidenceItem: EvidenceItem
 
@@ -23,6 +25,7 @@ struct EvidenceDetailEditView: View {
     @State private var aiCleanupMessage: String?
     @State private var aiCleanupErrorMessage: String?
     @State private var isCleaningNoteWithAI = false
+    @State private var showingAIPaywall = false
     @State private var isOriginalOCRExpanded = false
     @State private var originalFilePreviewURL: URL?
     @State private var isDeleteConfirmationPresented = false
@@ -208,6 +211,9 @@ struct EvidenceDetailEditView: View {
             bottomActionBar
         }
         .quickLookPreview($originalFilePreviewURL)
+        .sheet(isPresented: $showingAIPaywall) {
+            PaywallView()
+        }
         .confirmationDialog(
             "Delete proof from this case?",
             isPresented: $isDeleteConfirmationPresented,
@@ -804,6 +810,9 @@ struct EvidenceDetailEditView: View {
             if !wasReviewed {
                 services.analytics.trackProofReviewed(evidenceItem)
                 services.analytics.trackProofAddedToTimeline(evidenceItem)
+                if AppReviewPromptCoordinator.shared.shouldRequestTimelineProofReview() {
+                    requestReview()
+                }
             }
             withAnimation(ProofKitMotion.standard) {
                 savedSnapshot = currentSnapshot
@@ -867,6 +876,17 @@ struct EvidenceDetailEditView: View {
         let analyticsActionType = AnalyticsAIActionType.other
         let analyticsStartedAt = Date()
         services.analytics.trackAIActionStarted(actionType: analyticsActionType)
+
+        let planDecision = await services.paywall.canUseAI()
+        guard planDecision.isAllowed else {
+            services.analytics.trackAIActionFailed(
+                actionType: analyticsActionType,
+                durationMS: Self.analyticsDurationMS(since: analyticsStartedAt),
+                errorType: .subscriptionFailed
+            )
+            showingAIPaywall = true
+            return
+        }
 
         withAnimation(ProofKitMotion.standard) {
             isCleaningNoteWithAI = true
@@ -936,9 +956,34 @@ struct EvidenceDetailEditView: View {
                 durationMS: Self.analyticsDurationMS(since: analyticsStartedAt),
                 errorType: AnalyticsErrorType(error)
             )
-            withAnimation(ProofKitMotion.standard) {
-                aiCleanupMessage = nil
-                aiCleanupErrorMessage = cleanupErrorMessage(for: error)
+            if ServiceHealthMonitor.isServiceAvailabilityError(error) || services.serviceHealth.snapshot.state.isDegraded {
+                services.serviceHealth.record(error, context: .aiProvider)
+                do {
+                    evidenceItem.userNotes = trimmedUserNote
+                    evidenceItem.updatedAt = .now
+                    evidenceItem.caseFile?.updatedAt = .now
+                    try services.aiQueue.enqueueCleanUpNote(
+                        for: evidenceItem,
+                        in: modelContext
+                    )
+                    try modelContext.save()
+
+                    withAnimation(ProofKitMotion.standard) {
+                        savedSnapshot.userNote = trimmedUserNote
+                        aiCleanupMessage = "Clean Up Note queued. AI will run when connection returns and credits are available."
+                        aiCleanupErrorMessage = nil
+                    }
+                } catch {
+                    withAnimation(ProofKitMotion.standard) {
+                        aiCleanupMessage = nil
+                        aiCleanupErrorMessage = cleanupErrorMessage(for: error)
+                    }
+                }
+            } else {
+                withAnimation(ProofKitMotion.standard) {
+                    aiCleanupMessage = nil
+                    aiCleanupErrorMessage = cleanupErrorMessage(for: error)
+                }
             }
         }
 
@@ -948,11 +993,6 @@ struct EvidenceDetailEditView: View {
     }
 
     private func requireAvailableAICredits() async throws -> AICreditBalance {
-        let planDecision = await services.paywall.canUseAI()
-        guard planDecision.isAllowed else {
-            throw ProofKitError.planLimitReached(planDecision.message)
-        }
-
         guard services.account.isConfigured else {
             throw ProofKitError.supabaseNotConfigured
         }
@@ -960,7 +1000,7 @@ struct EvidenceDetailEditView: View {
         let balance = try await services.aiCredits.fetchAICreditBalance()
         guard balance.availableCredits > 0 else {
             throw ProofKitError.remotePolicyViolation(
-                "You’re out of AI credits. Local OCR, importing, timeline editing, and free watermarked exports still work."
+                "You’re out of AI credits. Clean Up Note needs 1 AI credit. Local OCR, importing, timeline editing, and free watermarked exports still work."
             )
         }
 

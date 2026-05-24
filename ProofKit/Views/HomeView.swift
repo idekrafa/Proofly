@@ -13,6 +13,7 @@ struct HomeView: View {
     @State private var isOpeningCreatedCase = false
     @State private var paywallNotice: PaywallAccessDecision?
     @State private var activeAddProofSheet: HomeAddProofSheet?
+    @State private var isShowingAppStatus = false
     private let accountSession: ProofKitAccountSession?
     private let onSettingsTapped: () -> Void
 
@@ -44,6 +45,13 @@ struct HomeView: View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
+                    HomeStatusPillHost(
+                        healthMonitor: services.serviceHealth,
+                        queue: services.aiQueue
+                    ) {
+                        isShowingAppStatus = true
+                    }
+
                     header
 
                     if cases.isEmpty {
@@ -137,6 +145,12 @@ struct HomeView: View {
                         }
                     }
                 }
+            }
+            .sheet(isPresented: $isShowingAppStatus) {
+                AppStatusView(
+                    healthMonitor: services.serviceHealth,
+                    queue: services.aiQueue
+                )
             }
             .onChange(of: isShowingCreateCaseFlow) { _, isPresented in
                 guard !isPresented, let pendingCreatedCase else { return }

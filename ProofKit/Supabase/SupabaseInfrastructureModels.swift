@@ -29,6 +29,28 @@ struct ProofKitAccountAuthResult: Equatable {
     let isNewAccount: Bool
 }
 
+struct ProofKitAppleSignInCredential: Equatable {
+    let identityToken: String
+    let nonce: String?
+    let email: String?
+    let givenName: String?
+    let middleName: String?
+    let familyName: String?
+
+    var fullName: String? {
+        let value = [givenName, middleName, familyName]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        return value.isEmpty ? nil : value
+    }
+}
+
+struct ProofKitAccountDeletionResponse: Decodable, Equatable {
+    let deleted: Bool
+}
+
 struct ProofKitProfileRegistrationResult: Decodable, Equatable {
     let isNewProfile: Bool
     let hasRegisteredBefore: Bool
@@ -63,16 +85,115 @@ struct AICreditBalance: Codable, Equatable {
     }
 }
 
+enum AIActionKind: String, CaseIterable, Codable, Identifiable {
+    case timelineSummary = "timeline_summary"
+    case packetPolish = "packet_polish"
+    case deepReview = "deep_review"
+    case askAIShort = "ask_ai_short"
+    case askAICase = "ask_ai_case"
+    case rewriteNote = "rewrite_note"
+
+    var id: String { rawValue }
+
+    init(taskType: AITaskType) {
+        switch taskType {
+        case .rewriteNote:
+            self = .rewriteNote
+        case .summarizeTimeline:
+            self = .timelineSummary
+        case .finalCaseNarrative:
+            self = .packetPolish
+        case .summarizeItem, .suggestTitle:
+            self = .askAIShort
+        case .classifyEvidence:
+            self = .deepReview
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .timelineSummary:
+            "Timeline Summary"
+        case .packetPolish:
+            "Packet Polish"
+        case .deepReview:
+            "Deep Review"
+        case .askAIShort:
+            "Ask AI"
+        case .askAICase:
+            "Ask AI with Case Context"
+        case .rewriteNote:
+            "Clean Up Note"
+        }
+    }
+
+    var defaultCreditCost: Int {
+        switch self {
+        case .timelineSummary:
+            2
+        case .packetPolish:
+            4
+        case .deepReview:
+            10
+        case .askAIShort:
+            1
+        case .askAICase:
+            3
+        case .rewriteNote:
+            1
+        }
+    }
+
+    var estimatedWaitMessage: String {
+        switch self {
+        case .timelineSummary:
+            "Usually under a minute."
+        case .packetPolish:
+            "May take about a minute."
+        case .deepReview:
+            "May take a few minutes for large timelines."
+        case .askAIShort, .askAICase, .rewriteNote:
+            "Usually under a minute."
+        }
+    }
+
+    var taskType: AITaskType {
+        switch self {
+        case .rewriteNote:
+            .rewriteNote
+        case .timelineSummary:
+            .summarizeTimeline
+        case .packetPolish:
+            .finalCaseNarrative
+        case .deepReview:
+            .classifyEvidence
+        case .askAIShort, .askAICase:
+            .summarizeItem
+        }
+    }
+}
+
+struct AIUsageQuote: Codable, Equatable {
+    let feature: AIActionKind
+    let creditCost: Int
+    let creditsRemainingBefore: Int
+    let creditsRemainingAfter: Int
+    let estimatedWaitMessage: String
+}
+
 struct AICreditReservationRequest: Codable, Equatable {
+    let feature: AIActionKind
     let taskType: AITaskType
     let estimatedCredits: Int
     let idempotencyKey: String
 
     init(
         taskType: AITaskType,
+        feature: AIActionKind? = nil,
         estimatedCredits: Int,
         idempotencyKey: String = UUID().uuidString
     ) {
+        self.feature = feature ?? AIActionKind(taskType: taskType)
         self.taskType = taskType
         self.estimatedCredits = estimatedCredits
         self.idempotencyKey = idempotencyKey
@@ -87,6 +208,7 @@ struct AICreditReservation: Codable, Equatable {
 }
 
 struct AIProxyTextRequest: Codable, Equatable {
+    let feature: AIActionKind
     let taskType: AITaskType
     let compressedTextInput: String
     let inputHash: String
@@ -97,9 +219,11 @@ struct AIProxyTextRequest: Codable, Equatable {
     let metadata: [String: String]
     let userTriggered: Bool
     let idempotencyKey: String
+    let stream: Bool?
 
     init(
         taskType: AITaskType,
+        feature: AIActionKind? = nil,
         compressedTextInput: String,
         inputHash: String,
         caseID: UUID?,
@@ -108,8 +232,10 @@ struct AIProxyTextRequest: Codable, Equatable {
         extractedTextSnippets: [String]? = nil,
         metadata: [String: String] = [:],
         userTriggered: Bool,
-        idempotencyKey: String = UUID().uuidString
+        idempotencyKey: String = UUID().uuidString,
+        stream: Bool? = nil
     ) {
+        self.feature = feature ?? AIActionKind(taskType: taskType)
         self.taskType = taskType
         self.compressedTextInput = compressedTextInput
         self.inputHash = inputHash
@@ -120,6 +246,7 @@ struct AIProxyTextRequest: Codable, Equatable {
         self.metadata = metadata
         self.userTriggered = userTriggered
         self.idempotencyKey = idempotencyKey
+        self.stream = stream
     }
 }
 
@@ -129,6 +256,19 @@ struct AIProxyTextResponse: Codable, Equatable {
     let creditsUsed: Int?
     let remainingCredits: Int?
     let metadata: [String: String]?
+}
+
+struct AIProxyStreamStart: Codable, Equatable {
+    let resultID: String?
+    let creditsUsed: Int?
+    let remainingCredits: Int?
+    let metadata: [String: String]?
+}
+
+enum AIProxyStreamEvent: Equatable {
+    case started(AIProxyStreamStart)
+    case textDelta(String)
+    case completed(AIProxyTextResponse)
 }
 
 struct PurchaseEntitlementRecord: Codable, Equatable, Identifiable {

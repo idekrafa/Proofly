@@ -14,6 +14,7 @@ enum AccountScopedLocalData {
         Attachment.self,
         ExportPacket.self,
         AIResultCache.self,
+        AIRequestQueueItem.self,
     ])
 
     static func modelContainer(for session: ProofKitAccountSession) throws -> ModelContainer {

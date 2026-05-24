@@ -124,6 +124,8 @@ struct RevenueCatCustomerInfoSnapshot: Equatable {
     let originalAppUserID: String
     let activeEntitlementIDs: [String]
     let activeProductIDs: [String]
+    let activeSubscriptionProduct: ProofKitSubscriptionProduct?
+    let subscriptionStatus: ProofKitSubscriptionStatus
     let managementURL: URL?
     let latestExpirationDate: Date?
     let isProofKitProActive: Bool
@@ -133,7 +135,9 @@ struct RevenueCatCustomerInfoSnapshot: Equatable {
         ProofKitEntitlementSnapshot(
             plan: isProofKitProActive ? .pro : .free,
             source: .revenueCat,
-            updatedAt: updatedAt
+            updatedAt: updatedAt,
+            subscriptionProduct: activeSubscriptionProduct,
+            subscriptionStatus: subscriptionStatus
         )
     }
 }
@@ -147,6 +151,7 @@ struct RevenueCatPackageSnapshot: Equatable, Identifiable {
     let subtitle: String
     let localizedPrice: String
     let localizedIntroductoryPrice: String?
+    let introductoryOfferDurationText: String?
 
     var displayPrice: String {
         let trimmedPrice = localizedPrice.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -414,12 +419,29 @@ final class RevenueCatSubscriptionService: SubscriptionServicing {
         let isProofKitProActive = ProofKitSubscriptionConstants.proEntitlementIdentifiers.contains { identifier in
             normalizedActiveEntitlementIDs.contains(identifier.lowercased())
         }
+        let proofKitEntitlement = customerInfo.entitlements.active.values.first { entitlement in
+            ProofKitSubscriptionConstants.proEntitlementIdentifiers.contains { identifier in
+                entitlement.identifier.lowercased() == identifier.lowercased()
+            }
+        }
+        let activeProductIDs = customerInfo.activeSubscriptions.sorted()
+        let activeSubscriptionProduct = Self.subscriptionProduct(
+            activeProductIDs: activeProductIDs,
+            entitlementProductID: proofKitEntitlement?.productIdentifier
+        )
+        let subscriptionStatus = Self.subscriptionStatus(
+            isActive: isProofKitProActive,
+            product: activeSubscriptionProduct,
+            periodType: proofKitEntitlement?.periodType
+        )
 
         let snapshot = RevenueCatCustomerInfoSnapshot(
             appUserID: Purchases.shared.appUserID,
             originalAppUserID: customerInfo.originalAppUserId,
             activeEntitlementIDs: activeEntitlementIDs,
-            activeProductIDs: customerInfo.activeSubscriptions.sorted(),
+            activeProductIDs: activeProductIDs,
+            activeSubscriptionProduct: activeSubscriptionProduct,
+            subscriptionStatus: subscriptionStatus,
             managementURL: customerInfo.managementURL,
             latestExpirationDate: customerInfo.latestExpirationDate,
             isProofKitProActive: isProofKitProActive,
@@ -505,7 +527,8 @@ final class RevenueCatSubscriptionService: SubscriptionServicing {
             title: storeProduct.localizedTitle.isEmpty ? product.displayName : storeProduct.localizedTitle,
             subtitle: storeProduct.localizedDescription.isEmpty ? "Unlock Proofly Pro" : storeProduct.localizedDescription,
             localizedPrice: package.localizedPriceString,
-            localizedIntroductoryPrice: package.localizedIntroductoryPriceString
+            localizedIntroductoryPrice: package.localizedIntroductoryPriceString,
+            introductoryOfferDurationText: storeProduct.introductoryDiscount?.subscriptionPeriod.proofKitDisplayText
         )
     }
 
@@ -552,6 +575,50 @@ final class RevenueCatSubscriptionService: SubscriptionServicing {
 
         return error.localizedDescription
     }
+
+    private static func subscriptionProduct(
+        activeProductIDs: [String],
+        entitlementProductID: String?
+    ) -> ProofKitSubscriptionProduct? {
+        let productIDs = (activeProductIDs + [entitlementProductID].compactMap { $0 }).map { $0.lowercased() }
+
+        if productIDs.contains(where: { productID in
+            productID == ProofKitSubscriptionConstants.monthlyProductIdentifier ||
+                productID.contains("monthly") ||
+                productID.contains("month")
+        }) {
+            return .monthly
+        }
+
+        if productIDs.contains(where: { productID in
+            productID == ProofKitSubscriptionConstants.weeklyProductIdentifier ||
+                productID.contains("weekly") ||
+                productID.contains("week")
+        }) {
+            return .weekly
+        }
+
+        return nil
+    }
+
+    private static func subscriptionStatus(
+        isActive: Bool,
+        product: ProofKitSubscriptionProduct?,
+        periodType: PeriodType?
+    ) -> ProofKitSubscriptionStatus {
+        guard isActive else { return .expired }
+
+        if periodType == .trial {
+            return .trialing
+        }
+
+        switch product {
+        case .weekly:
+            return .activeWeekly
+        case .monthly, .none:
+            return .activeMonthly
+        }
+    }
     #endif
 }
 
@@ -567,3 +634,25 @@ private extension String {
         return cleaned
     }
 }
+
+#if canImport(RevenueCat)
+private extension SubscriptionPeriod {
+    var proofKitDisplayText: String {
+        let unitName: String
+        switch unit {
+        case .day:
+            unitName = value == 1 ? "day" : "days"
+        case .week:
+            unitName = value == 1 ? "week" : "weeks"
+        case .month:
+            unitName = value == 1 ? "month" : "months"
+        case .year:
+            unitName = value == 1 ? "year" : "years"
+        @unknown default:
+            unitName = "periods"
+        }
+
+        return "\(value) \(unitName)"
+    }
+}
+#endif

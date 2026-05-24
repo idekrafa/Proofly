@@ -21,6 +21,8 @@ struct ContentView: View {
     @State private var pendingFirstCaseManualEntryRoute: ProofKitFirstCaseManualEntryRoute?
     @State private var pendingFirstCaseAhaRoute: ProofKitFirstCaseAhaRoute?
     @State private var firstCaseAhaRoute: ProofKitFirstCaseAhaRoute?
+    @State private var pendingFirstCasePaywallRoute: ProofKitFirstCasePaywallRoute?
+    @State private var firstCasePaywallRoute: ProofKitFirstCasePaywallRoute?
     @State private var contentNotice: ProofKitContentNotice?
     @State private var displayedAccountSession: ProofKitAccountSession?
     @AppStorage(ProofKitSettingsStorageKeys.appearance) private var appearanceRawValue = ProofKitAppearancePreference.system.rawValue
@@ -80,6 +82,23 @@ struct ContentView: View {
         .onChange(of: accountSession) { _, updatedSession in
             displayedAccountSession = updatedSession
         }
+        .task {
+            services.serviceHealth.start()
+            services.aiQueue.refreshSummary(in: modelContext)
+            await services.serviceHealth.recheck()
+            await services.aiQueue.processPendingItems(in: modelContext)
+        }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
+                await services.serviceHealth.recheck()
+                await services.aiQueue.processPendingItems(in: modelContext)
+            }
+        }
+        .onReceive(services.serviceHealth.$snapshot) { snapshot in
+            guard snapshot.state == .healthy else { return }
+            Task { await services.aiQueue.processPendingItems(in: modelContext) }
+        }
         .task(id: firstCaseSeed?.id) {
             try? await Task.sleep(nanoseconds: 250_000_000)
             presentFirstCaseCreationIfNeeded()
@@ -103,14 +122,14 @@ struct ContentView: View {
                 createFirstCase(details: details, seed: route.seed)
             }
         }
-        .sheet(item: $firstCaseImportRoute, onDismiss: presentPendingFirstCaseAha) { route in
+        .sheet(item: $firstCaseImportRoute, onDismiss: presentPendingFirstCasePaywall) { route in
             AddProofImportView(
                 caseFile: route.caseFile,
                 onManualEntryRequested: {
                     queueFirstCaseManualEntry(ProofKitFirstCaseManualEntryRoute(caseFile: route.caseFile, seed: route.seed))
                 },
                 onImportComplete: { importedItems in
-                    pendingFirstCaseAhaRoute = ProofKitFirstCaseAhaRoute(
+                    pendingFirstCasePaywallRoute = ProofKitFirstCasePaywallRoute(
                         caseFile: route.caseFile,
                         seed: route.seed,
                         proofCount: importedItems.count
@@ -119,9 +138,9 @@ struct ContentView: View {
                 }
             )
         }
-        .sheet(item: $firstCaseManualEntryRoute, onDismiss: presentPendingFirstCaseAha) { route in
+        .sheet(item: $firstCaseManualEntryRoute, onDismiss: presentPendingFirstCasePaywall) { route in
             ManualEvidenceEntryView(caseFile: route.caseFile) { _ in
-                pendingFirstCaseAhaRoute = ProofKitFirstCaseAhaRoute(
+                pendingFirstCasePaywallRoute = ProofKitFirstCasePaywallRoute(
                     caseFile: route.caseFile,
                     seed: route.seed,
                     proofCount: 1
@@ -133,6 +152,18 @@ struct ContentView: View {
             ProofKitFirstCaseAhaSheet(route: route) {
                 firstCaseAhaRoute = nil
                 selectedTab = .cases
+            }
+        }
+        .sheet(item: $firstCasePaywallRoute, onDismiss: presentPendingFirstCaseAha) { route in
+            PaywallView {
+                firstCasePaywallRoute = nil
+            }
+            .onDisappear {
+                pendingFirstCaseAhaRoute = ProofKitFirstCaseAhaRoute(
+                    caseFile: route.caseFile,
+                    seed: route.seed,
+                    proofCount: route.proofCount
+                )
             }
         }
         .alert(item: $contentNotice) { notice in
@@ -252,6 +283,16 @@ struct ContentView: View {
             self.firstCaseAhaRoute = pendingFirstCaseAhaRoute
         }
     }
+
+    @MainActor
+    private func presentPendingFirstCasePaywall() {
+        guard let pendingFirstCasePaywallRoute else { return }
+
+        self.pendingFirstCasePaywallRoute = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            self.firstCasePaywallRoute = pendingFirstCasePaywallRoute
+        }
+    }
 }
 
 private enum ProofKitRootTab: Hashable, CaseIterable {
@@ -289,6 +330,14 @@ private struct ProofKitFirstCaseAhaRoute: Identifiable {
     let proofCount: Int
 
     var id: String { "aha-\(caseFile.id.uuidString)-\(proofCount)" }
+}
+
+private struct ProofKitFirstCasePaywallRoute: Identifiable {
+    let caseFile: CaseFile
+    let seed: ProofKitOnboardingFirstCaseSeed
+    let proofCount: Int
+
+    var id: String { "paywall-\(caseFile.id.uuidString)-\(proofCount)" }
 }
 
 private struct ProofKitContentNotice: Identifiable {
@@ -388,7 +437,7 @@ private struct ProofKitFirstCaseCreationSheet: View {
 
     private var rookGuideCard: some View {
         HStack(alignment: .center, spacing: 14) {
-            ZStack(alignment: .bottomTrailing) {
+            ZStack(alignment: .center) {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .fill(ProofKitVisual.quietFill)
                     .overlay {
@@ -398,24 +447,10 @@ private struct ProofKitFirstCaseCreationSheet: View {
 
                 Image(rookArtworkAssetName)
                     .resizable()
+                    .interpolation(.high)
                     .scaledToFit()
                     .frame(width: 106, height: 106)
-//                    .padding(4)
                     .accessibilityLabel("Rook proof keeper")
-
-//                Image(systemName: "sparkles")
-//                    .font(.caption.weight(.bold))
-//                    .foregroundStyle(.white)
-//                    .frame(width: 30, height: 30)
-//                    .background {
-//                        Circle()
-//                            .fill(ProofKitVisual.accentGradient)
-//                    }
-                    .overlay {
-                        Circle()
-                            .stroke(ProofKitVisual.screenBackground, lineWidth: 2)
-                    }
-                    .offset(x: 4, y: 3)
                     .accessibilityHidden(true)
             }
             .frame(width: 118, height: 112)

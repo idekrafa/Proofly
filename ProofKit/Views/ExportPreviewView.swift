@@ -10,7 +10,8 @@ struct ExportPreviewView: View {
     private let skippedEvidenceIDs: Set<UUID>
     private let onAddProof: () -> Void
 
-    @State private var includeStatementPlaceholder = true
+    @State private var exportMode = PDFExportMode.cleanPacket
+    @State private var includeStatementPlaceholder = false
     @State private var isExporting = false
     @State private var exportErrorMessage: String?
     @State private var latestExportURL: URL?
@@ -58,7 +59,7 @@ struct ExportPreviewView: View {
         case .almostReady:
             "almostReady-\(missingExportItems.map(\.id).joined(separator: "|"))-\(skippedEvidenceIDs.count)"
         case .ready:
-            "ready-\(estimatedPageCount)-\(caseFile.evidenceItems.count)-\(includeStatementPlaceholder)"
+            "ready-\(estimatedPageCount)-\(caseFile.evidenceItems.count)-\(exportMode.rawValue)-\(includeStatementPlaceholder)"
         case .generated(let packet, _):
             "generated-\(packet.id)-\(activePreviewURL?.path(percentEncoded: false) ?? "closed")"
         }
@@ -385,10 +386,27 @@ struct ExportPreviewView: View {
     private var packetDetailsDisclosure: some View {
         DisclosureGroup(isExpanded: $isPacketDetailsExpanded) {
             VStack(spacing: 0) {
+                ExportDetailsRow(title: "Mode", value: exportMode.displayName)
                 ExportDetailsRow(title: "Proof items", value: "\(caseFile.evidenceItems.count)")
                 ExportDetailsRow(title: "Timeline", value: timelineReady ? "Included" : "Needs proof")
                 ExportDetailsRow(title: "Attachments", value: attachmentCount == 0 ? "None" : "\(attachmentCount)")
                 ExportDetailsRow(title: "Watermark", value: watermarkSummary)
+
+                Picker("Export mode", selection: $exportMode) {
+                    ForEach(PDFExportMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.top, 12)
+                .padding(.bottom, 4)
+
+                Text(exportMode.shortDescription)
+                    .font(.caption)
+                    .foregroundStyle(ProofKitVisual.subduedText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 6)
 
                 Toggle(isOn: $includeStatementPlaceholder) {
                     HStack(spacing: 8) {
@@ -574,19 +592,26 @@ struct ExportPreviewView: View {
 
     private var estimatedPageCount: Int {
         let evidenceCount = caseFile.evidenceItems.count
-        let timelinePages = max(1, Int(ceil(Double(max(evidenceCount, 1)) / 5.0)))
-        let indexPages = max(1, Int(ceil(Double(max(evidenceCount, 1)) / 14.0)))
-        let evidenceItemPages = evidenceCount
+        let itemsWithAttachments = caseFile.evidenceItems.filter { !$0.attachments.isEmpty }.count
+        let compactTimelineWeight = evidenceCount + itemsWithAttachments
+        let timelinePages = max(1, Int(ceil(Double(max(compactTimelineWeight, 1)) / 4.0)))
         let longTextOverflowPages = caseFile.evidenceItems.reduce(0) { count, evidenceItem in
             let textLength = evidenceItem.userNotes.count + evidenceItem.userCleanedNote.count + evidenceItem.userWhyThisMatters.count + evidenceItem.originalOCRText.count
             return count + max(0, Int(ceil(Double(textLength - 2_400) / 2_400.0)))
         }
-        let attachmentOverflowPages = caseFile.evidenceItems.reduce(0) { count, evidenceItem in
-            count + max(0, Int(ceil(Double(evidenceItem.attachments.count - 3) / 4.0)))
-        }
         let statementPages = includeStatementPlaceholder ? 1 : 0
 
-        return 2 + timelinePages + indexPages + evidenceItemPages + longTextOverflowPages + attachmentOverflowPages + statementPages
+        switch exportMode {
+        case .cleanPacket:
+            return 2 + timelinePages + statementPages
+        case .fullArchive:
+            let indexPages = max(1, Int(ceil(Double(max(evidenceCount, 1)) / 14.0)))
+            let evidenceItemPages = evidenceCount
+            let attachmentOverflowPages = caseFile.evidenceItems.reduce(0) { count, evidenceItem in
+                count + max(0, Int(ceil(Double(evidenceItem.attachments.count - 3) / 4.0)))
+            }
+            return 2 + timelinePages + indexPages + evidenceItemPages + longTextOverflowPages + attachmentOverflowPages + statementPages
+        }
     }
 
     @MainActor
@@ -611,6 +636,7 @@ struct ExportPreviewView: View {
                 PDFExportRequest(
                     caseFile: caseFile,
                     destinationDirectory: exportDirectory,
+                    exportMode: exportMode,
                     includeStatementPlaceholder: includeStatementPlaceholder,
                     includeProofKitWatermark: access.isWatermarked
                 )
@@ -686,6 +712,7 @@ struct ExportPreviewView: View {
 
     private func exportOptionsJSON(access: ProofKitExportAccess) -> String {
         let values: [String: Any] = [
+            "exportMode": exportMode.rawValue,
             "includeStatementPlaceholder": includeStatementPlaceholder,
             "renderer": "PDFKit/UIKit",
             "aiUsed": false,
@@ -712,7 +739,7 @@ struct ExportPreviewView: View {
     private var exportPlanMessage: String {
         switch exportAccess.plan {
         case .free:
-            "Free export adds a small footer-only Proofly mark. No diagonal watermark."
+            "Exports without active Pro add a small footer-only Proofly mark. No diagonal watermark."
         case .paidUrgentExport:
             "Paid Urgent Export creates one final PDF for this case without a Proofly watermark."
         case .pro:

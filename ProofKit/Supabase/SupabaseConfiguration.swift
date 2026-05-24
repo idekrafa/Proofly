@@ -104,6 +104,7 @@ struct SupabaseFunctionNames: Equatable {
     let aiCreditReserve: String
     let aiProxy: String
     let purchaseEntitlements: String
+    let deleteAccount: String
 
     static func load(
         bundle: Bundle = .main,
@@ -131,6 +132,12 @@ struct SupabaseFunctionNames: Equatable {
             purchaseEntitlements: configuredFunctionName(
                 key: "PROOFKIT_SUPABASE_FN_PURCHASE_ENTITLEMENTS",
                 defaultValue: "purchase-entitlements",
+                bundle: bundle,
+                environment: environment
+            ),
+            deleteAccount: configuredFunctionName(
+                key: "PROOFKIT_SUPABASE_FN_DELETE_ACCOUNT",
+                defaultValue: "delete-account",
                 bundle: bundle,
                 environment: environment
             )

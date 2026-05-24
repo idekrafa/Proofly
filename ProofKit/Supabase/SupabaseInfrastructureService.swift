@@ -32,6 +32,7 @@ final class SupabaseInfrastructureService {
                 supabaseURL: configuration.projectURL,
                 supabaseKey: configuration.publishableKey,
                 options: SupabaseClientOptions(
+                    auth: .init(redirectToURL: configuration.authRedirectURL),
                     functions: .init(decoder: Self.remoteJSONDecoder)
                 )
             )
@@ -219,6 +220,46 @@ extension SupabaseInfrastructureService: AccountServicing {
         #endif
     }
 
+    func signInWithApple(
+        _ credential: ProofKitAppleSignInCredential,
+        onboardingCategory: String?,
+        onboardingDisplayName: String?
+    ) async throws -> ProofKitAccountAuthResult {
+        #if canImport(Supabase)
+        let client = try configuredClient
+        let session = try await client.auth.signInWithIdToken(
+            credentials: .init(
+                provider: .apple,
+                idToken: credential.identityToken,
+                nonce: credential.nonce
+            )
+        )
+        let displayName = onboardingDisplayName ?? credential.fullName
+        let profileRegistration = try? await registerProfile(
+            for: session,
+            onboardingCategory: onboardingCategory,
+            onboardingDisplayName: displayName
+        )
+
+        if let userAttributes = Self.appleUserAttributes(
+            from: credential,
+            displayName: displayName
+        ) {
+            _ = try? await client.auth.update(user: userAttributes)
+        }
+
+        return ProofKitAccountAuthResult(
+            session: Self.accountSession(
+                from: client.auth.currentSession ?? session,
+                profileDisplayName: profileRegistration?.profileDisplayName ?? displayName
+            ),
+            isNewAccount: (profileRegistration?.isNewProfile ?? true) && Self.isLikelyNewAccount(session.user)
+        )
+        #else
+        throw ProofKitError.supabaseSDKUnavailable
+        #endif
+    }
+
     func sendMagicLink(email: String) async throws {
         #if canImport(Supabase)
         try await configuredClient.auth.signInWithOTP(
@@ -233,6 +274,26 @@ extension SupabaseInfrastructureService: AccountServicing {
     func signOut() async throws {
         #if canImport(Supabase)
         try await configuredClient.auth.signOut()
+        #else
+        throw ProofKitError.supabaseSDKUnavailable
+        #endif
+    }
+
+    func deleteAccount() async throws {
+        #if canImport(Supabase)
+        let client = try configuredClient
+        let response: ProofKitAccountDeletionResponse = try await client.functions.invoke(
+            configuredFunctionNames.deleteAccount,
+            decoder: Self.remoteJSONDecoder
+        )
+
+        guard response.deleted else {
+            throw ProofKitError.remotePolicyViolation("Proofly could not confirm the account deletion.")
+        }
+
+        // The Edge Function revokes server sessions before deleting the Auth user.
+        // Clear this device's stored session as a best-effort local cleanup.
+        try? await client.auth.signOut()
         #else
         throw ProofKitError.supabaseSDKUnavailable
         #endif
@@ -287,6 +348,69 @@ extension SupabaseInfrastructureService: AIProxyServicing {
         #else
         throw ProofKitError.supabaseSDKUnavailable
         #endif
+    }
+
+    func streamTextOnlyAI(_ request: AIProxyTextRequest) -> AsyncThrowingStream<AIProxyStreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            Task {
+                #if canImport(Supabase)
+                do {
+                    try Self.validateTextOnlyAIRequest(request)
+
+                    guard let configuration else {
+                        throw ProofKitError.supabaseNotConfigured
+                    }
+
+                    let client = try configuredClient
+                    guard let session = client.auth.currentSession else {
+                        throw ProofKitError.remotePolicyViolation("Sign in before using AI.")
+                    }
+
+                    var streamingRequest = request
+                    if request.stream != true {
+                        streamingRequest = AIProxyTextRequest(
+                            taskType: request.taskType,
+                            feature: request.feature,
+                            compressedTextInput: request.compressedTextInput,
+                            inputHash: request.inputHash,
+                            caseID: request.caseID,
+                            evidenceItemID: request.evidenceItemID,
+                            evidenceItemIDs: request.evidenceItemIDs,
+                            extractedTextSnippets: request.extractedTextSnippets,
+                            metadata: request.metadata,
+                            userTriggered: request.userTriggered,
+                            idempotencyKey: request.idempotencyKey,
+                            stream: true
+                        )
+                    }
+
+                    let url = configuration.projectURL
+                        .appendingPathComponent("functions")
+                        .appendingPathComponent("v1")
+                        .appendingPathComponent(try configuredFunctionNames.aiProxy)
+                    var urlRequest = URLRequest(url: url)
+                    urlRequest.httpMethod = "POST"
+                    urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    urlRequest.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+                    urlRequest.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+                    urlRequest.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+                    urlRequest.httpBody = try Self.remoteJSONEncoder.encode(streamingRequest)
+
+                    let (bytes, response) = try await URLSession.shared.bytes(for: urlRequest)
+                    if let httpResponse = response as? HTTPURLResponse,
+                       !(200..<300).contains(httpResponse.statusCode) {
+                        throw ProofKitError.remotePolicyViolation("AI proxy returned HTTP \(httpResponse.statusCode).")
+                    }
+
+                    try await Self.consumeAIProxySSE(bytes: bytes, continuation: continuation)
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+                #else
+                continuation.finish(throwing: ProofKitError.supabaseSDKUnavailable)
+                #endif
+            }
+        }
     }
 }
 
@@ -370,6 +494,12 @@ private extension SupabaseInfrastructureService {
             )
         }
         return decoder
+    }()
+
+    static let remoteJSONEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
     }()
 
     static let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
@@ -478,6 +608,29 @@ private extension SupabaseInfrastructureService {
 
         return normalized
     }
+
+    static func appleUserAttributes(
+        from credential: ProofKitAppleSignInCredential,
+        displayName: String?
+    ) -> UserAttributes? {
+        var data: [String: AnyJSON] = [:]
+
+        if let displayName = displayName?.trimmingCharacters(in: .whitespacesAndNewlines), !displayName.isEmpty {
+            data["display_name"] = .string(displayName)
+            data["full_name"] = .string(displayName)
+            data["name"] = .string(displayName)
+        }
+
+        if let givenName = credential.givenName?.trimmingCharacters(in: .whitespacesAndNewlines), !givenName.isEmpty {
+            data["given_name"] = .string(givenName)
+        }
+
+        if let familyName = credential.familyName?.trimmingCharacters(in: .whitespacesAndNewlines), !familyName.isEmpty {
+            data["family_name"] = .string(familyName)
+        }
+
+        return data.isEmpty ? nil : UserAttributes(data: data)
+    }
     #endif
 
     static func validateTextOnlyAIRequest(_ request: AIProxyTextRequest) throws {
@@ -504,6 +657,7 @@ private extension SupabaseInfrastructureService {
         let forbiddenMetadataKeys = request.metadata.keys.filter { key in
             let normalized = key.lowercased()
             return normalized.contains("path") ||
+                normalized.contains("filename") ||
                 normalized.contains("fileurl") ||
                 normalized.contains("file_url") ||
                 normalized.contains("localfile") ||
@@ -533,6 +687,61 @@ private extension SupabaseInfrastructureService {
             )
         }
     }
+
+    #if canImport(Supabase)
+    static func consumeAIProxySSE(
+        bytes: URLSession.AsyncBytes,
+        continuation: AsyncThrowingStream<AIProxyStreamEvent, Error>.Continuation
+    ) async throws {
+        var eventName = ""
+        var dataLines: [String] = []
+
+        func flushEvent() throws {
+            guard !dataLines.isEmpty else {
+                eventName = ""
+                return
+            }
+
+            let data = dataLines.joined(separator: "\n")
+            let eventData = Data(data.utf8)
+            switch eventName {
+            case "start":
+                let start = try remoteJSONDecoder.decode(AIProxyStreamStart.self, from: eventData)
+                continuation.yield(.started(start))
+            case "delta":
+                let delta = try remoteJSONDecoder.decode(AIProxyStreamDelta.self, from: eventData)
+                continuation.yield(.textDelta(delta.text))
+            case "done":
+                let response = try remoteJSONDecoder.decode(AIProxyTextResponse.self, from: eventData)
+                continuation.yield(.completed(response))
+                continuation.finish()
+            case "error":
+                let error = (try? remoteJSONDecoder.decode(AIProxyStreamError.self, from: eventData).error)
+                    ?? "AI proxy stream failed."
+                continuation.finish(throwing: ProofKitError.remotePolicyViolation(error))
+            default:
+                break
+            }
+
+            eventName = ""
+            dataLines.removeAll(keepingCapacity: true)
+        }
+
+        for try await rawLine in bytes.lines {
+            let line = rawLine.trimmingCharacters(in: CharacterSet(charactersIn: "\r"))
+            if line.isEmpty {
+                try flushEvent()
+            } else if line.hasPrefix("event:") {
+                eventName = String(line.dropFirst("event:".count)).trimmingCharacters(in: .whitespaces)
+            } else if line.hasPrefix("data:") {
+                dataLines.append(String(line.dropFirst("data:".count)).trimmingCharacters(in: .whitespaces))
+            }
+        }
+
+        try flushEvent()
+        continuation.finish()
+    }
+    #endif
 }
 
 private struct ProofKitRegisterProfileRequest: Encodable {
@@ -545,6 +754,14 @@ private struct ProofKitRegisterProfileRequest: Encodable {
         case onboardingCategory = "p_onboarding_category"
         case onboardingDisplayName = "p_display_name"
     }
+}
+
+private struct AIProxyStreamDelta: Decodable {
+    let text: String
+}
+
+private struct AIProxyStreamError: Decodable {
+    let error: String
 }
 
 private struct ProofKitUpdateProfileDisplayNameRequest: Encodable {

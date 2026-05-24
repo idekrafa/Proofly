@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9EEA17672FB0208500E5B6D9 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = E10C0E00000000000000003 /* PostHog */; };
 		E10C0DEF0000000000000001 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = E10C0DEF0000000000000003 /* Supabase */; };
 		E10C0DF00000000000000001 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = E10C0DF00000000000000004 /* RevenueCat */; };
 		E10C0DF00000000000000002 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = E10C0DF00000000000000005 /* RevenueCatUI */; };
@@ -43,7 +44,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E10C0E00000000000000001 /* PostHog in Frameworks */,
+				9EEA17672FB0208500E5B6D9 /* PostHog in Frameworks */,
 				E10C0DEF0000000000000001 /* Supabase in Frameworks */,
 				E10C0DF00000000000000001 /* RevenueCat in Frameworks */,
 				E10C0DF00000000000000002 /* RevenueCatUI in Frameworks */,
@@ -113,6 +114,9 @@
 						CreatedOnToolsVersion = 26.2;
 						SystemCapabilities = {
 							com.apple.InAppPurchase = {
+								enabled = 1;
+							};
+							com.apple.SignInWithApple = {
 								enabled = 1;
 							};
 						};
@@ -291,12 +295,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ProofKit/ProofKit.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = D2T9K4A9VL;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ProofKit/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Proofly;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -323,12 +329,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ProofKit/ProofKit.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = D2T9K4A9VL;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ProofKit/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Proofly;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -373,14 +381,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		E10C0E00000000000000002 /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 3.58.0;
-			};
-		};
 		E10C0DEF0000000000000002 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/supabase/supabase-swift.git";
@@ -397,14 +397,17 @@
 				minimumVersion = 5.67.0;
 			};
 		};
+		E10C0E00000000000000002 /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.58.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		E10C0E00000000000000003 /* PostHog */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E10C0E00000000000000002 /* XCRemoteSwiftPackageReference "posthog-ios" */;
-			productName = PostHog;
-		};
 		E10C0DEF0000000000000003 /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E10C0DEF0000000000000002 /* XCRemoteSwiftPackageReference "supabase-swift" */;
@@ -419,6 +422,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E10C0DF00000000000000003 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
 			productName = RevenueCatUI;
+		};
+		E10C0E00000000000000003 /* PostHog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E10C0E00000000000000002 /* XCRemoteSwiftPackageReference "posthog-ios" */;
+			productName = PostHog;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

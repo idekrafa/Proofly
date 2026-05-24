@@ -12,14 +12,16 @@ struct ProofKitRootView: View {
     }
 
     var body: some View {
+        let coordinator = authCoordinator
+
         Group {
-            switch authCoordinator.state {
+            switch coordinator.state {
             case .checking:
                 ProofKitAuthLaunchView()
 
             case .signedOut:
                 ProofKitAuthView(services: services) { session, isFirstTimeSignup, firstCaseSeed in
-                    scheduleActivation(
+                    await coordinator.activate(
                         session: session,
                         isFirstTimeSignup: isFirstTimeSignup,
                         firstCaseSeed: firstCaseSeed
@@ -28,7 +30,7 @@ struct ProofKitRootView: View {
 
             case .authenticated(let scope, let firstCaseSeed):
                 ContentView(accountSession: scope.session, firstCaseSeed: firstCaseSeed) {
-                    authCoordinator.accountDidSignOut()
+                    coordinator.accountDidSignOut()
                 }
                 .id(scope.session.id)
                 .environment(\.proofKitServices, scope.services)
@@ -39,7 +41,7 @@ struct ProofKitRootView: View {
 
             case .configurationError(let message):
                 ProofKitAuthView(services: services, initialErrorMessage: message) { session, isFirstTimeSignup, firstCaseSeed in
-                    scheduleActivation(
+                    await coordinator.activate(
                         session: session,
                         isFirstTimeSignup: isFirstTimeSignup,
                         firstCaseSeed: firstCaseSeed
@@ -48,26 +50,10 @@ struct ProofKitRootView: View {
             }
         }
         .task {
-            await authCoordinator.bootstrapIfNeeded()
+            await coordinator.bootstrapIfNeeded()
         }
         .onOpenURL { url in
-            authCoordinator.handleAuthCallback(url)
-        }
-    }
-
-    @MainActor
-    private func scheduleActivation(
-        session: ProofKitAccountSession,
-        isFirstTimeSignup: Bool,
-        firstCaseSeed: ProofKitOnboardingFirstCaseSeed?
-    ) {
-        Task { @MainActor in
-            await Task.yield()
-            await authCoordinator.activate(
-                session: session,
-                isFirstTimeSignup: isFirstTimeSignup,
-                firstCaseSeed: firstCaseSeed
-            )
+            coordinator.handleAuthCallback(url)
         }
     }
 }

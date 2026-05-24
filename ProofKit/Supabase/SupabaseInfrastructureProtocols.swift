@@ -24,8 +24,14 @@ protocol AccountServicing {
         onboardingCategory: String?,
         onboardingDisplayName: String?
     ) async throws -> ProofKitAccountAuthResult
+    func signInWithApple(
+        _ credential: ProofKitAppleSignInCredential,
+        onboardingCategory: String?,
+        onboardingDisplayName: String?
+    ) async throws -> ProofKitAccountAuthResult
     func sendMagicLink(email: String) async throws
     func signOut() async throws
+    func deleteAccount() async throws
     func handleAuthCallback(_ url: URL)
 }
 
@@ -40,6 +46,7 @@ protocol AIProxyServicing {
     /// Implementations must not accept raw images, PDFs, attachment bytes, full
     /// files, or local file paths.
     func invokeTextOnlyAI(_ request: AIProxyTextRequest) async throws -> AIProxyTextResponse
+    func streamTextOnlyAI(_ request: AIProxyTextRequest) -> AsyncThrowingStream<AIProxyStreamEvent, Error>
 }
 
 protocol PurchaseEntitlementServicing {

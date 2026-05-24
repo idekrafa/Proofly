@@ -44,15 +44,24 @@ struct PaywallPlanCard: View {
                         }
                         .accessibilityLabel(plan.creditLine)
 
-                    Text(plan.subtitle)
-                        .font(.caption)
-                        .foregroundStyle(ProofKitPaywallStyle.mutedInk)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if let trialLine = plan.trialLine {
+                        Text(trialLine)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(ProofKitPaywallStyle.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if let subtitle = plan.subtitle {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(ProofKitPaywallStyle.mutedInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
 
                 Spacer(minLength: 12)
 
-                Text(plan.priceText)
+                Text(plan.renewalPriceText)
                     .font(.headline.weight(.bold))
                     .foregroundStyle(ProofKitPaywallStyle.ink)
                     .multilineTextAlignment(.trailing)
@@ -116,7 +125,7 @@ struct PaywallLimitsCard: View {
                         .font(.headline)
                         .foregroundStyle(.primary)
 
-                    Text(entitlement.plan.displayName)
+                    Text(entitlement.statusDisplayText)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(ProofKitVisual.helperText)
                 }
@@ -141,7 +150,7 @@ struct PaywallLimitsCard: View {
                 PlanLimitRow(title: "Evidence", value: entitlement.limits.evidenceItemLimitText)
                 Divider()
                     .padding(.leading, 14)
-                PlanLimitRow(title: "AI credits", value: entitlement.limits.aiCreditLimitText)
+                PlanLimitRow(title: "AI credits", value: aiCreditLimitText)
                 Divider()
                     .padding(.leading, 14)
                 PlanLimitRow(title: "Export", value: entitlement.limits.exportLimitText)
@@ -169,6 +178,14 @@ struct PaywallLimitsCard: View {
         .task {
             entitlement = await services.paywall.currentEntitlement()
         }
+    }
+
+    private var aiCreditLimitText: String {
+        guard entitlement.includedAICredits > 0 else {
+            return "Not included"
+        }
+
+        return "\(entitlement.includedAICredits) \(entitlement.aiCreditRenewalText.lowercased())"
     }
 }
 

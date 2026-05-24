@@ -129,7 +129,7 @@ struct AICreditStatusCard: View {
 
             withAnimation(ProofKitMotion.standard) {
                 snapshot = AICreditStatusSnapshot(
-                    planName: entitlement.plan.displayName,
+                    planName: entitlement.statusDisplayText,
                     remainingCreditsText: "\(balance.availableCredits)",
                     renewalText: Self.renewalText(for: entitlement, balance: balance),
                     explanation: Self.standardExplanation,
@@ -173,8 +173,8 @@ struct AICreditStatusCard: View {
         statusMessage: String? = nil
     ) -> AICreditStatusSnapshot {
         AICreditStatusSnapshot(
-            planName: entitlement.plan.displayName,
-            remainingCreditsText: "\(entitlement.limits.monthlyAICredits)",
+            planName: entitlement.statusDisplayText,
+            remainingCreditsText: "\(entitlement.includedAICredits)",
             renewalText: renewalText(for: entitlement, balance: nil),
             explanation: standardExplanation,
             statusMessage: statusMessage,
@@ -186,15 +186,11 @@ struct AICreditStatusCard: View {
         for entitlement: ProofKitEntitlementSnapshot,
         balance: AICreditBalance?
     ) -> String {
-        if entitlement.limits.aiCreditsRenewMonthly {
-            return "Monthly"
+        if let renewsAt = balance?.renewsAt {
+            return renewsAt.formatted(.dateTime.month(.abbreviated).day().year())
         }
 
-        if balance?.renewsAt != nil {
-            return "Scheduled"
-        }
-
-        return "One-time"
+        return entitlement.aiCreditRenewalText
     }
 
     private static let standardExplanation = "AI credits are only used when you choose an AI action. Importing files, OCR, organizing your timeline, and exporting your case PDF do not use credits."
