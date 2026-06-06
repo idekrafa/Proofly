@@ -386,6 +386,10 @@ private struct EvidenceReviewCard: View {
             return "Date \(ProofKitDateFormatting.shortDate(eventDate))"
         }
 
+        if !evidenceItem.requiresEventDateForCompletion {
+            return "Date optional"
+        }
+
         return "No date detected"
     }
 

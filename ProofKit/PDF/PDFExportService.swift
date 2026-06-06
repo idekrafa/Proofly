@@ -54,9 +54,9 @@ enum PDFExportMode: String, CaseIterable, Hashable, Identifiable {
     var shortDescription: String {
         switch self {
         case .cleanPacket:
-            "Compact timeline with previews"
+            "Rendered files only on blank pages"
         case .fullArchive:
-            "Adds full exhibit pages and metadata"
+            "Adds cover, timeline, index, notes, metadata, and rendered files"
         }
     }
 }
@@ -187,6 +187,12 @@ private final class PDFCaseRenderer {
         pageRect.width - (margin * 2)
     }
 
+    private var localStorageBaseDirectory: URL {
+        FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appending(path: "ProofKit")
+    }
+
     private var evidenceItems: [EvidenceItem] {
         caseFile.evidenceItems.sorted { lhs, rhs in
             let lhsDate = localEventDate(for: lhs) ?? lhs.createdAt
@@ -224,16 +230,23 @@ private final class PDFCaseRenderer {
 
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect, format: format)
         try renderer.writePDF(to: destinationURL) { context in
-            drawCoverPage(context)
-            drawCaseSummaryAndTimelinePages(context)
-
-            if request.exportMode == .fullArchive {
+            switch request.exportMode {
+            case .cleanPacket:
+                drawRenderedAttachmentPages(context)
+            case .fullArchive:
+                drawCoverPage(context)
+                drawCaseSummaryAndTimelinePages(context)
                 drawEvidenceIndexPages(context)
                 drawEvidenceItemPages(context)
+                drawRenderedAttachmentPages(context)
             }
 
             if request.includeStatementPlaceholder {
                 drawStatementPlaceholderPage(context)
+            }
+
+            if pageNumber == 0 {
+                drawBlankRenderedFilePage(context)
             }
 
             finishOpenPageIfNeeded()
@@ -604,6 +617,216 @@ private final class PDFCaseRenderer {
         for (index, attachment) in attachments.enumerated() {
             drawAttachmentCard(context, attachment: attachment, attachmentNumber: index + 1)
         }
+    }
+
+    private func drawRenderedAttachmentPages(_ context: UIGraphicsPDFRendererContext) {
+        for (evidenceIndex, evidenceItem) in evidenceItems.enumerated() {
+            for (attachmentIndex, attachment) in evidenceItem.sortedAttachments.enumerated() {
+                drawRenderedAttachment(
+                    context,
+                    attachment: attachment,
+                    evidenceNumber: evidenceIndex + 1,
+                    attachmentNumber: attachmentIndex + 1
+                )
+            }
+        }
+    }
+
+    private func drawRenderedAttachment(
+        _ context: UIGraphicsPDFRendererContext,
+        attachment: Attachment,
+        evidenceNumber: Int,
+        attachmentNumber: Int
+    ) {
+        if attachment.attachmentType == .pdf,
+           let documentURL = resolvedLocalFileURL(for: attachment.localFilePath),
+           let document = PDFDocument(url: documentURL),
+           document.pageCount > 0 {
+            for pageIndex in 0..<document.pageCount {
+                guard let page = document.page(at: pageIndex) else { continue }
+                drawRenderedPDFPage(
+                    context,
+                    page: page,
+                    attachment: attachment,
+                    evidenceNumber: evidenceNumber,
+                    attachmentNumber: attachmentNumber,
+                    pageNumberInFile: pageIndex + 1,
+                    filePageCount: document.pageCount
+                )
+            }
+            return
+        }
+
+        beginRenderedFilePage(
+            context,
+            attachment: attachment,
+            evidenceNumber: evidenceNumber,
+            attachmentNumber: attachmentNumber
+        )
+
+        guard let image = renderableImage(for: attachment) else {
+            drawUnrenderableAttachmentPlaceholder(attachment)
+            return
+        }
+
+        drawRenderableImage(image, sourceSize: image.size)
+    }
+
+    private func drawRenderedPDFPage(
+        _ context: UIGraphicsPDFRendererContext,
+        page: PDFPage,
+        attachment: Attachment,
+        evidenceNumber: Int,
+        attachmentNumber: Int,
+        pageNumberInFile: Int,
+        filePageCount: Int
+    ) {
+        beginRenderedFilePage(
+            context,
+            attachment: attachment,
+            evidenceNumber: evidenceNumber,
+            attachmentNumber: attachmentNumber,
+            pageNumberInFile: filePageCount > 1 ? pageNumberInFile : nil,
+            filePageCount: filePageCount > 1 ? filePageCount : nil
+        )
+
+        let pageSize = page.bounds(for: .mediaBox).size
+        let canvasRect = renderedFileCanvasRect(for: pageSize)
+        let thumbnail = page.thumbnail(
+            of: CGSize(width: canvasRect.width * 2, height: canvasRect.height * 2),
+            for: .mediaBox
+        )
+        drawRenderableImage(thumbnail, sourceSize: pageSize)
+    }
+
+    private func beginRenderedFilePage(
+        _ context: UIGraphicsPDFRendererContext,
+        attachment: Attachment,
+        evidenceNumber: Int,
+        attachmentNumber: Int,
+        pageNumberInFile: Int? = nil,
+        filePageCount: Int? = nil
+    ) {
+        finishOpenPageIfNeeded()
+        context.beginPage()
+        pageNumber += 1
+        hasOpenPage = true
+        currentPageTitle = "Rendered File"
+        currentPageSubtitle = attachment.originalFilename.trimmedForPDF
+
+        UIColor.white.setFill()
+        UIRectFill(pageRect)
+
+        if request.exportMode == .fullArchive {
+            let label = renderedFileLabel(
+                evidenceNumber: evidenceNumber,
+                attachmentNumber: attachmentNumber,
+                pageNumberInFile: pageNumberInFile,
+                filePageCount: filePageCount
+            )
+            drawText(
+                label,
+                in: CGRect(x: margin, y: 30, width: contentWidth * 0.38, height: 14),
+                font: .systemFont(ofSize: 8.4, weight: .semibold),
+                color: .pdfTertiary
+            )
+
+            let filename = attachment.originalFilename.trimmedForPDF.singleLineLimitedForPDF(to: 72)
+            if !filename.isEmpty {
+                drawText(
+                    filename,
+                    in: CGRect(x: margin + contentWidth * 0.38, y: 30, width: contentWidth * 0.62, height: 14),
+                    font: .systemFont(ofSize: 8.4, weight: .regular),
+                    color: .pdfTertiary,
+                    alignment: .right
+                )
+            }
+        }
+    }
+
+    private func drawBlankRenderedFilePage(_ context: UIGraphicsPDFRendererContext) {
+        finishOpenPageIfNeeded()
+        context.beginPage()
+        pageNumber += 1
+        hasOpenPage = true
+        currentPageTitle = "Rendered File"
+        currentPageSubtitle = nil
+
+        UIColor.white.setFill()
+        UIRectFill(pageRect)
+    }
+
+    private func renderedFileLabel(
+        evidenceNumber: Int,
+        attachmentNumber: Int,
+        pageNumberInFile: Int?,
+        filePageCount: Int?
+    ) -> String {
+        let baseLabel = "\(evidenceLabel(for: evidenceNumber)) · File \(attachmentNumber)"
+        guard let pageNumberInFile, let filePageCount else {
+            return baseLabel
+        }
+
+        return "\(baseLabel) · Page \(pageNumberInFile) of \(filePageCount)"
+    }
+
+    private func drawRenderableImage(_ image: UIImage, sourceSize: CGSize) {
+        guard let graphicsContext = UIGraphicsGetCurrentContext() else { return }
+
+        let canvasRect = renderedFileCanvasRect(for: sourceSize)
+        let imageRect = aspectFitRect(imageSize: image.size, in: canvasRect)
+
+        drawLine(
+            from: CGPoint(x: canvasRect.minX, y: canvasRect.minY),
+            to: CGPoint(x: canvasRect.maxX, y: canvasRect.minY),
+            color: .pdfDivider,
+            alpha: 0.26,
+            lineWidth: 0.5
+        )
+        drawLine(
+            from: CGPoint(x: canvasRect.maxX, y: canvasRect.minY),
+            to: CGPoint(x: canvasRect.maxX, y: canvasRect.maxY),
+            color: .pdfDivider,
+            alpha: 0.26,
+            lineWidth: 0.5
+        )
+        drawLine(
+            from: CGPoint(x: canvasRect.maxX, y: canvasRect.maxY),
+            to: CGPoint(x: canvasRect.minX, y: canvasRect.maxY),
+            color: .pdfDivider,
+            alpha: 0.26,
+            lineWidth: 0.5
+        )
+        drawLine(
+            from: CGPoint(x: canvasRect.minX, y: canvasRect.maxY),
+            to: CGPoint(x: canvasRect.minX, y: canvasRect.minY),
+            color: .pdfDivider,
+            alpha: 0.26,
+            lineWidth: 0.5
+        )
+
+        graphicsContext.saveGState()
+        UIBezierPath(rect: canvasRect).addClip()
+        image.draw(in: imageRect)
+        graphicsContext.restoreGState()
+    }
+
+    private func drawUnrenderableAttachmentPlaceholder(_ attachment: Attachment) {
+        let canvasRect = renderedFileCanvasRect(for: CGSize(width: 1, height: 1))
+        drawRoundedRect(canvasRect, fill: .white, stroke: .pdfDivider, strokeAlpha: 0.5, cornerRadius: 0)
+
+        let filename = attachment.originalFilename.trimmedForPDF
+        let message = filename.isEmpty
+            ? "This file type cannot be rendered inside the PDF."
+            : "\(filename)\n\nThis file type cannot be rendered inside the PDF."
+        drawText(
+            message,
+            in: canvasRect.insetBy(dx: 28, dy: 28),
+            font: .systemFont(ofSize: 12, weight: .regular),
+            color: .pdfSecondary,
+            alignment: .center,
+            lineSpacing: 4
+        )
     }
 
     private func drawAttachmentCard(
@@ -1021,22 +1244,122 @@ private final class PDFCaseRenderer {
     }
 
     private func previewImage(for attachment: Attachment) -> UIImage? {
-        let candidatePaths = [attachment.thumbnailLocalFilePath, attachment.localFilePath]
+        let candidateURLs = [
+            resolvedLocalFileURL(for: attachment.thumbnailLocalFilePath),
+            resolvedLocalFileURL(for: attachment.localFilePath)
+        ]
             .compactMap { $0 }
 
-        for path in candidatePaths {
-            if let image = UIImage(contentsOfFile: path) {
+        for url in candidateURLs {
+            if let image = image(at: url) {
                 return image
             }
         }
 
         if attachment.attachmentType == .pdf,
-           let document = PDFDocument(url: URL(filePath: attachment.localFilePath)),
+           let documentURL = resolvedLocalFileURL(for: attachment.localFilePath),
+           let document = PDFDocument(url: documentURL),
            let page = document.page(at: 0) {
             return page.thumbnail(of: CGSize(width: 480, height: 480), for: .mediaBox)
         }
 
         return nil
+    }
+
+    private func renderableImage(for attachment: Attachment) -> UIImage? {
+        let candidateURLs = [
+            resolvedLocalFileURL(for: attachment.localFilePath),
+            resolvedLocalFileURL(for: attachment.thumbnailLocalFilePath)
+        ]
+        .compactMap { $0 }
+
+        for url in candidateURLs {
+            if let image = image(at: url) {
+                return image
+            }
+        }
+
+        return nil
+    }
+
+    private func image(at url: URL) -> UIImage? {
+        let path = url.path(percentEncoded: false)
+        if let image = UIImage(contentsOfFile: path) {
+            return image
+        }
+
+        guard let data = try? Data(contentsOf: url) else {
+            return nil
+        }
+
+        return UIImage(data: data)
+    }
+
+    private func resolvedLocalFileURL(for storedPath: String?) -> URL? {
+        guard let storedPath else { return nil }
+        let trimmedPath = storedPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty else { return nil }
+
+        var candidates: [URL] = []
+        appendResolvedURLCandidates(from: trimmedPath, to: &candidates)
+        if let decodedPath = trimmedPath.removingPercentEncoding, decodedPath != trimmedPath {
+            appendResolvedURLCandidates(from: decodedPath, to: &candidates)
+        }
+
+        let fileManager = FileManager.default
+        return candidates.first { candidate in
+            fileManager.fileExists(atPath: candidate.path(percentEncoded: false))
+        }
+    }
+
+    private func appendResolvedURLCandidates(from path: String, to candidates: inout [URL]) {
+        if let fileURL = URL(string: path), fileURL.isFileURL {
+            appendUniqueURL(fileURL, to: &candidates)
+        }
+
+        appendUniqueURL(URL(filePath: path), to: &candidates)
+
+        if let proofKitRange = path.range(of: "/ProofKit/") {
+            let relativePath = String(path[proofKitRange.upperBound...])
+            appendUniqueURL(localStorageBaseDirectory.appending(path: relativePath), to: &candidates)
+        } else if path.hasPrefix("ProofKit/") {
+            let relativePath = String(path.dropFirst("ProofKit/".count))
+            appendUniqueURL(localStorageBaseDirectory.appending(path: relativePath), to: &candidates)
+        } else if !path.hasPrefix("/") && !path.hasPrefix("file://") {
+            appendUniqueURL(localStorageBaseDirectory.appending(path: path), to: &candidates)
+        }
+    }
+
+    private func appendUniqueURL(_ url: URL, to candidates: inout [URL]) {
+        let path = url.path(percentEncoded: false)
+        guard !candidates.contains(where: { $0.path(percentEncoded: false) == path }) else {
+            return
+        }
+
+        candidates.append(url)
+    }
+
+    private func renderedFileCanvasRect(for sourceSize: CGSize) -> CGRect {
+        let topInset: CGFloat = request.exportMode == .cleanPacket ? margin : 54
+        let bottomInset: CGFloat = request.exportMode == .cleanPacket ? 60 : 74
+        let canvasBounds = CGRect(
+            x: margin,
+            y: topInset,
+            width: contentWidth,
+            height: pageRect.height - topInset - bottomInset
+        )
+        let targetAspectRatio = renderedFileCanvasAspectRatio(for: sourceSize)
+        let targetSize = CGSize(width: targetAspectRatio, height: 1)
+        return aspectFitRect(imageSize: targetSize, in: canvasBounds)
+    }
+
+    private func renderedFileCanvasAspectRatio(for sourceSize: CGSize) -> CGFloat {
+        guard sourceSize.width > 0, sourceSize.height > 0 else {
+            return 1
+        }
+
+        let sourceAspectRatio = sourceSize.width / sourceSize.height
+        return sourceAspectRatio < 0.9 ? (1 / 1.4) : 1
     }
 
     private func beginCoverPage(_ context: UIGraphicsPDFRendererContext) {
@@ -1112,6 +1435,18 @@ private final class PDFCaseRenderer {
                 in: CGRect(x: margin, y: footerY, width: contentWidth, height: 16),
                 font: .systemFont(ofSize: 8.5, weight: .regular),
                 color: .pdfTertiary
+            )
+            return
+        }
+
+        if request.exportMode == .cleanPacket && currentPageTitle == "Rendered File" {
+            guard request.includeProofKitWatermark else { return }
+            drawText(
+                "Generated with Proofly",
+                in: CGRect(x: margin, y: footerY, width: contentWidth, height: 16),
+                font: .systemFont(ofSize: 7.8, weight: .regular),
+                color: UIColor.pdfTertiary.withAlphaComponent(0.62),
+                alignment: .center
             )
             return
         }

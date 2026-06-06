@@ -644,11 +644,16 @@ struct EvidenceDetailEditView: View {
             } label: {
                 Text("Save changes")
                     .font(.headline.weight(.semibold))
+                    .foregroundStyle(canSave ? ProofKitVisual.primaryActionForeground : ProofKitVisual.helperText)
                     .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(canSave ? ProofKitVisual.primaryActionBackground : ProofKitVisual.quietFill)
+                    }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .tint(Color(.label))
+            .buttonStyle(.plain)
+            .opacity(canSave ? 1 : 0.62)
             .disabled(!canSave)
         }
         .padding(.horizontal, 20)

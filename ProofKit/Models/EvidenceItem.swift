@@ -167,6 +167,10 @@ final class EvidenceItem {
         return .notSpecified
     }
 
+    var requiresEventDateForCompletion: Bool {
+        category.requiresEventDateForCompletion
+    }
+
     // Convenience alias requested by the UI/import flow. The persisted source of
     // truth remains originalOCRText so local OCR never overwrites user-authored notes.
     var ocrText: String {
@@ -203,7 +207,7 @@ final class EvidenceItem {
     var isIncompleteForReview: Bool {
         userTitle.reviewTrimmedText.isEmpty ||
             category == .uncategorized ||
-            eventDate == nil
+            (requiresEventDateForCompletion && eventDate == nil)
     }
 
     var needsReview: Bool {

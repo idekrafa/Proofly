@@ -164,7 +164,7 @@ struct ExportPreviewView: View {
             imageName: "RookExportReady",
             accentColor: ExportPagePalette.ready,
             title: "Your packet is ready",
-            subtitle: "About \(estimatedPageCount) pages with \(proofItemCountText) and your timeline."
+            subtitle: readyHeroSubtitle
         ) {
             VStack(alignment: .leading, spacing: 10) {
                 Button {
@@ -388,7 +388,7 @@ struct ExportPreviewView: View {
             VStack(spacing: 0) {
                 ExportDetailsRow(title: "Mode", value: exportMode.displayName)
                 ExportDetailsRow(title: "Proof items", value: "\(caseFile.evidenceItems.count)")
-                ExportDetailsRow(title: "Timeline", value: timelineReady ? "Included" : "Needs proof")
+                ExportDetailsRow(title: "Timeline", value: timelineExportValue)
                 ExportDetailsRow(title: "Attachments", value: attachmentCount == 0 ? "None" : "\(attachmentCount)")
                 ExportDetailsRow(title: "Watermark", value: watermarkSummary)
 
@@ -582,6 +582,30 @@ struct ExportPreviewView: View {
         return count == 1 ? "1 proof item" : "\(count) proof items"
     }
 
+    private var localStorageBaseDirectory: URL {
+        FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appending(path: "ProofKit")
+    }
+
+    private var readyHeroSubtitle: String {
+        switch exportMode {
+        case .cleanPacket:
+            "About \(estimatedPageCount) pages with rendered files only."
+        case .fullArchive:
+            "About \(estimatedPageCount) pages with \(proofItemCountText) and your timeline."
+        }
+    }
+
+    private var timelineExportValue: String {
+        switch exportMode {
+        case .cleanPacket:
+            "Not included"
+        case .fullArchive:
+            timelineReady ? "Included" : "Needs proof"
+        }
+    }
+
     private var attachmentCount: Int {
         caseFile.evidenceItems.reduce(0) { $0 + $1.attachments.count }
     }
@@ -599,19 +623,84 @@ struct ExportPreviewView: View {
             let textLength = evidenceItem.userNotes.count + evidenceItem.userCleanedNote.count + evidenceItem.userWhyThisMatters.count + evidenceItem.originalOCRText.count
             return count + max(0, Int(ceil(Double(textLength - 2_400) / 2_400.0)))
         }
+        let renderedFilePages = renderedAttachmentPageCount
         let statementPages = includeStatementPlaceholder ? 1 : 0
 
         switch exportMode {
         case .cleanPacket:
-            return 2 + timelinePages + statementPages
+            let blankFallbackPages = renderedFilePages == 0 && statementPages == 0 ? 1 : 0
+            return renderedFilePages + statementPages + blankFallbackPages
         case .fullArchive:
             let indexPages = max(1, Int(ceil(Double(max(evidenceCount, 1)) / 14.0)))
             let evidenceItemPages = evidenceCount
             let attachmentOverflowPages = caseFile.evidenceItems.reduce(0) { count, evidenceItem in
                 count + max(0, Int(ceil(Double(evidenceItem.attachments.count - 3) / 4.0)))
             }
-            return 2 + timelinePages + indexPages + evidenceItemPages + longTextOverflowPages + attachmentOverflowPages + statementPages
+            return 2 + timelinePages + indexPages + evidenceItemPages + longTextOverflowPages + attachmentOverflowPages + renderedFilePages + statementPages
         }
+    }
+
+    private var renderedAttachmentPageCount: Int {
+        caseFile.evidenceItems.reduce(0) { count, evidenceItem in
+            count + evidenceItem.attachments.reduce(0) { attachmentCount, attachment in
+                attachmentCount + renderedPageCount(for: attachment)
+            }
+        }
+    }
+
+    private func renderedPageCount(for attachment: Attachment) -> Int {
+        guard attachment.attachmentType == .pdf,
+              let documentURL = resolvedLocalFileURL(for: attachment.localFilePath),
+              let document = PDFDocument(url: documentURL)
+        else {
+            return 1
+        }
+
+        return max(1, document.pageCount)
+    }
+
+    private func resolvedLocalFileURL(for storedPath: String?) -> URL? {
+        guard let storedPath else { return nil }
+        let trimmedPath = storedPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty else { return nil }
+
+        var candidates: [URL] = []
+        appendResolvedURLCandidates(from: trimmedPath, to: &candidates)
+        if let decodedPath = trimmedPath.removingPercentEncoding, decodedPath != trimmedPath {
+            appendResolvedURLCandidates(from: decodedPath, to: &candidates)
+        }
+
+        let fileManager = FileManager.default
+        return candidates.first { candidate in
+            fileManager.fileExists(atPath: candidate.path(percentEncoded: false))
+        }
+    }
+
+    private func appendResolvedURLCandidates(from path: String, to candidates: inout [URL]) {
+        if let fileURL = URL(string: path), fileURL.isFileURL {
+            appendUniqueURL(fileURL, to: &candidates)
+        }
+
+        appendUniqueURL(URL(filePath: path), to: &candidates)
+
+        if let proofKitRange = path.range(of: "/ProofKit/") {
+            let relativePath = String(path[proofKitRange.upperBound...])
+            appendUniqueURL(localStorageBaseDirectory.appending(path: relativePath), to: &candidates)
+        } else if path.hasPrefix("ProofKit/") {
+            let relativePath = String(path.dropFirst("ProofKit/".count))
+            appendUniqueURL(localStorageBaseDirectory.appending(path: relativePath), to: &candidates)
+        } else if !path.hasPrefix("/") && !path.hasPrefix("file://") {
+            appendUniqueURL(localStorageBaseDirectory.appending(path: path), to: &candidates)
+        }
+    }
+
+    private func appendUniqueURL(_ url: URL, to candidates: inout [URL]) {
+        let path = url.path(percentEncoded: false)
+        guard !candidates.contains(where: { $0.path(percentEncoded: false) == path }) else {
+            return
+        }
+
+        candidates.append(url)
     }
 
     @MainActor
