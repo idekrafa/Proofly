@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import PDFKit
 import UIKit
 
@@ -638,10 +639,7 @@ private final class PDFCaseRenderer {
         evidenceNumber: Int,
         attachmentNumber: Int
     ) {
-        if attachment.attachmentType == .pdf,
-           let documentURL = resolvedLocalFileURL(for: attachment.localFilePath),
-           let document = PDFDocument(url: documentURL),
-           document.pageCount > 0 {
+        if let document = renderablePDFDocument(for: attachment) {
             for pageIndex in 0..<document.pageCount {
                 guard let page = document.page(at: pageIndex) else { continue }
                 drawRenderedPDFPage(
@@ -690,13 +688,28 @@ private final class PDFCaseRenderer {
             filePageCount: filePageCount > 1 ? filePageCount : nil
         )
 
-        let pageSize = page.bounds(for: .mediaBox).size
-        let canvasRect = renderedFileCanvasRect(for: pageSize)
-        let thumbnail = page.thumbnail(
-            of: CGSize(width: canvasRect.width * 2, height: canvasRect.height * 2),
-            for: .mediaBox
-        )
-        drawRenderableImage(thumbnail, sourceSize: pageSize)
+        let pageBounds = page.bounds(for: .mediaBox)
+        let canvasRect = renderedFileCanvasRect(for: pageBounds.size)
+        let contentRect = aspectFitRect(imageSize: pageBounds.size, in: canvasRect)
+
+        drawCanvasBorder(canvasRect)
+
+        guard pageBounds.width > 0,
+              pageBounds.height > 0,
+              let graphicsContext = UIGraphicsGetCurrentContext() else {
+            return
+        }
+
+        let scale = min(contentRect.width / pageBounds.width, contentRect.height / pageBounds.height)
+        guard scale.isFinite, scale > 0 else { return }
+
+        graphicsContext.saveGState()
+        UIBezierPath(rect: canvasRect).addClip()
+        graphicsContext.translateBy(x: contentRect.minX, y: contentRect.maxY)
+        graphicsContext.scaleBy(x: scale, y: -scale)
+        graphicsContext.translateBy(x: -pageBounds.minX, y: -pageBounds.minY)
+        page.draw(with: .mediaBox, to: graphicsContext)
+        graphicsContext.restoreGState()
     }
 
     private func beginRenderedFilePage(
@@ -776,6 +789,15 @@ private final class PDFCaseRenderer {
         let canvasRect = renderedFileCanvasRect(for: sourceSize)
         let imageRect = aspectFitRect(imageSize: image.size, in: canvasRect)
 
+        drawCanvasBorder(canvasRect)
+
+        graphicsContext.saveGState()
+        UIBezierPath(rect: canvasRect).addClip()
+        image.draw(in: imageRect)
+        graphicsContext.restoreGState()
+    }
+
+    private func drawCanvasBorder(_ canvasRect: CGRect) {
         drawLine(
             from: CGPoint(x: canvasRect.minX, y: canvasRect.minY),
             to: CGPoint(x: canvasRect.maxX, y: canvasRect.minY),
@@ -804,11 +826,6 @@ private final class PDFCaseRenderer {
             alpha: 0.26,
             lineWidth: 0.5
         )
-
-        graphicsContext.saveGState()
-        UIBezierPath(rect: canvasRect).addClip()
-        image.draw(in: imageRect)
-        graphicsContext.restoreGState()
     }
 
     private func drawUnrenderableAttachmentPlaceholder(_ attachment: Attachment) {
@@ -1256,14 +1273,55 @@ private final class PDFCaseRenderer {
             }
         }
 
-        if attachment.attachmentType == .pdf,
-           let documentURL = resolvedLocalFileURL(for: attachment.localFilePath),
-           let document = PDFDocument(url: documentURL),
+        if let document = renderablePDFDocument(for: attachment),
            let page = document.page(at: 0) {
             return page.thumbnail(of: CGSize(width: 480, height: 480), for: .mediaBox)
         }
 
         return nil
+    }
+
+    private func renderablePDFDocument(for attachment: Attachment) -> PDFDocument? {
+        guard attachmentCanBePDF(attachment),
+              let documentURL = resolvedLocalFileURL(for: attachment.localFilePath),
+              let document = PDFDocument(url: documentURL),
+              document.pageCount > 0 else {
+            return nil
+        }
+
+        return document
+    }
+
+    private func attachmentCanBePDF(_ attachment: Attachment) -> Bool {
+        if attachment.attachmentType == .pdf {
+            return true
+        }
+
+        if isPDFTypeIdentifier(attachment.uniformTypeIdentifier) {
+            return true
+        }
+
+        let localFileExtension = URL(filePath: attachment.localFilePath).pathExtension
+        let originalFileExtension = URL(filePath: attachment.originalFilename).pathExtension
+        if localFileExtension.caseInsensitiveCompare("pdf") == .orderedSame ||
+            originalFileExtension.caseInsensitiveCompare("pdf") == .orderedSame {
+            return true
+        }
+
+        return attachment.attachmentType == .document || attachment.attachmentType == .other
+    }
+
+    private func isPDFTypeIdentifier(_ value: String?) -> Bool {
+        guard let normalized = value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+              !normalized.isEmpty else {
+            return false
+        }
+
+        return normalized == "com.adobe.pdf" ||
+            normalized == "public.pdf" ||
+            normalized.contains("pdf")
     }
 
     private func renderableImage(for attachment: Attachment) -> UIImage? {
@@ -1284,15 +1342,26 @@ private final class PDFCaseRenderer {
 
     private func image(at url: URL) -> UIImage? {
         let path = url.path(percentEncoded: false)
-        if let image = UIImage(contentsOfFile: path) {
+        if let image = UIImage(contentsOfFile: path),
+           image.size.width > 0,
+           image.size.height > 0 {
             return image
         }
 
-        guard let data = try? Data(contentsOf: url) else {
+        if let data = try? Data(contentsOf: url),
+           let image = UIImage(data: data),
+           image.size.width > 0,
+           image.size.height > 0 {
+            return image
+        }
+
+        let options = [kCGImageSourceShouldCache: true] as CFDictionary
+        guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, options),
+              let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, options) else {
             return nil
         }
 
-        return UIImage(data: data)
+        return UIImage(cgImage: cgImage)
     }
 
     private func resolvedLocalFileURL(for storedPath: String?) -> URL? {
@@ -1389,6 +1458,7 @@ private final class PDFCaseRenderer {
 
     private func finishOpenPageIfNeeded() {
         guard hasOpenPage else { return }
+        drawTopWatermark()
         drawPageFooter()
         hasOpenPage = false
     }
@@ -1425,6 +1495,18 @@ private final class PDFCaseRenderer {
         }
 
         drawRule(y: headerBottom, color: .pdfDivider, alpha: 0.75, lineWidth: 0.6)
+    }
+
+    private func drawTopWatermark() {
+        guard request.includeProofKitWatermark else { return }
+
+        drawText(
+            "proofly",
+            in: CGRect(x: margin, y: 16, width: contentWidth, height: 14),
+            font: .systemFont(ofSize: 9.2, weight: .semibold),
+            color: UIColor.pdfTertiary.withAlphaComponent(0.42),
+            alignment: .center
+        )
     }
 
     private func drawPageFooter() {

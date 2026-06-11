@@ -611,7 +611,7 @@ struct ExportPreviewView: View {
     }
 
     private var watermarkSummary: String {
-        exportAccess.isWatermarked ? "Footer only" : "None"
+        exportAccess.isWatermarked ? "Top + footer" : "None"
     }
 
     private var estimatedPageCount: Int {
@@ -649,7 +649,7 @@ struct ExportPreviewView: View {
     }
 
     private func renderedPageCount(for attachment: Attachment) -> Int {
-        guard attachment.attachmentType == .pdf,
+        guard attachmentCanBePDF(attachment),
               let documentURL = resolvedLocalFileURL(for: attachment.localFilePath),
               let document = PDFDocument(url: documentURL)
         else {
@@ -657,6 +657,38 @@ struct ExportPreviewView: View {
         }
 
         return max(1, document.pageCount)
+    }
+
+    private func attachmentCanBePDF(_ attachment: Attachment) -> Bool {
+        if attachment.attachmentType == .pdf {
+            return true
+        }
+
+        if isPDFTypeIdentifier(attachment.uniformTypeIdentifier) {
+            return true
+        }
+
+        let localFileExtension = URL(filePath: attachment.localFilePath).pathExtension
+        let originalFileExtension = URL(filePath: attachment.originalFilename).pathExtension
+        if localFileExtension.caseInsensitiveCompare("pdf") == .orderedSame ||
+            originalFileExtension.caseInsensitiveCompare("pdf") == .orderedSame {
+            return true
+        }
+
+        return attachment.attachmentType == .document || attachment.attachmentType == .other
+    }
+
+    private func isPDFTypeIdentifier(_ value: String?) -> Bool {
+        guard let normalized = value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+              !normalized.isEmpty else {
+            return false
+        }
+
+        return normalized == "com.adobe.pdf" ||
+            normalized == "public.pdf" ||
+            normalized.contains("pdf")
     }
 
     private func resolvedLocalFileURL(for storedPath: String?) -> URL? {
@@ -807,9 +839,9 @@ struct ExportPreviewView: View {
             "aiUsed": false,
             "paywallPlan": access.plan.rawValue,
             "watermarked": access.isWatermarked,
-            "watermarkPlacement": access.isWatermarked ? "footer" : "none",
+            "watermarkPlacement": access.isWatermarked ? "top+footer" : "none",
             "diagonalWatermark": false,
-            "freeExportWatermark": access.isWatermarked ? "Footer: Generated with Proofly" : ""
+            "freeExportWatermark": access.isWatermarked ? "Top: proofly; Footer: Generated with Proofly" : ""
         ]
 
         guard let data = try? JSONSerialization.data(withJSONObject: values, options: [.sortedKeys]),
@@ -828,7 +860,7 @@ struct ExportPreviewView: View {
     private var exportPlanMessage: String {
         switch exportAccess.plan {
         case .free:
-            "Exports without active Pro add a small footer-only Proofly mark. No diagonal watermark."
+            "Exports without active Pro add a small top Proofly mark and footer mark. No diagonal watermark."
         case .paidUrgentExport:
             "Paid Urgent Export creates one final PDF for this case without a Proofly watermark."
         case .pro:
