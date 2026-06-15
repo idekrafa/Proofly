@@ -1,6 +1,8 @@
+import CryptoKit
 import PDFKit
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct ExportPreviewView: View {
     @Environment(\.modelContext) private var modelContext
@@ -19,6 +21,10 @@ struct ExportPreviewView: View {
     @State private var exportAccess = ProofKitExportAccess.placeholderFree
     @State private var showMissingItems = true
     @State private var isPacketDetailsExpanded = false
+    @State private var signatureConfiguration: ExportSignatureConfiguration?
+    @State private var isSignatureSheetPresented = false
+    @State private var isSignaturePaywallPresented = false
+    @State private var shouldOpenSignatureAfterPaywall = false
 
     init(
         caseFile: CaseFile,
@@ -95,6 +101,23 @@ struct ExportPreviewView: View {
         .animation(ProofKitMotion.standard, value: exportScreenStateID)
         .task {
             await refreshExportAccess()
+        }
+        .sheet(isPresented: $isSignatureSheetPresented) {
+            SignatureCaptureView(
+                initialPage: signatureConfiguration?.page ?? .lastPage,
+                initialPlacement: signatureConfiguration?.placement ?? .lowerRight
+            ) { image, page, placement in
+                completeSignature(image: image, page: page, placement: placement)
+            }
+        }
+        .sheet(isPresented: $isSignaturePaywallPresented, onDismiss: openSignatureAfterPaywallIfNeeded) {
+            PaywallView {
+                await refreshExportAccess()
+                let entitlement = await services.paywall.currentEntitlement()
+                if entitlement.plan == .pro {
+                    shouldOpenSignatureAfterPaywall = true
+                }
+            }
         }
     }
 
@@ -213,12 +236,14 @@ struct ExportPreviewView: View {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 10) {
                         viewPacketButton(url: url)
+                        signPacketButton()
                         sharePacketLink(url: url)
                     }
                     .frame(maxWidth: .infinity)
 
                     VStack(spacing: 10) {
                         viewPacketButton(url: url)
+                        signPacketButton()
                         sharePacketLink(url: url)
                     }
                     .frame(maxWidth: .infinity)
@@ -266,6 +291,21 @@ struct ExportPreviewView: View {
         }
         .buttonStyle(.bordered)
         .controlSize(.large)
+    }
+
+    private func signPacketButton() -> some View {
+        Button {
+            Task { await beginSignatureFlow() }
+        } label: {
+            ExportActionLabel(
+                title: signatureConfiguration == nil ? "Sign" : "Edit Signature",
+                systemImage: "signature"
+            )
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .disabled(isExporting)
     }
 
     private func exportHeroCard<Content: View>(
@@ -391,6 +431,10 @@ struct ExportPreviewView: View {
                 ExportDetailsRow(title: "Timeline", value: timelineExportValue)
                 ExportDetailsRow(title: "Attachments", value: attachmentCount == 0 ? "None" : "\(attachmentCount)")
                 ExportDetailsRow(title: "Watermark", value: watermarkSummary)
+                ExportDetailsRow(title: "Signature", value: signatureSummary)
+                if let signatureConfiguration {
+                    ExportDetailsRow(title: "Signature token", value: signatureConfiguration.validationToken)
+                }
 
                 Picker("Export mode", selection: $exportMode) {
                     ForEach(PDFExportMode.allCases) { mode in
@@ -423,6 +467,9 @@ struct ExportPreviewView: View {
                 }
                 .tint(ExportPagePalette.ready)
                 .padding(.vertical, 11)
+
+                signatureControls
+                    .padding(.vertical, 8)
 
                 Text(exportPlanMessage)
                     .font(.caption)
@@ -759,7 +806,8 @@ struct ExportPreviewView: View {
                     destinationDirectory: exportDirectory,
                     exportMode: exportMode,
                     includeStatementPlaceholder: includeStatementPlaceholder,
-                    includeProofKitWatermark: access.isWatermarked
+                    includeProofKitWatermark: access.isWatermarked,
+                    signatureStamp: access.plan == .pro ? signatureConfiguration?.stamp : nil
                 )
             )
 
@@ -841,7 +889,12 @@ struct ExportPreviewView: View {
             "watermarked": access.isWatermarked,
             "watermarkPlacement": access.isWatermarked ? "top+footer" : "none",
             "diagonalWatermark": false,
-            "freeExportWatermark": access.isWatermarked ? "Top: proofly; Footer: Generated with Proofly" : ""
+            "freeExportWatermark": access.isWatermarked ? "Top: proofly; Footer: Generated with Proofly" : "",
+            "signatureIncluded": access.plan == .pro && signatureConfiguration != nil,
+            "signaturePage": signatureConfiguration?.page.rawValue ?? "",
+            "signaturePlacement": signatureConfiguration?.placement.rawValue ?? "",
+            "signatureSignedAt": signatureConfiguration.map { Self.exportOptionDateFormatter.string(from: $0.signedAt) } ?? "",
+            "signatureValidationToken": signatureConfiguration?.validationToken ?? ""
         ]
 
         guard let data = try? JSONSerialization.data(withJSONObject: values, options: [.sortedKeys]),
@@ -866,6 +919,132 @@ struct ExportPreviewView: View {
         case .pro:
             "Pro export creates PDFs without a Proofly watermark."
         }
+    }
+
+    private var signatureSummary: String {
+        guard let signatureConfiguration else {
+            return "Not added"
+        }
+
+        return "\(signatureConfiguration.page.displayName), \(signatureConfiguration.placement.displayName.lowercased())"
+    }
+
+    private var signatureControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Label("PDF signature", systemImage: "signature")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Spacer(minLength: 12)
+
+                Button {
+                    Task { await beginSignatureFlow() }
+                } label: {
+                    Label(signatureConfiguration == nil ? "Add" : "Edit", systemImage: signatureConfiguration == nil ? "plus" : "pencil")
+                        .font(.footnote.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+            }
+
+            if let signatureConfiguration {
+                HStack(spacing: 12) {
+                    Image(uiImage: signatureConfiguration.image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 128, height: 54)
+                        .padding(6)
+                        .background {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(ProofKitVisual.fieldBackground)
+                        }
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(ProofKitVisual.cardBorder, lineWidth: 1)
+                        }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(signatureSummary)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.primary)
+
+                        Text("Token \(signatureConfiguration.validationToken)")
+                            .font(.caption2.monospaced().weight(.medium))
+                            .foregroundStyle(ProofKitVisual.subduedText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
+
+                        Button("Remove signature") {
+                            withAnimation(ProofKitMotion.standard) {
+                                self.signatureConfiguration = nil
+                            }
+                        }
+                        .font(.caption.weight(.semibold))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.red)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: exportAccess.plan == .pro ? "checkmark.seal" : "lock")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(exportAccess.plan == .pro ? ExportPagePalette.ready : ProofKitVisual.helperText)
+
+                    Text(exportAccess.plan == .pro ? "Draw and place a signature before generating." : "Available with Pro.")
+                        .font(.caption)
+                        .foregroundStyle(ProofKitVisual.subduedText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func completeSignature(image: UIImage, page: PDFSignaturePage, placement: PDFSignaturePlacement) {
+        let signedAt = Date()
+        let validationToken = Self.signatureValidationToken(
+            image: image,
+            caseID: caseFile.id,
+            page: page,
+            placement: placement,
+            signedAt: signedAt
+        )
+        let shouldGenerateSignedPDF = generatedExport != nil
+
+        signatureConfiguration = ExportSignatureConfiguration(
+            image: image,
+            page: page,
+            placement: placement,
+            signedAt: signedAt,
+            validationToken: validationToken
+        )
+        isSignatureSheetPresented = false
+
+        guard shouldGenerateSignedPDF else { return }
+        Task { await generatePDF() }
+    }
+
+    @MainActor
+    private func beginSignatureFlow() async {
+        let entitlement = await services.paywall.currentEntitlement()
+        await refreshExportAccess()
+
+        guard entitlement.plan == .pro else {
+            shouldOpenSignatureAfterPaywall = false
+            isSignaturePaywallPresented = true
+            return
+        }
+
+        isSignatureSheetPresented = true
+    }
+
+    @MainActor
+    private func openSignatureAfterPaywallIfNeeded() {
+        guard shouldOpenSignatureAfterPaywall else { return }
+        shouldOpenSignatureAfterPaywall = false
+        isSignatureSheetPresented = true
     }
 
     private func localURL(for caseExport: ExportPacket) -> URL? {
@@ -905,12 +1084,61 @@ struct ExportPreviewView: View {
         formatter.countStyle = .file
         return formatter
     }()
+
+    private static let exportOptionDateFormatter = ISO8601DateFormatter()
+
+    private static func signatureValidationToken(
+        image: UIImage,
+        caseID: UUID,
+        page: PDFSignaturePage,
+        placement: PDFSignaturePlacement,
+        signedAt: Date
+    ) -> String {
+        let imageData = image.pngData() ?? image.jpegData(compressionQuality: 0.95) ?? Data()
+        let imageDigest = SHA256.hash(data: imageData)
+            .map { String(format: "%02x", $0) }
+            .joined()
+        let payload = [
+            caseID.uuidString,
+            page.rawValue,
+            placement.rawValue,
+            String(format: "%.3f", signedAt.timeIntervalSince1970),
+            String(imageDigest.prefix(24))
+        ].joined(separator: "|")
+        let tokenDigest = SHA256.hash(data: Data(payload.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+            .uppercased()
+        let characters = Array(tokenDigest.prefix(16)).map(String.init)
+        let groups = stride(from: 0, to: characters.count, by: 4).map { startIndex in
+            characters[startIndex..<min(startIndex + 4, characters.count)].joined()
+        }
+        return "PK-SIG-\(groups.joined(separator: "-"))"
+    }
 }
 
 private enum ExportScreenState {
     case almostReady
     case ready
     case generated(ExportPacket, URL)
+}
+
+private struct ExportSignatureConfiguration {
+    let image: UIImage
+    let page: PDFSignaturePage
+    let placement: PDFSignaturePlacement
+    let signedAt: Date
+    let validationToken: String
+
+    var stamp: PDFSignatureStamp {
+        PDFSignatureStamp(
+            image: image,
+            page: page,
+            placement: placement,
+            signedAt: signedAt,
+            validationToken: validationToken
+        )
+    }
 }
 
 private enum ExportPagePalette {

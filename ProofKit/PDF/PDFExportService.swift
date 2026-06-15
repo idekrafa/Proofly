@@ -18,6 +18,7 @@ struct PDFExportRequest {
     let exportMode: PDFExportMode
     let includeStatementPlaceholder: Bool
     let includeProofKitWatermark: Bool
+    let signatureStamp: PDFSignatureStamp?
     let generatedAt: Date
 
     init(
@@ -26,6 +27,7 @@ struct PDFExportRequest {
         exportMode: PDFExportMode = .cleanPacket,
         includeStatementPlaceholder: Bool = false,
         includeProofKitWatermark: Bool = true,
+        signatureStamp: PDFSignatureStamp? = nil,
         generatedAt: Date = .now
     ) {
         self.caseFile = caseFile
@@ -33,7 +35,60 @@ struct PDFExportRequest {
         self.exportMode = exportMode
         self.includeStatementPlaceholder = includeStatementPlaceholder
         self.includeProofKitWatermark = includeProofKitWatermark
+        self.signatureStamp = signatureStamp
         self.generatedAt = generatedAt
+    }
+}
+
+struct PDFSignatureStamp {
+    let image: UIImage
+    let page: PDFSignaturePage
+    let placement: PDFSignaturePlacement
+    let signedAt: Date
+    let validationToken: String
+}
+
+enum PDFSignaturePage: String, CaseIterable, Hashable, Identifiable {
+    case firstPage
+    case lastPage
+    case everyPage
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .firstPage:
+            "First page"
+        case .lastPage:
+            "Last page"
+        case .everyPage:
+            "Every page"
+        }
+    }
+}
+
+enum PDFSignaturePlacement: String, CaseIterable, Hashable, Identifiable {
+    case upperLeft
+    case upperRight
+    case center
+    case lowerLeft
+    case lowerRight
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .upperLeft:
+            "Upper left"
+        case .upperRight:
+            "Upper right"
+        case .center:
+            "Center"
+        case .lowerLeft:
+            "Lower left"
+        case .lowerRight:
+            "Lower right"
+        }
     }
 }
 
@@ -223,11 +278,16 @@ private final class PDFCaseRenderer {
 
     func render(to destinationURL: URL) throws {
         let format = UIGraphicsPDFRendererFormat()
-        format.documentInfo = [
+        var documentInfo: [String: Any] = [
             kCGPDFContextTitle as String: caseTitleValue,
             kCGPDFContextCreator as String: "Proofly",
             kCGPDFContextAuthor as String: "Proofly"
         ]
+        if let signatureStamp = request.signatureStamp {
+            documentInfo[kCGPDFContextSubject as String] = "Signed with Proofly token \(signatureStamp.validationToken)"
+            documentInfo[kCGPDFContextKeywords as String] = "Proofly signed PDF, signature token \(signatureStamp.validationToken)"
+        }
+        format.documentInfo = documentInfo
 
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect, format: format)
         try renderer.writePDF(to: destinationURL) { context in
@@ -250,7 +310,7 @@ private final class PDFCaseRenderer {
                 drawBlankRenderedFilePage(context)
             }
 
-            finishOpenPageIfNeeded()
+            finishOpenPageIfNeeded(isFinalPage: true)
         }
     }
 
@@ -1456,11 +1516,68 @@ private final class PDFCaseRenderer {
         cursorY = headerBottom + 20
     }
 
-    private func finishOpenPageIfNeeded() {
+    private func finishOpenPageIfNeeded(isFinalPage: Bool = false) {
         guard hasOpenPage else { return }
+        drawSignatureIfNeeded(isFinalPage: isFinalPage)
         drawTopWatermark()
         drawPageFooter()
         hasOpenPage = false
+    }
+
+    private func drawSignatureIfNeeded(isFinalPage: Bool) {
+        guard let signatureStamp = request.signatureStamp,
+              shouldDrawSignature(signatureStamp, isFinalPage: isFinalPage) else {
+            return
+        }
+
+        let signatureRect = signatureRect(for: signatureStamp)
+        let imageBounds = signatureRect.insetBy(dx: 0, dy: 0)
+            .divided(atDistance: 58, from: .minYEdge)
+            .slice
+        let imageRect = aspectFitRect(imageSize: signatureStamp.image.size, in: imageBounds)
+        guard imageRect.width > 0, imageRect.height > 0 else { return }
+
+        signatureStamp.image.draw(in: imageRect, blendMode: .normal, alpha: 0.96)
+        drawText(
+            "Proofly signature token: \(signatureStamp.validationToken)",
+            in: CGRect(x: signatureRect.minX, y: imageBounds.maxY + 3, width: signatureRect.width, height: 18),
+            font: .monospacedSystemFont(ofSize: 5.6, weight: .medium),
+            color: UIColor.pdfSecondary.withAlphaComponent(0.82),
+            alignment: .center
+        )
+    }
+
+    private func shouldDrawSignature(_ signatureStamp: PDFSignatureStamp, isFinalPage: Bool) -> Bool {
+        switch signatureStamp.page {
+        case .firstPage:
+            pageNumber == 1
+        case .lastPage:
+            isFinalPage
+        case .everyPage:
+            true
+        }
+    }
+
+    private func signatureRect(for signatureStamp: PDFSignatureStamp) -> CGRect {
+        let maxSize = CGSize(width: 176, height: 80)
+        let horizontalInset = margin + 10
+        let upperY = headerBottom + 22
+        let lowerY = pageRect.height - 126
+        let centerY = (pageRect.height - maxSize.height) / 2
+        let centerX = (pageRect.width - maxSize.width) / 2
+
+        switch signatureStamp.placement {
+        case .upperLeft:
+            return CGRect(x: horizontalInset, y: upperY, width: maxSize.width, height: maxSize.height)
+        case .upperRight:
+            return CGRect(x: pageRect.maxX - horizontalInset - maxSize.width, y: upperY, width: maxSize.width, height: maxSize.height)
+        case .center:
+            return CGRect(x: centerX, y: centerY, width: maxSize.width, height: maxSize.height)
+        case .lowerLeft:
+            return CGRect(x: horizontalInset, y: lowerY, width: maxSize.width, height: maxSize.height)
+        case .lowerRight:
+            return CGRect(x: pageRect.maxX - horizontalInset - maxSize.width, y: lowerY, width: maxSize.width, height: maxSize.height)
+        }
     }
 
     private func ensureSpace(_ neededHeight: CGFloat, context: UIGraphicsPDFRendererContext) {
