@@ -121,6 +121,15 @@ enum EvidenceCategory: String, CaseIterable, Codable, Identifiable {
             "Something Else"
         }
     }
+
+    var requiresEventDateForCompletion: Bool {
+        switch self {
+        case .document, .contract, .other:
+            false
+        case .uncategorized, .screenshot, .photo, .message, .email, .receipt, .note:
+            true
+        }
+    }
 }
 
 enum AttachmentType: String, CaseIterable, Codable, Identifiable {

@@ -83,6 +83,7 @@ enum CaseReadinessCalculator {
         let activeSkippedIDs = Set(evidenceItems.map(\.id)).intersection(skippedEvidenceIDs)
         let proofItemCount = evidenceItems.count
         let reviewedItemCount = evidenceItems.filter(\.isReviewed).count
+        let dateRequiredTimelineItemCount = evidenceItems.filter(\.requiresEventDateForCompletion).count
         let unreviewedItems = evidenceItems.filter { evidenceItem in
             evidenceItem.needsReview && !activeSkippedIDs.contains(evidenceItem.id)
         }
@@ -99,8 +100,10 @@ enum CaseReadinessCalculator {
         let hasProofTextOrManualNote = evidenceItems.contains(where: \.hasReadinessTextOrManualNote)
         let hasNoUnreviewedImportedItems = unreviewedItems.isEmpty
         let allProofItemsHandled = proofItemCount > 0 && unreviewedItems.isEmpty
-        let hasTimelineDate = datedTimelineItemCount > 0
-        let hasTimelineDepthOrStrongItem = datedTimelineItemCount >= 2 ||
+        let hasDateRequiredTimelineItems = dateRequiredTimelineItemCount > 0
+        let hasTimelineDate = !hasDateRequiredTimelineItems || datedTimelineItemCount > 0
+        let hasTimelineDepthOrStrongItem = !hasDateRequiredTimelineItems ||
+            datedTimelineItemCount >= 2 ||
             evidenceItems.contains(where: \.isStrongReadinessTimelineItem)
         let importantItemsHaveLabels = evidenceItems.importantReadinessItemsHaveLabels
         let hasExportablePDF = hasTitle && proofItemCount > 0 && unreviewedItems.isEmpty

@@ -2,3 +2,6 @@ project_id = "zvwixgdclmrhopsbuqld"
 
 [functions.revenuecat-webhook]
 verify_jwt = false
+
+[functions.verify-signature-token]
+verify_jwt = false

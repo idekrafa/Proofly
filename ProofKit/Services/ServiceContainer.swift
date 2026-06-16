@@ -9,6 +9,7 @@ struct ServiceContainer {
     let aiCredits: any AICreditTrackingServicing
     let aiProxy: any AIProxyServicing
     let purchaseEntitlements: any PurchaseEntitlementServicing
+    let signatureValidation: any PDFSignatureValidationServicing
     let subscriptions: any SubscriptionServicing
     let paywall: any PaywallServicing
     let aiRouter: any AITaskRoutingServicing
@@ -51,6 +52,7 @@ struct ServiceContainer {
         aiCredits: supabaseInfrastructure,
         aiProxy: supabaseInfrastructure,
         purchaseEntitlements: supabaseInfrastructure,
+        signatureValidation: supabaseInfrastructure,
         subscriptions: subscriptionService,
         paywall: paywallService,
         aiRouter: aiTaskRouter,
@@ -72,6 +74,7 @@ struct ServiceContainer {
             aiCredits: aiCredits,
             aiProxy: aiProxy,
             purchaseEntitlements: purchaseEntitlements,
+            signatureValidation: signatureValidation,
             subscriptions: subscriptions,
             paywall: paywall,
             aiRouter: aiRouter,

@@ -52,3 +52,9 @@ protocol AIProxyServicing {
 protocol PurchaseEntitlementServicing {
     func fetchPurchaseEntitlements() async throws -> [PurchaseEntitlementRecord]
 }
+
+protocol PDFSignatureValidationServicing {
+    func issuePDFSignatureToken(_ request: PDFSignatureTokenIssueRequest) async throws -> PDFSignatureTokenIssueResponse
+    func finalizePDFSignatureToken(_ request: PDFSignatureTokenFinalizeRequest) async throws -> PDFSignatureTokenVerifyResponse
+    func verifyPDFSignatureToken(_ request: PDFSignatureTokenVerifyRequest) async throws -> PDFSignatureTokenVerifyResponse
+}

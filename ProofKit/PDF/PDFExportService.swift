@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import PDFKit
 import UIKit
 
@@ -17,6 +18,7 @@ struct PDFExportRequest {
     let exportMode: PDFExportMode
     let includeStatementPlaceholder: Bool
     let includeProofKitWatermark: Bool
+    let signatureStamp: PDFSignatureStamp?
     let generatedAt: Date
 
     init(
@@ -25,6 +27,7 @@ struct PDFExportRequest {
         exportMode: PDFExportMode = .cleanPacket,
         includeStatementPlaceholder: Bool = false,
         includeProofKitWatermark: Bool = true,
+        signatureStamp: PDFSignatureStamp? = nil,
         generatedAt: Date = .now
     ) {
         self.caseFile = caseFile
@@ -32,7 +35,65 @@ struct PDFExportRequest {
         self.exportMode = exportMode
         self.includeStatementPlaceholder = includeStatementPlaceholder
         self.includeProofKitWatermark = includeProofKitWatermark
+        self.signatureStamp = signatureStamp
         self.generatedAt = generatedAt
+    }
+}
+
+struct PDFSignatureStamp {
+    let image: UIImage
+    let page: PDFSignaturePage
+    let placement: PDFSignaturePlacement
+    let signedAt: Date
+    let validationToken: String
+    let encryptedManifest: String
+    let manifestSignature: String
+    let manifestSHA256: String
+    let algorithm: String
+    let keyVersion: String
+}
+
+enum PDFSignaturePage: String, CaseIterable, Hashable, Identifiable {
+    case firstPage
+    case lastPage
+    case everyPage
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .firstPage:
+            "First page"
+        case .lastPage:
+            "Last page"
+        case .everyPage:
+            "Every page"
+        }
+    }
+}
+
+enum PDFSignaturePlacement: String, CaseIterable, Hashable, Identifiable {
+    case upperLeft
+    case upperRight
+    case center
+    case lowerLeft
+    case lowerRight
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .upperLeft:
+            "Upper left"
+        case .upperRight:
+            "Upper right"
+        case .center:
+            "Center"
+        case .lowerLeft:
+            "Lower left"
+        case .lowerRight:
+            "Lower right"
+        }
     }
 }
 
@@ -54,9 +115,9 @@ enum PDFExportMode: String, CaseIterable, Hashable, Identifiable {
     var shortDescription: String {
         switch self {
         case .cleanPacket:
-            "Compact timeline with previews"
+            "Rendered files only on blank pages"
         case .fullArchive:
-            "Adds full exhibit pages and metadata"
+            "Adds cover, timeline, index, notes, metadata, and rendered files"
         }
     }
 }
@@ -187,6 +248,12 @@ private final class PDFCaseRenderer {
         pageRect.width - (margin * 2)
     }
 
+    private var localStorageBaseDirectory: URL {
+        FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appending(path: "ProofKit")
+    }
+
     private var evidenceItems: [EvidenceItem] {
         caseFile.evidenceItems.sorted { lhs, rhs in
             let lhsDate = localEventDate(for: lhs) ?? lhs.createdAt
@@ -216,27 +283,45 @@ private final class PDFCaseRenderer {
 
     func render(to destinationURL: URL) throws {
         let format = UIGraphicsPDFRendererFormat()
-        format.documentInfo = [
+        var documentInfo: [String: Any] = [
             kCGPDFContextTitle as String: caseTitleValue,
             kCGPDFContextCreator as String: "Proofly",
             kCGPDFContextAuthor as String: "Proofly"
         ]
+        if let signatureStamp = request.signatureStamp {
+            documentInfo[kCGPDFContextSubject as String] = "Signed with Proofly token \(signatureStamp.validationToken)"
+            documentInfo[kCGPDFContextKeywords as String] = "Proofly signed PDF, signature token \(signatureStamp.validationToken)"
+            documentInfo["ProoflySignatureToken"] = signatureStamp.validationToken
+            documentInfo["ProoflySignatureAlgorithm"] = signatureStamp.algorithm
+            documentInfo["ProoflySignatureKeyVersion"] = signatureStamp.keyVersion
+            documentInfo["ProoflySignatureManifestSHA256"] = signatureStamp.manifestSHA256
+            documentInfo["ProoflySignatureManifestSignature"] = signatureStamp.manifestSignature
+            documentInfo["ProoflySignatureEncryptedManifest"] = signatureStamp.encryptedManifest
+        }
+        format.documentInfo = documentInfo
 
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect, format: format)
         try renderer.writePDF(to: destinationURL) { context in
-            drawCoverPage(context)
-            drawCaseSummaryAndTimelinePages(context)
-
-            if request.exportMode == .fullArchive {
+            switch request.exportMode {
+            case .cleanPacket:
+                drawRenderedAttachmentPages(context)
+            case .fullArchive:
+                drawCoverPage(context)
+                drawCaseSummaryAndTimelinePages(context)
                 drawEvidenceIndexPages(context)
                 drawEvidenceItemPages(context)
+                drawRenderedAttachmentPages(context)
             }
 
             if request.includeStatementPlaceholder {
                 drawStatementPlaceholderPage(context)
             }
 
-            finishOpenPageIfNeeded()
+            if pageNumber == 0 {
+                drawBlankRenderedFilePage(context)
+            }
+
+            finishOpenPageIfNeeded(isFinalPage: true)
         }
     }
 
@@ -604,6 +689,232 @@ private final class PDFCaseRenderer {
         for (index, attachment) in attachments.enumerated() {
             drawAttachmentCard(context, attachment: attachment, attachmentNumber: index + 1)
         }
+    }
+
+    private func drawRenderedAttachmentPages(_ context: UIGraphicsPDFRendererContext) {
+        for (evidenceIndex, evidenceItem) in evidenceItems.enumerated() {
+            for (attachmentIndex, attachment) in evidenceItem.sortedAttachments.enumerated() {
+                drawRenderedAttachment(
+                    context,
+                    attachment: attachment,
+                    evidenceNumber: evidenceIndex + 1,
+                    attachmentNumber: attachmentIndex + 1
+                )
+            }
+        }
+    }
+
+    private func drawRenderedAttachment(
+        _ context: UIGraphicsPDFRendererContext,
+        attachment: Attachment,
+        evidenceNumber: Int,
+        attachmentNumber: Int
+    ) {
+        if let document = renderablePDFDocument(for: attachment) {
+            for pageIndex in 0..<document.pageCount {
+                guard let page = document.page(at: pageIndex) else { continue }
+                drawRenderedPDFPage(
+                    context,
+                    page: page,
+                    attachment: attachment,
+                    evidenceNumber: evidenceNumber,
+                    attachmentNumber: attachmentNumber,
+                    pageNumberInFile: pageIndex + 1,
+                    filePageCount: document.pageCount
+                )
+            }
+            return
+        }
+
+        beginRenderedFilePage(
+            context,
+            attachment: attachment,
+            evidenceNumber: evidenceNumber,
+            attachmentNumber: attachmentNumber
+        )
+
+        guard let image = renderableImage(for: attachment) else {
+            drawUnrenderableAttachmentPlaceholder(attachment)
+            return
+        }
+
+        drawRenderableImage(image, sourceSize: image.size)
+    }
+
+    private func drawRenderedPDFPage(
+        _ context: UIGraphicsPDFRendererContext,
+        page: PDFPage,
+        attachment: Attachment,
+        evidenceNumber: Int,
+        attachmentNumber: Int,
+        pageNumberInFile: Int,
+        filePageCount: Int
+    ) {
+        beginRenderedFilePage(
+            context,
+            attachment: attachment,
+            evidenceNumber: evidenceNumber,
+            attachmentNumber: attachmentNumber,
+            pageNumberInFile: filePageCount > 1 ? pageNumberInFile : nil,
+            filePageCount: filePageCount > 1 ? filePageCount : nil
+        )
+
+        let pageBounds = page.bounds(for: .mediaBox)
+        let canvasRect = renderedFileCanvasRect(for: pageBounds.size)
+        let contentRect = aspectFitRect(imageSize: pageBounds.size, in: canvasRect)
+
+        drawCanvasBorder(canvasRect)
+
+        guard pageBounds.width > 0,
+              pageBounds.height > 0,
+              let graphicsContext = UIGraphicsGetCurrentContext() else {
+            return
+        }
+
+        let scale = min(contentRect.width / pageBounds.width, contentRect.height / pageBounds.height)
+        guard scale.isFinite, scale > 0 else { return }
+
+        graphicsContext.saveGState()
+        UIBezierPath(rect: canvasRect).addClip()
+        graphicsContext.translateBy(x: contentRect.minX, y: contentRect.maxY)
+        graphicsContext.scaleBy(x: scale, y: -scale)
+        graphicsContext.translateBy(x: -pageBounds.minX, y: -pageBounds.minY)
+        page.draw(with: .mediaBox, to: graphicsContext)
+        graphicsContext.restoreGState()
+    }
+
+    private func beginRenderedFilePage(
+        _ context: UIGraphicsPDFRendererContext,
+        attachment: Attachment,
+        evidenceNumber: Int,
+        attachmentNumber: Int,
+        pageNumberInFile: Int? = nil,
+        filePageCount: Int? = nil
+    ) {
+        finishOpenPageIfNeeded()
+        context.beginPage()
+        pageNumber += 1
+        hasOpenPage = true
+        currentPageTitle = "Rendered File"
+        currentPageSubtitle = attachment.originalFilename.trimmedForPDF
+
+        UIColor.white.setFill()
+        UIRectFill(pageRect)
+
+        if request.exportMode == .fullArchive {
+            let label = renderedFileLabel(
+                evidenceNumber: evidenceNumber,
+                attachmentNumber: attachmentNumber,
+                pageNumberInFile: pageNumberInFile,
+                filePageCount: filePageCount
+            )
+            drawText(
+                label,
+                in: CGRect(x: margin, y: 30, width: contentWidth * 0.38, height: 14),
+                font: .systemFont(ofSize: 8.4, weight: .semibold),
+                color: .pdfTertiary
+            )
+
+            let filename = attachment.originalFilename.trimmedForPDF.singleLineLimitedForPDF(to: 72)
+            if !filename.isEmpty {
+                drawText(
+                    filename,
+                    in: CGRect(x: margin + contentWidth * 0.38, y: 30, width: contentWidth * 0.62, height: 14),
+                    font: .systemFont(ofSize: 8.4, weight: .regular),
+                    color: .pdfTertiary,
+                    alignment: .right
+                )
+            }
+        }
+    }
+
+    private func drawBlankRenderedFilePage(_ context: UIGraphicsPDFRendererContext) {
+        finishOpenPageIfNeeded()
+        context.beginPage()
+        pageNumber += 1
+        hasOpenPage = true
+        currentPageTitle = "Rendered File"
+        currentPageSubtitle = nil
+
+        UIColor.white.setFill()
+        UIRectFill(pageRect)
+    }
+
+    private func renderedFileLabel(
+        evidenceNumber: Int,
+        attachmentNumber: Int,
+        pageNumberInFile: Int?,
+        filePageCount: Int?
+    ) -> String {
+        let baseLabel = "\(evidenceLabel(for: evidenceNumber)) · File \(attachmentNumber)"
+        guard let pageNumberInFile, let filePageCount else {
+            return baseLabel
+        }
+
+        return "\(baseLabel) · Page \(pageNumberInFile) of \(filePageCount)"
+    }
+
+    private func drawRenderableImage(_ image: UIImage, sourceSize: CGSize) {
+        guard let graphicsContext = UIGraphicsGetCurrentContext() else { return }
+
+        let canvasRect = renderedFileCanvasRect(for: sourceSize)
+        let imageRect = aspectFitRect(imageSize: image.size, in: canvasRect)
+
+        drawCanvasBorder(canvasRect)
+
+        graphicsContext.saveGState()
+        UIBezierPath(rect: canvasRect).addClip()
+        image.draw(in: imageRect)
+        graphicsContext.restoreGState()
+    }
+
+    private func drawCanvasBorder(_ canvasRect: CGRect) {
+        drawLine(
+            from: CGPoint(x: canvasRect.minX, y: canvasRect.minY),
+            to: CGPoint(x: canvasRect.maxX, y: canvasRect.minY),
+            color: .pdfDivider,
+            alpha: 0.26,
+            lineWidth: 0.5
+        )
+        drawLine(
+            from: CGPoint(x: canvasRect.maxX, y: canvasRect.minY),
+            to: CGPoint(x: canvasRect.maxX, y: canvasRect.maxY),
+            color: .pdfDivider,
+            alpha: 0.26,
+            lineWidth: 0.5
+        )
+        drawLine(
+            from: CGPoint(x: canvasRect.maxX, y: canvasRect.maxY),
+            to: CGPoint(x: canvasRect.minX, y: canvasRect.maxY),
+            color: .pdfDivider,
+            alpha: 0.26,
+            lineWidth: 0.5
+        )
+        drawLine(
+            from: CGPoint(x: canvasRect.minX, y: canvasRect.maxY),
+            to: CGPoint(x: canvasRect.minX, y: canvasRect.minY),
+            color: .pdfDivider,
+            alpha: 0.26,
+            lineWidth: 0.5
+        )
+    }
+
+    private func drawUnrenderableAttachmentPlaceholder(_ attachment: Attachment) {
+        let canvasRect = renderedFileCanvasRect(for: CGSize(width: 1, height: 1))
+        drawRoundedRect(canvasRect, fill: .white, stroke: .pdfDivider, strokeAlpha: 0.5, cornerRadius: 0)
+
+        let filename = attachment.originalFilename.trimmedForPDF
+        let message = filename.isEmpty
+            ? "This file type cannot be rendered inside the PDF."
+            : "\(filename)\n\nThis file type cannot be rendered inside the PDF."
+        drawText(
+            message,
+            in: canvasRect.insetBy(dx: 28, dy: 28),
+            font: .systemFont(ofSize: 12, weight: .regular),
+            color: .pdfSecondary,
+            alignment: .center,
+            lineSpacing: 4
+        )
     }
 
     private func drawAttachmentCard(
@@ -1021,22 +1332,174 @@ private final class PDFCaseRenderer {
     }
 
     private func previewImage(for attachment: Attachment) -> UIImage? {
-        let candidatePaths = [attachment.thumbnailLocalFilePath, attachment.localFilePath]
+        let candidateURLs = [
+            resolvedLocalFileURL(for: attachment.thumbnailLocalFilePath),
+            resolvedLocalFileURL(for: attachment.localFilePath)
+        ]
             .compactMap { $0 }
 
-        for path in candidatePaths {
-            if let image = UIImage(contentsOfFile: path) {
+        for url in candidateURLs {
+            if let image = image(at: url) {
                 return image
             }
         }
 
-        if attachment.attachmentType == .pdf,
-           let document = PDFDocument(url: URL(filePath: attachment.localFilePath)),
+        if let document = renderablePDFDocument(for: attachment),
            let page = document.page(at: 0) {
             return page.thumbnail(of: CGSize(width: 480, height: 480), for: .mediaBox)
         }
 
         return nil
+    }
+
+    private func renderablePDFDocument(for attachment: Attachment) -> PDFDocument? {
+        guard attachmentCanBePDF(attachment),
+              let documentURL = resolvedLocalFileURL(for: attachment.localFilePath),
+              let document = PDFDocument(url: documentURL),
+              document.pageCount > 0 else {
+            return nil
+        }
+
+        return document
+    }
+
+    private func attachmentCanBePDF(_ attachment: Attachment) -> Bool {
+        if attachment.attachmentType == .pdf {
+            return true
+        }
+
+        if isPDFTypeIdentifier(attachment.uniformTypeIdentifier) {
+            return true
+        }
+
+        let localFileExtension = URL(filePath: attachment.localFilePath).pathExtension
+        let originalFileExtension = URL(filePath: attachment.originalFilename).pathExtension
+        if localFileExtension.caseInsensitiveCompare("pdf") == .orderedSame ||
+            originalFileExtension.caseInsensitiveCompare("pdf") == .orderedSame {
+            return true
+        }
+
+        return attachment.attachmentType == .document || attachment.attachmentType == .other
+    }
+
+    private func isPDFTypeIdentifier(_ value: String?) -> Bool {
+        guard let normalized = value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+              !normalized.isEmpty else {
+            return false
+        }
+
+        return normalized == "com.adobe.pdf" ||
+            normalized == "public.pdf" ||
+            normalized.contains("pdf")
+    }
+
+    private func renderableImage(for attachment: Attachment) -> UIImage? {
+        let candidateURLs = [
+            resolvedLocalFileURL(for: attachment.localFilePath),
+            resolvedLocalFileURL(for: attachment.thumbnailLocalFilePath)
+        ]
+        .compactMap { $0 }
+
+        for url in candidateURLs {
+            if let image = image(at: url) {
+                return image
+            }
+        }
+
+        return nil
+    }
+
+    private func image(at url: URL) -> UIImage? {
+        let path = url.path(percentEncoded: false)
+        if let image = UIImage(contentsOfFile: path),
+           image.size.width > 0,
+           image.size.height > 0 {
+            return image
+        }
+
+        if let data = try? Data(contentsOf: url),
+           let image = UIImage(data: data),
+           image.size.width > 0,
+           image.size.height > 0 {
+            return image
+        }
+
+        let options = [kCGImageSourceShouldCache: true] as CFDictionary
+        guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, options),
+              let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, options) else {
+            return nil
+        }
+
+        return UIImage(cgImage: cgImage)
+    }
+
+    private func resolvedLocalFileURL(for storedPath: String?) -> URL? {
+        guard let storedPath else { return nil }
+        let trimmedPath = storedPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty else { return nil }
+
+        var candidates: [URL] = []
+        appendResolvedURLCandidates(from: trimmedPath, to: &candidates)
+        if let decodedPath = trimmedPath.removingPercentEncoding, decodedPath != trimmedPath {
+            appendResolvedURLCandidates(from: decodedPath, to: &candidates)
+        }
+
+        let fileManager = FileManager.default
+        return candidates.first { candidate in
+            fileManager.fileExists(atPath: candidate.path(percentEncoded: false))
+        }
+    }
+
+    private func appendResolvedURLCandidates(from path: String, to candidates: inout [URL]) {
+        if let fileURL = URL(string: path), fileURL.isFileURL {
+            appendUniqueURL(fileURL, to: &candidates)
+        }
+
+        appendUniqueURL(URL(filePath: path), to: &candidates)
+
+        if let proofKitRange = path.range(of: "/ProofKit/") {
+            let relativePath = String(path[proofKitRange.upperBound...])
+            appendUniqueURL(localStorageBaseDirectory.appending(path: relativePath), to: &candidates)
+        } else if path.hasPrefix("ProofKit/") {
+            let relativePath = String(path.dropFirst("ProofKit/".count))
+            appendUniqueURL(localStorageBaseDirectory.appending(path: relativePath), to: &candidates)
+        } else if !path.hasPrefix("/") && !path.hasPrefix("file://") {
+            appendUniqueURL(localStorageBaseDirectory.appending(path: path), to: &candidates)
+        }
+    }
+
+    private func appendUniqueURL(_ url: URL, to candidates: inout [URL]) {
+        let path = url.path(percentEncoded: false)
+        guard !candidates.contains(where: { $0.path(percentEncoded: false) == path }) else {
+            return
+        }
+
+        candidates.append(url)
+    }
+
+    private func renderedFileCanvasRect(for sourceSize: CGSize) -> CGRect {
+        let topInset: CGFloat = request.exportMode == .cleanPacket ? margin : 54
+        let bottomInset: CGFloat = request.exportMode == .cleanPacket ? 60 : 74
+        let canvasBounds = CGRect(
+            x: margin,
+            y: topInset,
+            width: contentWidth,
+            height: pageRect.height - topInset - bottomInset
+        )
+        let targetAspectRatio = renderedFileCanvasAspectRatio(for: sourceSize)
+        let targetSize = CGSize(width: targetAspectRatio, height: 1)
+        return aspectFitRect(imageSize: targetSize, in: canvasBounds)
+    }
+
+    private func renderedFileCanvasAspectRatio(for sourceSize: CGSize) -> CGFloat {
+        guard sourceSize.width > 0, sourceSize.height > 0 else {
+            return 1
+        }
+
+        let sourceAspectRatio = sourceSize.width / sourceSize.height
+        return sourceAspectRatio < 0.9 ? (1 / 1.4) : 1
     }
 
     private func beginCoverPage(_ context: UIGraphicsPDFRendererContext) {
@@ -1064,10 +1527,68 @@ private final class PDFCaseRenderer {
         cursorY = headerBottom + 20
     }
 
-    private func finishOpenPageIfNeeded() {
+    private func finishOpenPageIfNeeded(isFinalPage: Bool = false) {
         guard hasOpenPage else { return }
+        drawSignatureIfNeeded(isFinalPage: isFinalPage)
+        drawTopWatermark()
         drawPageFooter()
         hasOpenPage = false
+    }
+
+    private func drawSignatureIfNeeded(isFinalPage: Bool) {
+        guard let signatureStamp = request.signatureStamp,
+              shouldDrawSignature(signatureStamp, isFinalPage: isFinalPage) else {
+            return
+        }
+
+        let signatureRect = signatureRect(for: signatureStamp)
+        let imageBounds = signatureRect.insetBy(dx: 0, dy: 0)
+            .divided(atDistance: 58, from: .minYEdge)
+            .slice
+        let imageRect = aspectFitRect(imageSize: signatureStamp.image.size, in: imageBounds)
+        guard imageRect.width > 0, imageRect.height > 0 else { return }
+
+        signatureStamp.image.draw(in: imageRect, blendMode: .normal, alpha: 0.96)
+        drawText(
+            "Proofly signature token: \(signatureStamp.validationToken)",
+            in: CGRect(x: signatureRect.minX, y: imageBounds.maxY + 3, width: signatureRect.width, height: 18),
+            font: .monospacedSystemFont(ofSize: 5.6, weight: .medium),
+            color: UIColor.pdfSecondary.withAlphaComponent(0.82),
+            alignment: .center
+        )
+    }
+
+    private func shouldDrawSignature(_ signatureStamp: PDFSignatureStamp, isFinalPage: Bool) -> Bool {
+        switch signatureStamp.page {
+        case .firstPage:
+            pageNumber == 1
+        case .lastPage:
+            isFinalPage
+        case .everyPage:
+            true
+        }
+    }
+
+    private func signatureRect(for signatureStamp: PDFSignatureStamp) -> CGRect {
+        let maxSize = CGSize(width: 176, height: 80)
+        let horizontalInset = margin + 10
+        let upperY = headerBottom + 22
+        let lowerY = pageRect.height - 126
+        let centerY = (pageRect.height - maxSize.height) / 2
+        let centerX = (pageRect.width - maxSize.width) / 2
+
+        switch signatureStamp.placement {
+        case .upperLeft:
+            return CGRect(x: horizontalInset, y: upperY, width: maxSize.width, height: maxSize.height)
+        case .upperRight:
+            return CGRect(x: pageRect.maxX - horizontalInset - maxSize.width, y: upperY, width: maxSize.width, height: maxSize.height)
+        case .center:
+            return CGRect(x: centerX, y: centerY, width: maxSize.width, height: maxSize.height)
+        case .lowerLeft:
+            return CGRect(x: horizontalInset, y: lowerY, width: maxSize.width, height: maxSize.height)
+        case .lowerRight:
+            return CGRect(x: pageRect.maxX - horizontalInset - maxSize.width, y: lowerY, width: maxSize.width, height: maxSize.height)
+        }
     }
 
     private func ensureSpace(_ neededHeight: CGFloat, context: UIGraphicsPDFRendererContext) {
@@ -1104,6 +1625,18 @@ private final class PDFCaseRenderer {
         drawRule(y: headerBottom, color: .pdfDivider, alpha: 0.75, lineWidth: 0.6)
     }
 
+    private func drawTopWatermark() {
+        guard request.includeProofKitWatermark else { return }
+
+        drawText(
+            "proofly",
+            in: CGRect(x: margin, y: 16, width: contentWidth, height: 14),
+            font: .systemFont(ofSize: 9.2, weight: .semibold),
+            color: UIColor.pdfTertiary.withAlphaComponent(0.42),
+            alignment: .center
+        )
+    }
+
     private func drawPageFooter() {
         let footerY = pageRect.height - 44
         if currentPageTitle == "Cover" {
@@ -1112,6 +1645,18 @@ private final class PDFCaseRenderer {
                 in: CGRect(x: margin, y: footerY, width: contentWidth, height: 16),
                 font: .systemFont(ofSize: 8.5, weight: .regular),
                 color: .pdfTertiary
+            )
+            return
+        }
+
+        if request.exportMode == .cleanPacket && currentPageTitle == "Rendered File" {
+            guard request.includeProofKitWatermark else { return }
+            drawText(
+                "Generated with Proofly",
+                in: CGRect(x: margin, y: footerY, width: contentWidth, height: 16),
+                font: .systemFont(ofSize: 7.8, weight: .regular),
+                color: UIColor.pdfTertiary.withAlphaComponent(0.62),
+                alignment: .center
             )
             return
         }
