@@ -63,6 +63,53 @@ struct ProofKitProfileRegistrationResult: Decodable, Equatable {
     }
 }
 
+struct PDFSignatureTokenIssueRequest: Codable, Equatable {
+    let caseID: UUID
+    let exportID: UUID?
+    let sourcePDFSHA256: String?
+    let signatureImageSHA256: String
+    let signaturePage: String
+    let signaturePlacement: String
+    let signedAt: String
+    let appVersion: String
+    let pdfExportMode: String
+    let includeStatementPlaceholder: Bool
+}
+
+struct PDFSignatureTokenIssueResponse: Codable, Equatable {
+    let validationToken: String
+    let encryptedManifest: String
+    let manifestSignature: String
+    let manifestSHA256: String
+    let algorithm: String
+    let keyVersion: String
+    let issuedAt: Date
+    let verificationURL: URL?
+}
+
+struct PDFSignatureTokenFinalizeRequest: Codable, Equatable {
+    let validationToken: String
+    let signedPDFSHA256: String
+    let exportID: UUID
+}
+
+struct PDFSignatureTokenVerifyRequest: Codable, Equatable {
+    let validationToken: String
+    let signedPDFSHA256: String?
+}
+
+struct PDFSignatureTokenVerifyResponse: Codable, Equatable {
+    let valid: Bool
+    let status: String
+    let validationToken: String
+    let issuedAt: Date?
+    let signedAt: Date?
+    let finalizedAt: Date?
+    let algorithm: String?
+    let keyVersion: String?
+    let reason: String?
+}
+
 struct AICreditBalance: Codable, Equatable {
     let availableCredits: Int
     let reservedCredits: Int

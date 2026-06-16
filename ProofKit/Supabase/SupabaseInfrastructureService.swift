@@ -427,6 +427,57 @@ extension SupabaseInfrastructureService: PurchaseEntitlementServicing {
     }
 }
 
+extension SupabaseInfrastructureService: PDFSignatureValidationServicing {
+    func issuePDFSignatureToken(_ request: PDFSignatureTokenIssueRequest) async throws -> PDFSignatureTokenIssueResponse {
+        #if canImport(Supabase)
+        try Self.validateSignatureIssueRequest(request)
+
+        return try await configuredClient.functions.invoke(
+            configuredFunctionNames.createSignatureToken,
+            options: FunctionInvokeOptions(body: request),
+            decoder: Self.remoteJSONDecoder
+        )
+        #else
+        throw ProofKitError.supabaseSDKUnavailable
+        #endif
+    }
+
+    func finalizePDFSignatureToken(_ request: PDFSignatureTokenFinalizeRequest) async throws -> PDFSignatureTokenVerifyResponse {
+        #if canImport(Supabase)
+        guard Self.isSHA256Hex(request.signedPDFSHA256) else {
+            throw ProofKitError.remotePolicyViolation("Signed PDF validation requires a SHA-256 file hash.")
+        }
+
+        return try await configuredClient.functions.invoke(
+            configuredFunctionNames.finalizeSignatureToken,
+            options: FunctionInvokeOptions(body: request),
+            decoder: Self.remoteJSONDecoder
+        )
+        #else
+        throw ProofKitError.supabaseSDKUnavailable
+        #endif
+    }
+
+    func verifyPDFSignatureToken(_ request: PDFSignatureTokenVerifyRequest) async throws -> PDFSignatureTokenVerifyResponse {
+        #if canImport(Supabase)
+        guard !request.validationToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ProofKitError.remotePolicyViolation("Enter a signature token before verifying.")
+        }
+        if let signedPDFSHA256 = request.signedPDFSHA256, !Self.isSHA256Hex(signedPDFSHA256) {
+            throw ProofKitError.remotePolicyViolation("Signed PDF verification requires a SHA-256 file hash.")
+        }
+
+        return try await configuredClient.functions.invoke(
+            configuredFunctionNames.verifySignatureToken,
+            options: FunctionInvokeOptions(body: request),
+            decoder: Self.remoteJSONDecoder
+        )
+        #else
+        throw ProofKitError.supabaseSDKUnavailable
+        #endif
+    }
+}
+
 private extension SupabaseInfrastructureService {
     #if canImport(Supabase)
     var configuredClient: SupabaseClient {
@@ -686,6 +737,32 @@ private extension SupabaseInfrastructureService {
                 "AI proxy metadata must not include local file paths or file URLs."
             )
         }
+    }
+
+    static func validateSignatureIssueRequest(_ request: PDFSignatureTokenIssueRequest) throws {
+        guard isSHA256Hex(request.signatureImageSHA256) else {
+            throw ProofKitError.remotePolicyViolation("Signature validation requires a SHA-256 signature hash.")
+        }
+
+        if let sourcePDFSHA256 = request.sourcePDFSHA256, !isSHA256Hex(sourcePDFSHA256) {
+            throw ProofKitError.remotePolicyViolation("Signature validation requires a SHA-256 source PDF hash.")
+        }
+
+        guard !request.signaturePage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !request.signaturePlacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ProofKitError.remotePolicyViolation("Signature validation requires page and placement metadata.")
+        }
+
+        guard !request.pdfExportMode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ProofKitError.remotePolicyViolation("Signature validation requires export mode metadata.")
+        }
+    }
+
+    static func isSHA256Hex(_ value: String) -> Bool {
+        let cleaned = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleaned.count == 64 else { return false }
+        let allowedCharacters = Set("0123456789abcdefABCDEF")
+        return cleaned.allSatisfy { allowedCharacters.contains($0) }
     }
 
     #if canImport(Supabase)

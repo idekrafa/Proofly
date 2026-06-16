@@ -105,6 +105,9 @@ struct SupabaseFunctionNames: Equatable {
     let aiProxy: String
     let purchaseEntitlements: String
     let deleteAccount: String
+    let createSignatureToken: String
+    let finalizeSignatureToken: String
+    let verifySignatureToken: String
 
     static func load(
         bundle: Bundle = .main,
@@ -138,6 +141,24 @@ struct SupabaseFunctionNames: Equatable {
             deleteAccount: configuredFunctionName(
                 key: "PROOFKIT_SUPABASE_FN_DELETE_ACCOUNT",
                 defaultValue: "delete-account",
+                bundle: bundle,
+                environment: environment
+            ),
+            createSignatureToken: configuredFunctionName(
+                key: "PROOFKIT_SUPABASE_FN_CREATE_SIGNATURE_TOKEN",
+                defaultValue: "create-signature-token",
+                bundle: bundle,
+                environment: environment
+            ),
+            finalizeSignatureToken: configuredFunctionName(
+                key: "PROOFKIT_SUPABASE_FN_FINALIZE_SIGNATURE_TOKEN",
+                defaultValue: "finalize-signature-token",
+                bundle: bundle,
+                environment: environment
+            ),
+            verifySignatureToken: configuredFunctionName(
+                key: "PROOFKIT_SUPABASE_FN_VERIFY_SIGNATURE_TOKEN",
+                defaultValue: "verify-signature-token",
                 bundle: bundle,
                 environment: environment
             )

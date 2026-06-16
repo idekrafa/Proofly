@@ -46,6 +46,11 @@ struct PDFSignatureStamp {
     let placement: PDFSignaturePlacement
     let signedAt: Date
     let validationToken: String
+    let encryptedManifest: String
+    let manifestSignature: String
+    let manifestSHA256: String
+    let algorithm: String
+    let keyVersion: String
 }
 
 enum PDFSignaturePage: String, CaseIterable, Hashable, Identifiable {
@@ -286,6 +291,12 @@ private final class PDFCaseRenderer {
         if let signatureStamp = request.signatureStamp {
             documentInfo[kCGPDFContextSubject as String] = "Signed with Proofly token \(signatureStamp.validationToken)"
             documentInfo[kCGPDFContextKeywords as String] = "Proofly signed PDF, signature token \(signatureStamp.validationToken)"
+            documentInfo["ProoflySignatureToken"] = signatureStamp.validationToken
+            documentInfo["ProoflySignatureAlgorithm"] = signatureStamp.algorithm
+            documentInfo["ProoflySignatureKeyVersion"] = signatureStamp.keyVersion
+            documentInfo["ProoflySignatureManifestSHA256"] = signatureStamp.manifestSHA256
+            documentInfo["ProoflySignatureManifestSignature"] = signatureStamp.manifestSignature
+            documentInfo["ProoflySignatureEncryptedManifest"] = signatureStamp.encryptedManifest
         }
         format.documentInfo = documentInfo
 
