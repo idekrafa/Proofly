@@ -79,8 +79,8 @@ struct ExportPreviewView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(
-                title: "Export",
-                subtitle: "Create a PDF packet from proof saved on this device."
+                title: String(localized: "Export"),
+                subtitle: String(localized: "Create a PDF packet from proof saved on this device.")
             )
 
             stateDrivenContent
@@ -153,7 +153,7 @@ struct ExportPreviewView: View {
         exportHeroCard(
             imageName: "RookExportAlmostReady",
             accentColor: ExportPagePalette.guidance,
-            title: "Almost ready",
+            title: String(localized: "Almost ready"),
             subtitle: almostReadySubtitle
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -188,7 +188,7 @@ struct ExportPreviewView: View {
         exportHeroCard(
             imageName: "RookExportReady",
             accentColor: ExportPagePalette.ready,
-            title: "Your packet is ready",
+            title: String(localized: "Your packet is ready"),
             subtitle: readyHeroSubtitle
         ) {
             VStack(alignment: .leading, spacing: 10) {
@@ -231,8 +231,8 @@ struct ExportPreviewView: View {
         exportHeroCard(
             imageName: "RookExportReady",
             accentColor: ExportPagePalette.ready,
-            title: "Packet generated",
-            subtitle: "Your PDF is saved locally on this device."
+            title: String(localized: "Packet generated"),
+            subtitle: String(localized: "Your PDF is saved locally on this device.")
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 ViewThatFits(in: .horizontal) {
@@ -278,7 +278,7 @@ struct ExportPreviewView: View {
                 exportErrorMessage = nil
             }
         } label: {
-            ExportActionLabel(title: "View Packet", systemImage: "doc.text")
+            ExportActionLabel(title: String(localized: "View Packet"), systemImage: "doc.text")
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
@@ -288,7 +288,7 @@ struct ExportPreviewView: View {
 
     private func sharePacketLink(url: URL) -> some View {
         ShareLink(item: url) {
-            ExportActionLabel(title: "Share", systemImage: "square.and.arrow.up")
+            ExportActionLabel(title: String(localized: "Share"), systemImage: "square.and.arrow.up")
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.bordered)
@@ -300,7 +300,7 @@ struct ExportPreviewView: View {
             Task { await beginSignatureFlow() }
         } label: {
             ExportActionLabel(
-                title: isIssuingSignatureToken ? "Securing…" : (signatureConfiguration == nil ? "Sign" : "Edit Signature"),
+                title: isIssuingSignatureToken ? String(localized: "Securing…") : (signatureConfiguration == nil ? String(localized: "Sign") : String(localized: "Edit Signature")),
                 systemImage: "signature"
             )
             .frame(maxWidth: .infinity)
@@ -355,11 +355,11 @@ struct ExportPreviewView: View {
     private var statePillText: String {
         switch exportScreenState {
         case .almostReady:
-            "Next step"
+            String(localized: "Next step")
         case .ready:
-            "Ready"
+            String(localized: "Ready")
         case .generated:
-            "Saved PDF"
+            String(localized: "Saved PDF")
         }
     }
 
@@ -428,14 +428,14 @@ struct ExportPreviewView: View {
     private var packetDetailsDisclosure: some View {
         DisclosureGroup(isExpanded: $isPacketDetailsExpanded) {
             VStack(spacing: 0) {
-                ExportDetailsRow(title: "Mode", value: exportMode.displayName)
-                ExportDetailsRow(title: "Proof items", value: "\(caseFile.evidenceItems.count)")
-                ExportDetailsRow(title: "Timeline", value: timelineExportValue)
-                ExportDetailsRow(title: "Attachments", value: attachmentCount == 0 ? "None" : "\(attachmentCount)")
-                ExportDetailsRow(title: "Watermark", value: watermarkSummary)
-                ExportDetailsRow(title: "Signature", value: signatureSummary)
+                ExportDetailsRow(title: String(localized: "Mode"), value: exportMode.displayName)
+                ExportDetailsRow(title: String(localized: "Proof items"), value: "\(caseFile.evidenceItems.count)")
+                ExportDetailsRow(title: String(localized: "Timeline"), value: timelineExportValue)
+                ExportDetailsRow(title: String(localized: "Attachments"), value: attachmentCount == 0 ? String(localized: "None") : "\(attachmentCount)")
+                ExportDetailsRow(title: String(localized: "Watermark"), value: watermarkSummary)
+                ExportDetailsRow(title: String(localized: "Signature"), value: signatureSummary)
                 if let signatureConfiguration {
-                    ExportDetailsRow(title: "Signature token", value: signatureConfiguration.validationToken)
+                    ExportDetailsRow(title: String(localized: "Signature token"), value: signatureConfiguration.validationToken)
                 }
 
                 Picker("Export mode", selection: $exportMode) {
@@ -512,9 +512,9 @@ struct ExportPreviewView: View {
                 .foregroundStyle(.primary)
 
             VStack(spacing: 0) {
-                ExportDetailsRow(title: "Generated", value: generatedDateText(for: packet))
-                ExportDetailsRow(title: "Page count", value: pageCountText(for: packet))
-                ExportDetailsRow(title: "File size", value: fileSizeText(for: packet))
+                ExportDetailsRow(title: String(localized: "Generated"), value: generatedDateText(for: packet))
+                ExportDetailsRow(title: String(localized: "Page count"), value: pageCountText(for: packet))
+                ExportDetailsRow(title: String(localized: "File size"), value: fileSizeText(for: packet))
             }
         }
         .padding(ProofKitVisual.cardPadding)
@@ -577,7 +577,7 @@ struct ExportPreviewView: View {
         if caseFile.evidenceItems.isEmpty {
             items.append(
                 MissingExportItem(
-                    title: "Add at least 1 proof item",
+                    title: String(localized: "Add at least 1 proof item"),
                     systemImage: "plus"
                 )
             )
@@ -586,7 +586,7 @@ struct ExportPreviewView: View {
         if unreviewedProofCount > 0 {
             items.append(
                 MissingExportItem(
-                    title: unreviewedProofCount == 1 ? "Review new proof" : "Review new proof items",
+                    title: unreviewedProofCount == 1 ? String(localized: "Review new proof") : String(localized: "Review new proof items"),
                     systemImage: "checkmark"
                 )
             )
@@ -595,7 +595,7 @@ struct ExportPreviewView: View {
         if !caseDetailsReady {
             items.append(
                 MissingExportItem(
-                    title: "Add a case title",
+                    title: String(localized: "Add a case title"),
                     systemImage: "textformat"
                 )
             )
@@ -606,10 +606,10 @@ struct ExportPreviewView: View {
 
     private var almostReadySubtitle: String {
         guard let firstMissingItem = missingExportItems.first else {
-            return "Rook is checking the latest case details before export."
+            return String(localized: "Rook is checking the latest case details before export.")
         }
 
-        return "\(firstMissingItem.title), then Rook can pack your timeline into a PDF."
+        return String(localized: "\(firstMissingItem.title), then Rook can pack your timeline into a PDF.")
     }
 
     private var unreviewedProofCount: Int {
@@ -628,7 +628,7 @@ struct ExportPreviewView: View {
 
     private var proofItemCountText: String {
         let count = caseFile.evidenceItems.count
-        return count == 1 ? "1 proof item" : "\(count) proof items"
+        return count == 1 ? String(localized: "1 proof item") : String(localized: "\(count) proof items")
     }
 
     private var localStorageBaseDirectory: URL {
@@ -640,18 +640,18 @@ struct ExportPreviewView: View {
     private var readyHeroSubtitle: String {
         switch exportMode {
         case .cleanPacket:
-            "About \(estimatedPageCount) pages with rendered files only."
+            String(localized: "About \(estimatedPageCount) pages with rendered files only.")
         case .fullArchive:
-            "About \(estimatedPageCount) pages with \(proofItemCountText) and your timeline."
+            String(localized: "About \(estimatedPageCount) pages with \(proofItemCountText) and your timeline.")
         }
     }
 
     private var timelineExportValue: String {
         switch exportMode {
         case .cleanPacket:
-            "Not included"
+            String(localized: "Not included")
         case .fullArchive:
-            timelineReady ? "Included" : "Needs proof"
+            timelineReady ? String(localized: "Included") : String(localized: "Needs proof")
         }
     }
 
@@ -660,7 +660,7 @@ struct ExportPreviewView: View {
     }
 
     private var watermarkSummary: String {
-        exportAccess.isWatermarked ? "Top + footer" : "None"
+        exportAccess.isWatermarked ? String(localized: "Top + footer") : String(localized: "None")
     }
 
     private var estimatedPageCount: Int {
@@ -799,7 +799,7 @@ struct ExportPreviewView: View {
             let access = await services.paywall.exportAccess(for: caseFile)
             exportAccess = access
             guard access.isAllowed else {
-                throw ProofKitError.planLimitReached(access.blockedMessage ?? "This plan has reached its export limit.")
+                throw ProofKitError.planLimitReached(access.blockedMessage ?? String(localized: "This plan has reached its export limit."))
             }
             let signatureForExport = access.plan == .pro ? signatureConfiguration : nil
 
@@ -829,7 +829,7 @@ struct ExportPreviewView: View {
                 )
                 guard finalizeResponse.valid else {
                     throw ProofKitError.remotePolicyViolation(
-                        finalizeResponse.reason ?? "Proofly could not finalize this signature token."
+                        finalizeResponse.reason ?? String(localized: "Proofly could not finalize this signature token.")
                     )
                 }
             }
@@ -837,7 +837,7 @@ struct ExportPreviewView: View {
             let caseExport = ExportPacket(
                 id: exportID,
                 userPacketTitle: result.caseTitle,
-                userPacketNotes: "Generated locally from current Proofly proof.",
+                userPacketNotes: String(localized: "Generated locally from current Proofly proof."),
                 localPDFFilePath: result.url.path(percentEncoded: false),
                 fileSizeBytes: result.fileSizeBytes,
                 pageCount: result.pageCount,
@@ -942,20 +942,20 @@ struct ExportPreviewView: View {
     private var exportPlanMessage: String {
         switch exportAccess.plan {
         case .free:
-            "Exports without active Pro add a small top Proofly mark and footer mark. No diagonal watermark."
+            String(localized: "Exports without active Pro add a small top Proofly mark and footer mark. No diagonal watermark.")
         case .paidUrgentExport:
-            "Paid Urgent Export creates one final PDF for this case without a Proofly watermark."
+            String(localized: "Paid Urgent Export creates one final PDF for this case without a Proofly watermark.")
         case .pro:
-            "Pro export creates PDFs without a Proofly watermark."
+            String(localized: "Pro export creates PDFs without a Proofly watermark.")
         }
     }
 
     private var signatureSummary: String {
         guard let signatureConfiguration else {
-            return "Not added"
+            return String(localized: "Not added")
         }
 
-        return "\(signatureConfiguration.page.displayName), \(signatureConfiguration.placement.displayName.lowercased())"
+        return String(localized: "\(signatureConfiguration.page.displayName), \(signatureConfiguration.placement.displayName.lowercased())")
     }
 
     private var signatureControls: some View {
@@ -1123,17 +1123,17 @@ struct ExportPreviewView: View {
     }
 
     private func generatedDateText(for caseExport: ExportPacket) -> String {
-        guard let exportedAt = caseExport.exportedAt else { return "Unavailable" }
+        guard let exportedAt = caseExport.exportedAt else { return String(localized: "Unavailable") }
         return Self.exportDateFormatter.string(from: exportedAt)
     }
 
     private func pageCountText(for caseExport: ExportPacket) -> String {
-        guard let pageCount = caseExport.pageCount else { return "Unavailable" }
-        return pageCount == 1 ? "1 page" : "\(pageCount) pages"
+        guard let pageCount = caseExport.pageCount else { return String(localized: "Unavailable") }
+        return pageCount == 1 ? String(localized: "1 page") : String(localized: "\(pageCount) pages")
     }
 
     private func fileSizeText(for caseExport: ExportPacket) -> String {
-        guard let fileSizeBytes = caseExport.fileSizeBytes else { return "Unavailable" }
+        guard let fileSizeBytes = caseExport.fileSizeBytes else { return String(localized: "Unavailable") }
         return Self.fileSizeFormatter.string(fromByteCount: fileSizeBytes)
     }
 
@@ -1165,7 +1165,7 @@ struct ExportPreviewView: View {
 
     private static func sha256HexDigest(for image: UIImage) throws -> String {
         guard let imageData = image.pngData() ?? image.jpegData(compressionQuality: 0.95) else {
-            throw ProofKitError.remotePolicyViolation("Proofly could not prepare the signature for validation.")
+            throw ProofKitError.remotePolicyViolation(String(localized: "Proofly could not prepare the signature for validation."))
         }
 
         return sha256HexDigest(for: imageData)

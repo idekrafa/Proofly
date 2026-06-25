@@ -87,11 +87,11 @@ struct VaultView: View {
     }
 
     private var currentPageRangeText: String {
-        guard !filteredVaultFiles.isEmpty else { return "0 of 0" }
+        guard !filteredVaultFiles.isEmpty else { return String(localized: "0 of 0") }
 
         let start = clampedPageIndex * Self.filesPerPage + 1
         let end = min(start + Self.filesPerPage - 1, filteredVaultFiles.count)
-        return "\(start)-\(end) of \(filteredVaultFiles.count)"
+        return String(localized: "\(start)-\(end) of \(filteredVaultFiles.count)")
     }
 
     var body: some View {
@@ -127,8 +127,8 @@ struct VaultView: View {
                     CaseDetailView(caseFile: createdCaseToOpen)
                 } else {
                     EmptyStateView(
-                        title: "Case created",
-                        message: "Your new case was created from this vault file.",
+                        title: String(localized: "Case created"),
+                        message: String(localized: "Your new case was created from this vault file."),
                         systemImage: "checkmark.circle"
                     )
                 }
@@ -222,26 +222,26 @@ struct VaultView: View {
             }
             .buttonStyle(VaultIconButtonStyle())
             .disabled(isImporting)
-            .accessibilityLabel("Upload Images")
+            .accessibilityLabel(String(localized: "Upload Images"))
         }
         .proofKitAppear()
     }
 
     private var headerSubtitle: String {
         if vaultFiles.isEmpty {
-            return "Upload files to keep reusable proof ready."
+            return String(localized: "Upload files to keep reusable proof ready.")
         }
 
-        return "\(vaultFiles.count.fileCountText) stored locally"
+        return String(localized: "\(vaultFiles.count.fileCountText) stored locally")
     }
 
     @ViewBuilder
     private var content: some View {
         if vaultFiles.isEmpty {
             VaultEmptyState(
-                title: "No files yet",
-                message: "Upload reusable proof, receipts, screenshots, and documents. Rook will help keep them ready for any case.",
-                footnote: "Files stay local until you add them to a case.",
+                title: String(localized: "No files yet"),
+                message: String(localized: "Upload reusable proof, receipts, screenshots, and documents. Rook will help keep them ready for any case."),
+                footnote: String(localized: "Files stay local until you add them to a case."),
                 mascotImageName: "RookVaultEmpty"
             ) {
                 PhotosPicker(
@@ -260,8 +260,8 @@ struct VaultView: View {
             .proofKitAppear(delay: 0.06)
         } else if filteredVaultFiles.isEmpty {
             VaultEmptyState(
-                title: "No matching files",
-                message: "Try searching by file name, type, linked case, or OCR text."
+                title: String(localized: "No matching files"),
+                message: String(localized: "Try searching by file name, type, linked case, or OCR text.")
             ) {
                 Button {
                     withAnimation(ProofKitMotion.standard) {
@@ -278,7 +278,7 @@ struct VaultView: View {
         } else {
             VStack(alignment: .leading, spacing: 13) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "All Files" : "Search Results")
+                    Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? String(localized: "All Files") : String(localized: "Search Results"))
                         .font(.title3.weight(.bold))
                         .foregroundStyle(.primary)
                         .kerning(-0.25)
@@ -378,8 +378,8 @@ struct VaultView: View {
         let path = vaultFile.primaryAttachment.localFilePath.vaultTrimmedText
         guard !path.isEmpty else {
             notice = VaultNotice(
-                title: "Preview unavailable",
-                message: "This file does not have a local preview path."
+                title: String(localized: "Preview unavailable"),
+                message: String(localized: "This file does not have a local preview path.")
             )
             return
         }
@@ -387,8 +387,8 @@ struct VaultView: View {
         let fileURL = URL(filePath: path)
         guard FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)) else {
             notice = VaultNotice(
-                title: "Preview unavailable",
-                message: "The local file could not be found on this device."
+                title: String(localized: "Preview unavailable"),
+                message: String(localized: "The local file could not be found on this device.")
             )
             return
         }
@@ -428,8 +428,8 @@ struct VaultView: View {
 
             guard importedCount > 0 else {
                 notice = VaultNotice(
-                    title: "No images uploaded",
-                    message: "Please choose a photo or screenshot and try again."
+                    title: String(localized: "No images uploaded"),
+                    message: String(localized: "Please choose a photo or screenshot and try again.")
                 )
                 withAnimation(ProofKitMotion.standard) {
                     isImporting = false
@@ -441,8 +441,8 @@ struct VaultView: View {
             try modelContext.save()
         } catch {
             notice = VaultNotice(
-                title: "Upload failed",
-                message: "Images could not be uploaded to the app. Please try again."
+                title: String(localized: "Upload failed"),
+                message: String(localized: "Images could not be uploaded to the app. Please try again.")
             )
         }
 
@@ -546,8 +546,8 @@ struct VaultView: View {
             isOpeningCreatedCase = true
         } catch {
             notice = VaultNotice(
-                title: "Case could not be created",
-                message: "This file could not be added to a new case. Please try again."
+                title: String(localized: "Case could not be created"),
+                message: String(localized: "This file could not be added to a new case. Please try again.")
             )
         }
     }
@@ -571,8 +571,8 @@ struct VaultView: View {
         )
         guard !newFilename.isEmpty else {
             notice = VaultNotice(
-                title: "Name required",
-                message: "Enter a file name before saving."
+                title: String(localized: "Name required"),
+                message: String(localized: "Enter a file name before saving.")
             )
             return
         }
@@ -589,8 +589,8 @@ struct VaultView: View {
             try modelContext.save()
         } catch {
             notice = VaultNotice(
-                title: "Rename failed",
-                message: "This file could not be renamed. Please try again."
+                title: String(localized: "Rename failed"),
+                message: String(localized: "This file could not be renamed. Please try again.")
             )
         }
 
@@ -624,8 +624,8 @@ struct VaultView: View {
             try modelContext.save()
         } catch {
             notice = VaultNotice(
-                title: "Delete failed",
-                message: "This file could not be deleted from the app. Please try again."
+                title: String(localized: "Delete failed"),
+                message: String(localized: "This file could not be deleted from the app. Please try again.")
             )
         }
 
@@ -671,7 +671,7 @@ struct VaultView: View {
     private func originalFilename(at index: Int, contentType: UTType?) -> String {
         let number = index + 1
         let fileExtension = contentType?.preferredFilenameExtension ?? "jpg"
-        return "Vault Image \(number).\(fileExtension)"
+        return "\(String(localized: "Vault Image \(number)")).\(fileExtension)"
     }
 
     private func importedMetadataJSON(
@@ -735,12 +735,12 @@ struct VaultView: View {
 
     private func evidenceTitle(for vaultFile: VaultFile) -> String {
         let stem = vaultFile.displayName.vaultFilenameStem
-        return stem.isEmpty ? "Vault file" : stem
+        return stem.isEmpty ? String(localized: "Vault file") : stem
     }
 
     private func newCaseTitle(for vaultFile: VaultFile) -> String {
         let stem = vaultFile.displayName.vaultFilenameStem
-        return stem.isEmpty ? "Vault File Case" : "Case from \(stem)"
+        return stem.isEmpty ? String(localized: "Vault File Case") : String(localized: "Case from \(stem)")
     }
 
     private func normalizedFilename(_ candidate: String, keepingExtensionFrom currentFilename: String) -> String {
@@ -793,7 +793,7 @@ private struct VaultFile: Identifiable {
 
     var displayName: String {
         let trimmedFilename = primaryAttachment.originalFilename.vaultTrimmedText
-        return trimmedFilename.isEmpty ? "Untitled File" : trimmedFilename
+        return trimmedFilename.isEmpty ? String(localized: "Untitled File") : trimmedFilename
     }
 
     var updatedAt: Date {
@@ -806,8 +806,8 @@ private struct VaultFile: Identifiable {
 
     var updatedText: String {
         Calendar.current.isDateInToday(updatedAt)
-            ? "Updated today"
-            : "Updated \(ProofKitDateFormatting.shortDate(updatedAt))"
+            ? String(localized: "Updated today")
+            : String(localized: "Updated \(ProofKitDateFormatting.shortDate(updatedAt))")
     }
 
     var fileSizeText: String? {
@@ -831,14 +831,14 @@ private struct VaultFile: Identifiable {
 
     var storageText: String {
         if linkedCaseTitles.isEmpty {
-            return "Vault only"
+            return String(localized: "Vault only")
         }
 
         if linkedCaseTitles.count == 1, let title = linkedCaseTitles.first {
-            return "In \(title)"
+            return String(localized: "In \(title)")
         }
 
-        return "In \(linkedCaseTitles.count) cases"
+        return String(localized: "In \(linkedCaseTitles.count) cases")
     }
 
     var detailText: String {
@@ -900,7 +900,7 @@ private struct VaultSearchField: View {
                         .foregroundStyle(VaultPalette.tertiaryText)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
+                .accessibilityLabel(String(localized: "Clear search"))
             }
         }
         .font(.body.weight(.medium))
@@ -939,7 +939,7 @@ private struct VaultPaginationBar: View {
             }
             .buttonStyle(VaultPaginationButtonStyle())
             .disabled(!canMoveBack)
-            .accessibilityLabel("Previous page")
+            .accessibilityLabel(String(localized: "Previous page"))
 
             Spacer(minLength: 4)
 
@@ -964,7 +964,7 @@ private struct VaultPaginationBar: View {
             }
             .buttonStyle(VaultPaginationButtonStyle())
             .disabled(!canMoveForward)
-            .accessibilityLabel("Next page")
+            .accessibilityLabel(String(localized: "Next page"))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -1005,8 +1005,8 @@ private struct VaultFileCard: View {
                     }
             }
             .buttonStyle(VaultThumbnailButtonStyle())
-            .accessibilityLabel("Preview \(file.displayName)")
-            .accessibilityHint("Opens this file")
+            .accessibilityLabel(String(localized: "Preview \(file.displayName)"))
+            .accessibilityHint(String(localized: "Opens this file"))
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(file.displayName)
@@ -1056,7 +1056,7 @@ private struct VaultFileCard: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityHint("Long-press for file actions")
+        .accessibilityHint(String(localized: "Long-press for file actions"))
     }
 }
 
@@ -1403,14 +1403,13 @@ private extension View {
 
 private extension CaseFile {
     var vaultDisplayTitle: String {
-        let trimmedTitle = userTitle.vaultTrimmedText
-        return trimmedTitle.isEmpty ? "Untitled Case" : trimmedTitle
+        CaseFile.displayTitle(forTrimmedTitle: userTitle.vaultTrimmedText)
     }
 }
 
 private extension Int {
     var fileCountText: String {
-        self == 1 ? "1 file" : "\(self) files"
+        self == 1 ? String(localized: "1 file") : String(localized: "\(self) files")
     }
 }
 

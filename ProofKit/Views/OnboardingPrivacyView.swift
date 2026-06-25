@@ -37,20 +37,20 @@ struct ProofKitOnboardingPrivacyView: View {
                     VStack(spacing: rowSpacing(for: proxy)) {
                         ProofKitPrivacyPromiseRow(
                             symbolName: "lock.shield.fill",
-                            title: "Local by default",
-                            message: "Evidence stays local by default."
+                            title: String(localized: "Local by default"),
+                            message: String(localized: "Evidence stays local by default.")
                         )
 
                         ProofKitPrivacyPromiseRow(
                             symbolName: "person.crop.circle.fill",
-                            title: "Scoped to your account",
-                            message: "Separate local workspace per account."
+                            title: String(localized: "Scoped to your account"),
+                            message: String(localized: "Separate local workspace per account.")
                         )
 
                         ProofKitPrivacyPromiseRow(
                             symbolName: "square.and.arrow.up.fill",
-                            title: "You decide what leaves",
-                            message: "Exports only when you choose."
+                            title: String(localized: "You decide what leaves"),
+                            message: String(localized: "Exports only when you choose.")
                         )
                     }
                 }

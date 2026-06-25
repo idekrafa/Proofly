@@ -9,10 +9,10 @@ enum UserDisplayName {
             explicitFirstName: explicitFirstName,
             displayName: displayName
         ) {
-            return "Welcome back, \(firstName)"
+            return String(localized: "Welcome back, \(firstName)")
         }
 
-        return "Welcome back"
+        return String(localized: "Welcome back")
     }
 
     static func firstName(

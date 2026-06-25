@@ -36,33 +36,33 @@ struct TimelineView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             SectionHeader(
-                title: "Timeline",
-                subtitle: "Proof items grouped by the date they happened."
+                title: String(localized: "Timeline"),
+                subtitle: String(localized: "Proof items grouped by the date they happened.")
             )
 
             if timelineGroups.isEmpty {
                 PlaceholderPanel(
                     systemImage: "calendar",
-                    title: "Timeline is empty",
-                    message: "Add your first proof item when you are ready. Proofly will place dated items into a calm chronological view.",
+                    title: String(localized: "Timeline is empty"),
+                    message: String(localized: "Add your first proof item when you are ready. Proofly will place dated items into a calm chronological view."),
                     steps: [
                         PlaceholderStep(
                             systemImage: "plus",
-                            title: "Add proof",
-                            detail: "Use the Add Proof button above to import a file or write a note."
+                            title: String(localized: "Add proof"),
+                            detail: String(localized: "Use the Add Proof button above to import a file or write a note.")
                         ),
                         PlaceholderStep(
                             systemImage: "calendar.badge.clock",
-                            title: "Check the date",
-                            detail: "Use the event date that best matches what happened."
+                            title: String(localized: "Check the date"),
+                            detail: String(localized: "Use the event date that best matches what happened.")
                         ),
                         PlaceholderStep(
                             systemImage: "list.bullet.rectangle",
-                            title: "Review the timeline",
-                            detail: "Proof items will group by date so larger cases stay readable."
+                            title: String(localized: "Review the timeline"),
+                            detail: String(localized: "Proof items will group by date so larger cases stay readable.")
                         )
                     ],
-                    footnote: "There is no need to finish everything at once."
+                    footnote: String(localized: "There is no need to finish everything at once.")
                 )
             } else {
                 timelineAISummaryPanel
@@ -173,8 +173,8 @@ struct TimelineView: View {
 
             if isPreparingTimelineSummary || isRunningTimelineSummary {
                 TimelineSummaryLoadingCard(
-                    title: isPreparingTimelineSummary ? "Checking your AI credits" : "Writing your timeline summary",
-                    message: isPreparingTimelineSummary ? "Proofly is confirming the credit cost before anything runs." : "This can take a little while for larger timelines. Keep this screen open and your proof stays unchanged."
+                    title: isPreparingTimelineSummary ? String(localized: "Checking your AI credits") : String(localized: "Writing your timeline summary"),
+                    message: isPreparingTimelineSummary ? String(localized: "Proofly is confirming the credit cost before anything runs.") : String(localized: "This can take a little while for larger timelines. Keep this screen open and your proof stays unchanged.")
                 )
                 .transition(ProofKitMotion.compactInsertion)
             }
@@ -244,18 +244,18 @@ struct TimelineView: View {
 
     private var timelineSummaryButtonTitle: String {
         if isPreparingTimelineSummary {
-            return "Checking credits…"
+            return String(localized: "Checking credits…")
         }
 
         if isRunningTimelineSummary {
-            return "Summarizing…"
+            return String(localized: "Summarizing…")
         }
 
         if aiTimelineSummaryText == nil {
-            return "Summarize timeline with AI"
+            return String(localized: "Summarize timeline with AI")
         }
 
-        return "Refresh AI summary"
+        return String(localized: "Refresh AI summary")
     }
 
     private var timelineToolbar: some View {
@@ -285,9 +285,9 @@ struct TimelineView: View {
     }
 
     private var timelineSummaryText: String {
-        let sectionText = timelineGroups.count == 1 ? "1 date section" : "\(timelineGroups.count) date sections"
-        let evidenceText = evidenceItemCount == 1 ? "1 proof item" : "\(evidenceItemCount) proof items"
-        return "Oldest first • \(evidenceText) across \(sectionText)"
+        let sectionText = timelineGroups.count == 1 ? String(localized: "1 date section") : String(localized: "\(timelineGroups.count) date sections")
+        let evidenceText = evidenceItemCount == 1 ? String(localized: "1 proof item") : String(localized: "\(evidenceItemCount) proof items")
+        return String(localized: "Oldest first • \(evidenceText) across \(sectionText)")
     }
 
     private func toggle(_ group: TimelineDateGroup) {
@@ -310,8 +310,8 @@ struct TimelineView: View {
         } catch {
             withAnimation(ProofKitMotion.standard) {
                 deletionNotice = TimelineDeletionNotice(
-                    title: "Proof not deleted",
-                    message: "This proof item could not be deleted. Please try again."
+                    title: String(localized: "Proof not deleted"),
+                    message: String(localized: "This proof item could not be deleted. Please try again.")
                 )
             }
         }
@@ -348,14 +348,14 @@ struct TimelineView: View {
                         in: modelContext
                     )
                     aiNotice = TimelineAINotice(
-                        title: "Timeline Summary Queued",
-                        message: "AI will run when connection returns and credits are available. Your local timeline stays usable."
+                        title: String(localized: "Timeline Summary Queued"),
+                        message: String(localized: "AI will run when connection returns and credits are available. Your local timeline stays usable.")
                     )
-                    timelineSummaryInlineError = "Connection is unavailable right now, so the summary was queued for later."
+                    timelineSummaryInlineError = String(localized: "Connection is unavailable right now, so the summary was queued for later.")
                 } catch {
                     timelineSummaryInlineError = Self.userMessage(for: error)
                     aiNotice = TimelineAINotice(
-                        title: "Timeline Summary Unavailable",
+                        title: String(localized: "Timeline Summary Unavailable"),
                         message: Self.userMessage(for: error)
                     )
                 }
@@ -363,7 +363,7 @@ struct TimelineView: View {
             }
 
             aiNotice = TimelineAINotice(
-                title: Self.aiErrorTitle(for: error, fallback: "Timeline Summary Unavailable"),
+                title: Self.aiErrorTitle(for: error, fallback: String(localized: "Timeline Summary Unavailable")),
                 message: Self.userMessage(for: error)
             )
             timelineSummaryInlineError = Self.userMessage(for: error)
@@ -425,14 +425,14 @@ struct TimelineView: View {
                         in: modelContext
                     )
                     aiNotice = TimelineAINotice(
-                        title: "Timeline Summary Queued",
-                        message: "AI will run when connection returns and credits are available. Your original proof and OCR are unchanged."
+                        title: String(localized: "Timeline Summary Queued"),
+                        message: String(localized: "AI will run when connection returns and credits are available. Your original proof and OCR are unchanged.")
                     )
-                    timelineSummaryInlineError = "Connection dropped before the summary finished, so it was queued for later."
+                    timelineSummaryInlineError = String(localized: "Connection dropped before the summary finished, so it was queued for later.")
                 } catch {
                     timelineSummaryInlineError = Self.userMessage(for: error)
                     aiNotice = TimelineAINotice(
-                        title: "Timeline Summary Failed",
+                        title: String(localized: "Timeline Summary Failed"),
                         message: Self.userMessage(for: error)
                     )
                 }
@@ -440,7 +440,7 @@ struct TimelineView: View {
             }
 
             aiNotice = TimelineAINotice(
-                title: Self.aiErrorTitle(for: error, fallback: "Timeline Summary Failed"),
+                title: Self.aiErrorTitle(for: error, fallback: String(localized: "Timeline Summary Failed")),
                 message: Self.userMessage(for: error)
             )
             timelineSummaryInlineError = Self.userMessage(for: error)
@@ -469,9 +469,9 @@ struct TimelineView: View {
         let evidenceItem = EvidenceItem(
             category: .note,
             userDateSource: .userEntered,
-            userTitle: "AI timeline summary",
+            userTitle: String(localized: "AI timeline summary"),
             userNotes: summaryText,
-            userWhyThisMatters: "Saved AI-generated overview of this case timeline.",
+            userWhyThisMatters: String(localized: "Saved AI-generated overview of this case timeline."),
             userProvidedEventDate: now,
             userMarkedImportant: true,
             isReviewed: true,
@@ -497,12 +497,12 @@ struct TimelineView: View {
             timelineSummaryInlineError = nil
             timelineSummaryWasAddedToTimeline = true
             aiNotice = TimelineAINotice(
-                title: "Summary Added",
-                message: "The AI summary is now saved as a reviewed timeline note. Your original proof and OCR were not changed."
+                title: String(localized: "Summary Added"),
+                message: String(localized: "The AI summary is now saved as a reviewed timeline note. Your original proof and OCR were not changed.")
             )
         } catch {
             modelContext.delete(evidenceItem)
-            timelineSummaryInlineError = "The summary could not be added to the timeline. Please try again."
+            timelineSummaryInlineError = String(localized: "The summary could not be added to the timeline. Please try again.")
         }
     }
 
@@ -548,7 +548,7 @@ struct TimelineView: View {
         if description.localizedCaseInsensitiveContains("out of AI credits") ||
             description.localizedCaseInsensitiveContains("AI credit") ||
             description.localizedCaseInsensitiveContains("insufficient_ai_credits") {
-            return "Out of AI Credits"
+            return String(localized: "Out of AI Credits")
         }
 
         return fallback
@@ -589,7 +589,7 @@ private struct TimelineDateGroupSection: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(isCollapsed ? "Expand \(group.title)" : "Collapse \(group.title)")
+            .accessibilityLabel(isCollapsed ? String(localized: "Expand \(group.title)") : String(localized: "Collapse \(group.title)"))
 
             if !isCollapsed {
                 LazyVStack(alignment: .leading, spacing: 10) {
@@ -598,7 +598,7 @@ private struct TimelineDateGroupSection: View {
                             TimelineRailMarker(isLastInGroup: itemIndex == group.items.count - 1)
 
                             ProofKitSwipeToDeleteRow(
-                                deleteAccessibilityLabel: "Delete proof",
+                                deleteAccessibilityLabel: String(localized: "Delete proof"),
                                 onOpen: {
                                     onOpen(evidenceItem)
                                 },
@@ -805,14 +805,14 @@ private struct TimelineSummaryResultCard: View {
 
     private var addButtonTitle: String {
         if isAddingToTimeline {
-            return "Adding to timeline..."
+            return String(localized: "Adding to timeline...")
         }
 
         if wasAddedToTimeline {
-            return "Added to timeline"
+            return String(localized: "Added to timeline")
         }
 
-        return "Add summary to timeline"
+        return String(localized: "Add summary to timeline")
     }
 }
 
@@ -1063,7 +1063,7 @@ private struct TimelineEvidenceCard: View {
     private var attachmentCountText: String {
         let count = evidenceItem.attachments.count
         guard count > 0 else { return "" }
-        return count == 1 ? "1 attachment" : "\(count) attachments"
+        return count == 1 ? String(localized: "1 attachment") : String(localized: "\(count) attachments")
     }
 
     private var noteText: String? {
@@ -1123,7 +1123,7 @@ private struct TimelineAttachmentPreview: View {
                             .fill(ProofKitVisual.imageBadgeBackground)
                     }
                     .padding(3)
-                    .accessibilityLabel("\(evidenceItem.attachments.count) attachments")
+                    .accessibilityLabel(String(localized: "\(evidenceItem.attachments.count) attachments"))
             }
         }
         .frame(width: 44, height: 44)
@@ -1182,14 +1182,14 @@ private struct TimelineDateGroup: Identifiable {
 
     var title: String {
         guard let date else {
-            return "Needs date"
+            return String(localized: "Needs date")
         }
 
         return date.formatted(.dateTime.weekday(.wide).month(.wide).day().year())
     }
 
     var itemCountText: String {
-        items.count == 1 ? "1 proof item" : "\(items.count) proof items"
+        items.count == 1 ? String(localized: "1 proof item") : String(localized: "\(items.count) proof items")
     }
 
     static func groups(from evidenceItems: [EvidenceItem]) -> [TimelineDateGroup] {
@@ -1255,9 +1255,9 @@ private extension EvidenceItem {
             return fallbackTitle
         }
 
-        let categoryTitle = category == .uncategorized ? "Proof item" : "\(category.displayName) proof item"
+        let categoryTitle = category == .uncategorized ? String(localized: "Proof item") : String(localized: "\(category.displayName) proof item")
         if let eventDate {
-            return "\(categoryTitle) from \(ProofKitDateFormatting.shortDate(eventDate))"
+            return String(localized: "\(categoryTitle) from \(ProofKitDateFormatting.shortDate(eventDate))")
         }
 
         return categoryTitle

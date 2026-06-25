@@ -98,7 +98,7 @@ struct AppStatusView: View {
 
     private var statusSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionTitle("What's happening")
+            sectionTitle(String(localized: "What's happening"))
 
             VStack(alignment: .leading, spacing: 9) {
                 HStack(alignment: .top, spacing: 10) {
@@ -162,29 +162,31 @@ struct AppStatusView: View {
             StatusDetailCard(
                 icon: "lock.shield.fill",
                 tint: StatusPalette.safe,
-                title: "Your proof is safe",
-                copy: "Your cases, proof files, OCR, and timeline stay stored locally on this device."
+                title: String(localized: "Your proof is safe"),
+                copy: String(localized: "Your cases, proof files, OCR, and timeline stay stored locally on this device.")
             )
 
             StatusDetailCard(
                 icon: "arrow.triangle.2.circlepath",
                 tint: StatusPalette.retry,
-                title: "Automatic retry",
-                copy: "Proofly will retry queued sync and AI requests automatically when services return."
+                title: String(localized: "Automatic retry"),
+                copy: String(localized: "Proofly will retry queued sync and AI requests automatically when services return.")
             )
 
             StatusDetailCard(
                 icon: "tray.full.fill",
                 tint: StatusPalette.pending,
-                title: "Pending changes",
-                copy: "\(queue.summary.pendingCount) item\(queue.summary.pendingCount == 1 ? "" : "s") waiting to sync."
+                title: String(localized: "Pending changes"),
+                copy: queue.summary.pendingCount == 1
+                    ? String(localized: "\(queue.summary.pendingCount) item waiting to sync.")
+                    : String(localized: "\(queue.summary.pendingCount) items waiting to sync.")
             )
         }
     }
 
     private var queuedRequestsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionTitle("Pending AI requests")
+            sectionTitle(String(localized: "Pending AI requests"))
 
             if activeQueueItems.isEmpty {
                 Text("No AI requests are waiting. AI output remains separate from your original evidence and notes.")
@@ -215,29 +217,29 @@ struct AppStatusView: View {
 
     private var worksSection: some View {
         StatusChecklistSection(
-            title: "What still works",
+            title: String(localized: "What still works"),
             icon: "checkmark.circle.fill",
             tint: StatusPalette.safe,
             items: [
-                "Viewing cases",
-                "Viewing proof/timeline",
-                "Importing and local OCR when available offline",
-                "Editing timeline/details",
-                "Local exports when supported"
+                String(localized: "Viewing cases"),
+                String(localized: "Viewing proof/timeline"),
+                String(localized: "Importing and local OCR when available offline"),
+                String(localized: "Editing timeline/details"),
+                String(localized: "Local exports when supported")
             ]
         )
     }
 
     private var limitedSection: some View {
         StatusChecklistSection(
-            title: "Temporarily limited",
+            title: String(localized: "Temporarily limited"),
             icon: "clock.badge.exclamationmark.fill",
             tint: StatusPalette.warning,
             items: [
-                "AI timeline summary",
-                "Packet polish / Deep review",
-                "Subscription/credit refresh",
-                "Cross-device/server sync if available"
+                String(localized: "AI timeline summary"),
+                String(localized: "Packet polish / Deep review"),
+                String(localized: "Subscription/credit refresh"),
+                String(localized: "Cross-device/server sync if available")
             ]
         )
     }
@@ -253,15 +255,19 @@ struct AppStatusView: View {
 
     private var primaryStatusTitle: String {
         if queue.summary.waitingForCreditsCount > 0 {
-            return "AI queue waiting for credits"
+            return String(localized: "AI queue waiting for credits")
         }
 
         if queue.summary.runningCount > 0 {
-            return "Syncing \(queue.summary.runningCount) AI request\(queue.summary.runningCount == 1 ? "" : "s")"
+            return queue.summary.runningCount == 1
+                ? String(localized: "Syncing \(queue.summary.runningCount) AI request")
+                : String(localized: "Syncing \(queue.summary.runningCount) AI requests")
         }
 
         if queue.summary.queuedCount > 0, healthMonitor.snapshot.state == .healthy {
-            return "Syncing \(queue.summary.queuedCount) AI request\(queue.summary.queuedCount == 1 ? "" : "s")"
+            return queue.summary.queuedCount == 1
+                ? String(localized: "Syncing \(queue.summary.queuedCount) AI request")
+                : String(localized: "Syncing \(queue.summary.queuedCount) AI requests")
         }
 
         return healthMonitor.snapshot.state.statusTitle
@@ -269,14 +275,14 @@ struct AppStatusView: View {
 
     private var queueStatusText: String {
         if queue.summary.waitingForCreditsCount > 0 {
-            return "\(queue.summary.waitingForCreditsCount) waiting for credits"
+            return String(localized: "\(queue.summary.waitingForCreditsCount) waiting for credits")
         }
 
         if queue.isProcessing {
-            return "Processing one at a time"
+            return String(localized: "Processing one at a time")
         }
 
-        return "\(queue.summary.pendingCount) queued"
+        return String(localized: "\(queue.summary.pendingCount) queued")
     }
 
     private func sectionTitle(_ title: String) -> some View {
@@ -389,11 +395,14 @@ struct HomeStatusPillHost: View {
 
     private var title: String? {
         if queue.isProcessing || (healthMonitor.snapshot.state == .healthy && queue.summary.queuedCount > 0) {
-            return "Syncing \(queue.summary.queuedCount + queue.summary.runningCount) AI request\(queue.summary.queuedCount + queue.summary.runningCount == 1 ? "" : "s")"
+            let count = queue.summary.queuedCount + queue.summary.runningCount
+            return count == 1
+                ? String(localized: "Syncing \(count) AI request")
+                : String(localized: "Syncing \(count) AI requests")
         }
 
         if queue.summary.waitingForCreditsCount > 0 {
-            return "AI delayed"
+            return String(localized: "AI delayed")
         }
 
         return healthMonitor.snapshot.state.shortPillTitle
@@ -536,17 +545,19 @@ private struct QueuedAIRequestRow: View {
         let cost = item.creditCostQuote ?? item.actionKind.defaultCreditCost
         switch item.status {
         case .queued:
-            return "Queued • \(cost) AI credit\(cost == 1 ? "" : "s")"
+            return cost == 1
+                ? String(localized: "Queued • \(cost) AI credit")
+                : String(localized: "Queued • \(cost) AI credits")
         case .running:
-            return "Running now • credits checked server-side"
+            return String(localized: "Running now • credits checked server-side")
         case .waitingForCredits:
-            return "Waiting for credits • \(cost) needed"
+            return String(localized: "Waiting for credits • \(cost) needed")
         case .failed:
-            return "Needs attention before retrying"
+            return String(localized: "Needs attention before retrying")
         case .completed:
-            return "Completed"
+            return String(localized: "Completed")
         case .cancelled:
-            return "Cancelled"
+            return String(localized: "Cancelled")
         }
     }
 }

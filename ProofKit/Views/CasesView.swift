@@ -61,8 +61,8 @@ struct CasesView: View {
                     CaseDetailView(caseFile: createdCaseToOpen)
                 } else {
                     EmptyStateView(
-                        title: "Case created",
-                        message: "Your case was created locally.",
+                        title: String(localized: "Case created"),
+                        message: String(localized: "Your case was created locally."),
                         systemImage: "checkmark.circle"
                     )
                 }
@@ -175,27 +175,27 @@ struct CasesView: View {
                     }
             }
             .buttonStyle(CasesIconButtonStyle())
-            .accessibilityLabel("New Case")
+            .accessibilityLabel(String(localized: "New Case"))
         }
         .proofKitAppear()
     }
 
     private var headerSubtitle: String {
         if cases.isEmpty {
-            return "Create a case to start organizing proof."
+            return String(localized: "Create a case to start organizing proof.")
         }
 
-        return "\(cases.count.caseCountText) stored locally"
+        return String(localized: "\(cases.count.caseCountText) stored locally")
     }
 
     @ViewBuilder
     private var content: some View {
         if cases.isEmpty {
             CasesEmptyState(
-                title: "No cases yet",
-                message: "Create your first case, then add photos, screenshots, PDFs, and notes as proof.",
-                footnote: "Cases stay local until you export them.",
-                primaryActionTitle: "+ New Case",
+                title: String(localized: "No cases yet"),
+                message: String(localized: "Create your first case, then add photos, screenshots, PDFs, and notes as proof."),
+                footnote: String(localized: "Cases stay local until you export them."),
+                primaryActionTitle: String(localized: "+ New Case"),
                 mascotImageName: "RookCasesEmpty",
                 primaryAction: {
                     Task { await addCase() }
@@ -204,9 +204,9 @@ struct CasesView: View {
             .proofKitAppear(delay: 0.06)
         } else if filteredCases.isEmpty {
             CasesEmptyState(
-                title: "No matching cases",
-                message: "Try searching by case title, status, type, notes, or evidence details.",
-                primaryActionTitle: "Clear Search",
+                title: String(localized: "No matching cases"),
+                message: String(localized: "Try searching by case title, status, type, notes, or evidence details."),
+                primaryActionTitle: String(localized: "Clear Search"),
                 primaryAction: {
                     withAnimation(ProofKitMotion.standard) {
                         searchText = ""
@@ -217,7 +217,7 @@ struct CasesView: View {
         } else {
             VStack(alignment: .leading, spacing: 13) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "All Cases" : "Search Results")
+                    Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? String(localized: "All Cases") : String(localized: "Search Results"))
                         .font(.title3.weight(.bold))
                         .foregroundStyle(.primary)
                         .kerning(-0.25)
@@ -232,7 +232,7 @@ struct CasesView: View {
                 LazyVStack(spacing: 14) {
                     ForEach(Array(filteredCases.enumerated()), id: \.element.id) { index, caseFile in
                         ProofKitSwipeToDeleteRow(
-                            deleteAccessibilityLabel: "Delete case",
+                            deleteAccessibilityLabel: String(localized: "Delete case"),
                             cornerRadius: 22,
                             onDelete: {
                                 prepareDelete(for: caseFile)
@@ -290,10 +290,10 @@ struct CasesView: View {
 
     private var deleteCaseConfirmationMessage: String {
         guard let casePendingDeletion else {
-            return "This removes the selected case from Proofly. Original proof files stay in the Vault and on this device."
+            return String(localized: "This removes the selected case from Proofly. Original proof files stay in the Vault and on this device.")
         }
 
-        return "This removes “\(casePendingDeletion.casesDisplayTitle)” and its timeline, notes, proof entries, and export records from Proofly. Original proof files stay in the Vault and on this device."
+        return String(localized: "This removes “\(casePendingDeletion.casesDisplayTitle)” and its timeline, notes, proof entries, and export records from Proofly. Original proof files stay in the Vault and on this device.")
     }
 
     private func deletePendingCase() {
@@ -304,8 +304,8 @@ struct CasesView: View {
             services.analytics.trackCaseDeleted(caseFile)
         } catch {
             caseDeletionNotice = CasesDeletionNotice(
-                title: "Case not deleted",
-                message: "This case could not be deleted. Please try again."
+                title: String(localized: "Case not deleted"),
+                message: String(localized: "This case could not be deleted. Please try again.")
             )
         }
 
@@ -377,7 +377,7 @@ private struct CasesSearchField: View {
                         .foregroundStyle(CasesPalette.tertiaryText)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
+                .accessibilityLabel(String(localized: "Clear search"))
             }
         }
         .font(.body.weight(.medium))
@@ -421,7 +421,7 @@ private struct CaseListCard: View {
                         .foregroundStyle(CasesPalette.secondaryText)
                         .lineLimit(1)
 
-                    Text("\(readiness.score)% ready · \(readiness.nextStepLabel)")
+                    Text(String(localized: "\(readiness.score)% ready · \(readiness.nextStepLabel)"))
                         .font(.footnote.weight(.medium))
                         .foregroundStyle(CasesPalette.tertiaryText)
                         .lineLimit(1)
@@ -676,14 +676,13 @@ private extension View {
 
 private extension CaseFile {
     var casesDisplayTitle: String {
-        let trimmedTitle = userTitle.casesTrimmedText
-        return trimmedTitle.isEmpty ? "Untitled Case" : trimmedTitle
+        CaseFile.displayTitle(forTrimmedTitle: userTitle.casesTrimmedText)
     }
 
     var casesUpdatedText: String {
         Calendar.current.isDateInToday(updatedAt)
-            ? "Updated today"
-            : "Updated \(ProofKitDateFormatting.shortDate(updatedAt))"
+            ? String(localized: "Updated today")
+            : String(localized: "Updated \(ProofKitDateFormatting.shortDate(updatedAt))")
     }
 
     var casesThumbnailPath: String? {
@@ -705,7 +704,8 @@ private extension CaseFile {
     }
 
     var casesThumbnailInitials: String {
-        let source = casesDisplayTitle == "Untitled Case" ? caseReadinessCategory.displayName : casesDisplayTitle
+        let trimmedTitle = userTitle.casesTrimmedText
+        let source = CaseFile.isUntitledTitle(trimmedTitle) ? caseReadinessCategory.displayName : trimmedTitle
         let words = source
             .split(separator: " ")
             .prefix(2)
@@ -774,7 +774,7 @@ private extension CaseType {
 
 private extension Int {
     var caseCountText: String {
-        self == 1 ? "1 case" : "\(self) cases"
+        self == 1 ? String(localized: "1 case") : String(localized: "\(self) cases")
     }
 }
 

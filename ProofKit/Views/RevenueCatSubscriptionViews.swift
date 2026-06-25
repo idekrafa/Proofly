@@ -79,7 +79,7 @@ struct RevenueCatSubscriptionManagementCard: View {
                 },
                 onError: { error in
                     notice = RevenueCatSubscriptionNotice(
-                        title: "Customer Center Error",
+                        title: String(localized: "Customer Center Error"),
                         message: Self.message(for: error)
                     )
                 }
@@ -189,7 +189,7 @@ struct RevenueCatSubscriptionManagementCard: View {
             offering = try await services.subscriptions.currentOffering()
         } catch {
             notice = RevenueCatSubscriptionNotice(
-                title: "Couldn’t Load Plans",
+                title: String(localized: "Couldn’t Load Plans"),
                 message: Self.message(for: error)
             )
         }
@@ -229,7 +229,7 @@ struct RevenueCatSubscriptionManagementCard: View {
 
         if !outcome.userCancelled {
             notice = RevenueCatSubscriptionNotice(
-                title: outcome.isSuccessful ? "Subscription Updated" : "Subscription Notice",
+                title: outcome.isSuccessful ? String(localized: "Subscription Updated") : String(localized: "Subscription Notice"),
                 message: outcome.message
             )
         }
@@ -242,7 +242,7 @@ struct RevenueCatSubscriptionManagementCard: View {
             onEntitlementChanged(snapshot.entitlementSnapshot)
         } catch {
             notice = RevenueCatSubscriptionNotice(
-                title: "Couldn’t Refresh Subscription",
+                title: String(localized: "Couldn’t Refresh Subscription"),
                 message: Self.message(for: error)
             )
         }

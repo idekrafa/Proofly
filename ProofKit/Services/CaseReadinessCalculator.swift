@@ -200,26 +200,26 @@ enum CaseReadinessCalculator {
         unreviewedItemCount: Int
     ) -> String {
         if !signals.hasTitle || !signals.hasSelectedCategory {
-            return "Next: Finish case details"
+            return String(localized: "Next: Finish case details")
         }
 
         if proofItemCount == 0 {
-            return "Next: Add proof"
+            return String(localized: "Next: Add proof")
         }
 
         if unreviewedItemCount > 0 {
-            return "Next: Review inbox"
+            return String(localized: "Next: Review inbox")
         }
 
         if !signals.hasTimelineDate || !signals.hasTimelineDepthOrStrongItem {
-            return "Next: Check timeline"
+            return String(localized: "Next: Check timeline")
         }
 
         if signals.hasGeneratedExport && score == 100 {
-            return "Packet generated"
+            return String(localized: "Packet generated")
         }
 
-        return "Next: Export packet"
+        return String(localized: "Next: Export packet")
     }
 
     private static func blockers(
@@ -229,35 +229,35 @@ enum CaseReadinessCalculator {
         var items: [String] = []
 
         if !signals.hasTitle {
-            items.append("case title")
+            items.append(String(localized: "case title"))
         }
 
         if !signals.hasSelectedCategory {
-            items.append("case category")
+            items.append(String(localized: "case category"))
         }
 
         if !signals.hasDescription {
-            items.append("short context")
+            items.append(String(localized: "short context"))
         }
 
         if proofItemCount == 0 {
-            items.append("proof items")
+            items.append(String(localized: "proof items"))
         }
 
         if !signals.hasNoUnreviewedImportedItems {
-            items.append("review inbox")
+            items.append(String(localized: "review inbox"))
         }
 
         if proofItemCount > 0, !signals.hasTimelineDate {
-            items.append("timeline dates")
+            items.append(String(localized: "timeline dates"))
         }
 
         if proofItemCount > 0, !signals.hasTimelineDepthOrStrongItem {
-            items.append("timeline detail")
+            items.append(String(localized: "timeline detail"))
         }
 
         if proofItemCount > 0, !signals.importantItemsHaveLabels {
-            items.append("item labels")
+            items.append(String(localized: "item labels"))
         }
 
         return Array(items.prefix(3))
@@ -275,70 +275,70 @@ extension CaseFile {
         switch caseType {
         case .apartmentIssue, .tenantLandlord:
             return CaseReadinessCategory(
-                displayName: "Housing lease",
+                displayName: String(localized: "Housing lease"),
                 analyticsValue: "apartment",
                 isSelected: true,
                 isSchool: false
             )
         case .refundWarrantyIssue, .consumer:
             return CaseReadinessCategory(
-                displayName: "Refund",
+                displayName: String(localized: "Refund"),
                 analyticsValue: "refund",
                 isSelected: true,
                 isSchool: false
             )
         case .schoolCollegeIssue:
             return CaseReadinessCategory(
-                displayName: "School",
+                displayName: String(localized: "School"),
                 analyticsValue: "school",
                 isSelected: true,
                 isSchool: true
             )
         case .unpaidFreelanceWork, .workplaceIssue, .workFreelanceIssue, .employment:
             return CaseReadinessCategory(
-                displayName: "Work",
+                displayName: String(localized: "Work"),
                 analyticsValue: "work",
                 isSelected: true,
                 isSchool: false
             )
         case .insuranceIssue, .insurance:
             return CaseReadinessCategory(
-                displayName: "Insurance",
+                displayName: String(localized: "Insurance"),
                 analyticsValue: "insurance",
                 isSelected: true,
                 isSchool: false
             )
         case .smallClaims:
             return CaseReadinessCategory(
-                displayName: "Small Claims",
+                displayName: String(localized: "Small Claims"),
                 analyticsValue: "small_claims",
                 isSelected: true,
                 isSchool: false
             )
         case .family:
             return CaseReadinessCategory(
-                displayName: "Family",
+                displayName: String(localized: "Family"),
                 analyticsValue: "family",
                 isSelected: true,
                 isSchool: false
             )
         case .immigration:
             return CaseReadinessCategory(
-                displayName: "Immigration",
+                displayName: String(localized: "Immigration"),
                 analyticsValue: "immigration",
                 isSelected: true,
                 isSchool: false
             )
         case .other:
             return CaseReadinessCategory(
-                displayName: "Something else",
+                displayName: String(localized: "Something else"),
                 analyticsValue: "other",
                 isSelected: true,
                 isSchool: false
             )
         case .general:
             return CaseReadinessCategory(
-                displayName: "Other",
+                displayName: String(localized: "Other"),
                 analyticsValue: "other",
                 isSelected: onboardingCategory != nil,
                 isSchool: false
@@ -417,7 +417,7 @@ private extension String {
 
         if normalized.contains("school") || normalized.contains("college") || normalized.contains("university") {
             return CaseReadinessCategory(
-                displayName: "School",
+                displayName: String(localized: "School"),
                 analyticsValue: "school",
                 isSelected: true,
                 isSchool: true
@@ -426,7 +426,7 @@ private extension String {
 
         if normalized.contains("rent") || normalized.contains("lease") || normalized.contains("apartment") {
             return CaseReadinessCategory(
-                displayName: "Housing lease",
+                displayName: String(localized: "Housing lease"),
                 analyticsValue: "apartment",
                 isSelected: true,
                 isSchool: false
@@ -435,7 +435,7 @@ private extension String {
 
         if normalized.contains("refund") || normalized.contains("warranty") {
             return CaseReadinessCategory(
-                displayName: "Refund",
+                displayName: String(localized: "Refund"),
                 analyticsValue: "refund",
                 isSelected: true,
                 isSchool: false
@@ -444,7 +444,7 @@ private extension String {
 
         if normalized.contains("work") || normalized.contains("freelance") || normalized.contains("employment") {
             return CaseReadinessCategory(
-                displayName: "Work",
+                displayName: String(localized: "Work"),
                 analyticsValue: "work",
                 isSelected: true,
                 isSchool: false
@@ -453,7 +453,7 @@ private extension String {
 
         if normalized.contains("something else") {
             return CaseReadinessCategory(
-                displayName: "Something else",
+                displayName: String(localized: "Something else"),
                 analyticsValue: "other",
                 isSelected: true,
                 isSchool: false

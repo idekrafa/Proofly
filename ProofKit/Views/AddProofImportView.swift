@@ -134,8 +134,8 @@ struct AddProofImportView: View {
             ) {
                 AddProofOptionRow(
                     emoji: "📸",
-                    title: "Photos or screenshots",
-                    subtitle: "Add messages, damage photos, receipts, or proof."
+                    title: String(localized: "Photos or screenshots"),
+                    subtitle: String(localized: "Add messages, damage photos, receipts, or proof.")
                 )
             }
             .buttonStyle(AddProofOptionButtonStyle())
@@ -146,8 +146,8 @@ struct AddProofImportView: View {
             } label: {
                 AddProofOptionRow(
                     emoji: "📄",
-                    title: "PDF or document",
-                    subtitle: "Add leases, forms, letters, or official files."
+                    title: String(localized: "PDF or document"),
+                    subtitle: String(localized: "Add leases, forms, letters, or official files.")
                 )
             }
             .buttonStyle(AddProofOptionButtonStyle())
@@ -159,8 +159,8 @@ struct AddProofImportView: View {
             } label: {
                 AddProofOptionRow(
                     emoji: "✍️",
-                    title: "Timeline note",
-                    subtitle: "Write what happened when there’s no file."
+                    title: String(localized: "Timeline note"),
+                    subtitle: String(localized: "Write what happened when there’s no file.")
                 )
             }
             .buttonStyle(AddProofOptionButtonStyle())
@@ -281,7 +281,7 @@ struct AddProofImportView: View {
 
             guard !importedEvidenceItems.isEmpty else {
                 withAnimation(ProofKitMotion.standard) {
-                    importErrorMessage = "No images were imported. Please choose a photo or screenshot and try again."
+                    importErrorMessage = String(localized: "No images were imported. Please choose a photo or screenshot and try again.")
                     isImporting = false
                     selectedPhotoItems = []
                 }
@@ -298,7 +298,7 @@ struct AddProofImportView: View {
         } catch {
             services.analytics.trackProofImportFailed(proofType: .photo, errorType: .importFailed)
             withAnimation(ProofKitMotion.standard) {
-                importErrorMessage = "Images could not be imported. Please try again."
+                importErrorMessage = String(localized: "Images could not be imported. Please try again.")
             }
         }
 
@@ -315,7 +315,7 @@ struct AddProofImportView: View {
         case .failure:
             services.analytics.trackProofImportFailed(proofType: .pdf, errorType: .importFailed)
             withAnimation(ProofKitMotion.standard) {
-                importErrorMessage = "Documents could not be selected. Please try again."
+                importErrorMessage = String(localized: "Documents could not be selected. Please try again.")
             }
         }
     }
@@ -370,7 +370,7 @@ struct AddProofImportView: View {
 
             guard !importedEvidenceItems.isEmpty else {
                 withAnimation(ProofKitMotion.standard) {
-                    importErrorMessage = "No documents were imported. Please choose a PDF or document and try again."
+                    importErrorMessage = String(localized: "No documents were imported. Please choose a PDF or document and try again.")
                     isImporting = false
                 }
                 services.analytics.trackProofImportFailed(proofType: startedProofType, errorType: .importFailed)
@@ -386,7 +386,7 @@ struct AddProofImportView: View {
         } catch {
             services.analytics.trackProofImportFailed(proofType: startedProofType, errorType: .importFailed)
             withAnimation(ProofKitMotion.standard) {
-                importErrorMessage = "Documents could not be imported. Please try again."
+                importErrorMessage = String(localized: "Documents could not be imported. Please try again.")
             }
         }
 
@@ -600,21 +600,21 @@ struct AddProofImportView: View {
     private func originalFilename(at index: Int, contentType: UTType?) -> String {
         let number = index + 1
         let fileExtension = contentType?.preferredFilenameExtension ?? "jpg"
-        return "Proofly Image \(number).\(fileExtension)"
+        return "\(String(localized: "Proofly Image \(number)")).\(fileExtension)"
     }
 
     private func draftTitle(from filename: String) -> String {
         let nameWithoutExtension = URL(filePath: filename)
             .deletingPathExtension()
             .lastPathComponent
-        return nameWithoutExtension.isEmpty ? "Imported image" : nameWithoutExtension
+        return nameWithoutExtension.isEmpty ? String(localized: "Imported image") : nameWithoutExtension
     }
 
     private func documentDraftTitle(from filename: String) -> String {
         let nameWithoutExtension = URL(filePath: filename)
             .deletingPathExtension()
             .lastPathComponent
-        return nameWithoutExtension.isEmpty ? "Imported document" : nameWithoutExtension
+        return nameWithoutExtension.isEmpty ? String(localized: "Imported document") : nameWithoutExtension
     }
 
     private func attachmentType(for contentType: UTType?) -> AttachmentType {

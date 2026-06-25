@@ -92,3 +92,22 @@ final class CaseFile {
         }
     }
 }
+
+extension CaseFile {
+    /// Stable, non-localized title persisted for untitled cases.
+    /// Never translate: it is stored in `userTitle` and used for equality checks across the app.
+    static let untitledCaseSentinel = "Untitled Case"
+
+    /// Localized placeholder shown in the UI when a case has no user-provided title.
+    static var untitledCaseDisplayTitle: String { String(localized: "Untitled Case") }
+
+    /// Whether a trimmed title represents an untitled case (empty or the stored placeholder).
+    static func isUntitledTitle(_ trimmedTitle: String) -> Bool {
+        trimmedTitle.isEmpty || trimmedTitle == untitledCaseSentinel
+    }
+
+    /// Resolves a trimmed title to a display string, localizing the untitled placeholder.
+    static func displayTitle(forTrimmedTitle trimmedTitle: String) -> String {
+        isUntitledTitle(trimmedTitle) ? untitledCaseDisplayTitle : trimmedTitle
+    }
+}

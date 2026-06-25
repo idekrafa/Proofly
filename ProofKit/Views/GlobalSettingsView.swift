@@ -15,11 +15,11 @@ enum ProofKitAppearancePreference: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .system:
-            "System"
+            String(localized: "System")
         case .light:
-            "Light"
+            String(localized: "Light")
         case .dark:
-            "Dark"
+            String(localized: "Dark")
         }
     }
 
@@ -51,7 +51,7 @@ struct GlobalSettingsView: View {
     @State private var entitlement = ProofKitEntitlementSnapshot.placeholder()
     @State private var accountSession: ProofKitAccountSession?
     @State private var accountProfile = SettingsEditableAccountProfile.empty
-    @State private var aiCreditsText = "Checking…"
+    @State private var aiCreditsText = String(localized: "Checking…")
     @State private var settingsNotice: SettingsNotice?
     @State private var exportFile: SettingsExportFile?
     @State private var infoSheet: SettingsInfoPresentation?
@@ -89,12 +89,12 @@ struct GlobalSettingsView: View {
 
     private var displayNameText: String {
         let value = editableNameValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? "Add name" : value
+        return value.isEmpty ? String(localized: "Add name") : value
     }
 
     private var displayEmailText: String {
         let value = editableEmailValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? "Add email" : value
+        return value.isEmpty ? String(localized: "Add email") : value
     }
 
     private var planStatusText: String {
@@ -102,7 +102,7 @@ struct GlobalSettingsView: View {
     }
 
     private var localCaseCountText: String {
-        caseFiles.count == 1 ? "1 case" : "\(caseFiles.count) cases"
+        caseFiles.count == 1 ? String(localized: "1 case") : String(localized: "\(caseFiles.count) cases")
     }
 
     private var localProofItemCount: Int {
@@ -122,12 +122,12 @@ struct GlobalSettingsView: View {
     }
 
     private var localExportCountText: String {
-        localExportCount == 1 ? "1 export" : "\(localExportCount) exports"
+        localExportCount == 1 ? String(localized: "1 export") : String(localized: "\(localExportCount) exports")
     }
 
     private var localLastUpdatedText: String {
         guard let updatedAt = caseFiles.first?.updatedAt else {
-            return "No cases yet"
+            return String(localized: "No cases yet")
         }
 
         return ProofKitDateFormatting.shortDateTime(updatedAt)
@@ -261,15 +261,15 @@ struct GlobalSettingsView: View {
 
     private var accountSection: some View {
         settingsSection(
-            title: "Account",
-            copy: "Used for your Proofly account and exported packets.",
+            title: String(localized: "Account"),
+            copy: String(localized: "Used for your Proofly account and exported packets."),
             delay: 0.03
         ) {
             SettingsGroup {
                 SettingsValueButtonRow(
                     icon: "person.crop.circle.fill",
                     iconColor: ProofKitVisual.accentSecondary,
-                    title: "Name",
+                    title: String(localized: "Name"),
                     value: displayNameText,
                     valueColor: editableNameValue.isEmpty ? ProofKitVisual.subduedText : ProofKitVisual.helperText
                 ) {
@@ -281,7 +281,7 @@ struct GlobalSettingsView: View {
                 SettingsValueButtonRow(
                     icon: "envelope.fill",
                     iconColor: ProofKitVisual.accent,
-                    title: "Email",
+                    title: String(localized: "Email"),
                     value: displayEmailText,
                     valueColor: editableEmailValue.isEmpty ? ProofKitVisual.subduedText : ProofKitVisual.helperText
                 ) {
@@ -293,15 +293,15 @@ struct GlobalSettingsView: View {
 
     private var planSection: some View {
         settingsSection(
-            title: "Plan",
-            copy: "AI tools will use credits once they launch. Your core proof timeline stays usable without AI.",
+            title: String(localized: "Plan"),
+            copy: String(localized: "AI tools will use credits once they launch. Your core proof timeline stays usable without AI."),
             delay: 0.06
         ) {
             SettingsGroup {
                 SettingsValueRow(
                     icon: "crown.fill",
                     iconColor: .yellow,
-                    title: "Current plan",
+                    title: String(localized: "Current plan"),
                     value: planStatusText
                 )
 
@@ -310,7 +310,7 @@ struct GlobalSettingsView: View {
                 SettingsValueRow(
                     icon: "sparkles",
                     iconColor: ProofKitVisual.accentSecondary,
-                    title: "AI credits",
+                    title: String(localized: "AI credits"),
                     value: aiCreditsText
                 )
 
@@ -319,7 +319,7 @@ struct GlobalSettingsView: View {
                 SettingsButtonRow(
                     icon: "creditcard.fill",
                     iconColor: ProofKitVisual.accent,
-                    title: "Manage subscription",
+                    title: String(localized: "Manage subscription"),
                     titleColor: ProofKitVisual.accent,
                     showsChevron: true
                 ) {
@@ -330,12 +330,12 @@ struct GlobalSettingsView: View {
     }
 
     private var privacySection: some View {
-        settingsSection(title: "Privacy & data", delay: 0.09) {
+        settingsSection(title: String(localized: "Privacy & data"), delay: 0.09) {
             SettingsGroup {
                 SettingsValueRow(
                     icon: "folder.fill",
                     iconColor: ProofKitVisual.accent,
-                    title: "Local cases",
+                    title: String(localized: "Local cases"),
                     value: localCaseCountText
                 )
 
@@ -344,7 +344,7 @@ struct GlobalSettingsView: View {
                 SettingsValueRow(
                     icon: "doc.text.image.fill",
                     iconColor: ProofKitVisual.accentSecondary,
-                    title: "Proof items",
+                    title: String(localized: "Proof items"),
                     value: localProofItemCountText
                 )
 
@@ -353,7 +353,7 @@ struct GlobalSettingsView: View {
                 SettingsValueRow(
                     icon: "doc.richtext.fill",
                     iconColor: ProofKitVisual.accent,
-                    title: "Exports",
+                    title: String(localized: "Exports"),
                     value: localExportCountText
                 )
 
@@ -362,7 +362,7 @@ struct GlobalSettingsView: View {
                 SettingsValueRow(
                     icon: "clock.fill",
                     iconColor: ProofKitVisual.helperText,
-                    title: "Last updated",
+                    title: String(localized: "Last updated"),
                     value: localLastUpdatedText
                 )
 
@@ -371,7 +371,7 @@ struct GlobalSettingsView: View {
                 SettingsButtonRow(
                     icon: "lock.fill",
                     iconColor: ProofKitVisual.accentSecondary,
-                    title: "Local-first storage",
+                    title: String(localized: "Local-first storage"),
                     showsChevron: true
                 ) {
                     infoSheet = .localFirst
@@ -382,8 +382,8 @@ struct GlobalSettingsView: View {
                 SettingsToggleRow(
                     icon: "chart.line.uptrend.xyaxis",
                     iconColor: ProofKitVisual.accent,
-                    title: "Product analytics",
-                    subtitle: "Only privacy-safe funnel events. Never proof content.",
+                    title: String(localized: "Product analytics"),
+                    subtitle: String(localized: "Only privacy-safe funnel events. Never proof content."),
                     isOn: analyticsEnabledBinding
                 )
 
@@ -392,7 +392,7 @@ struct GlobalSettingsView: View {
                 SettingsButtonRow(
                     icon: "square.and.arrow.up.fill",
                     iconColor: ProofKitVisual.accent,
-                    title: isPreparingExport ? "Preparing export…" : "Export my data",
+                    title: isPreparingExport ? String(localized: "Preparing export…") : String(localized: "Export my data"),
                     titleColor: ProofKitVisual.accent,
                     isLoading: isPreparingExport
                 ) {
@@ -405,7 +405,7 @@ struct GlobalSettingsView: View {
                 SettingsButtonRow(
                     icon: "trash.fill",
                     iconColor: .red,
-                    title: isDeletingLocalData ? "Deleting local data…" : "Delete local data",
+                    title: isDeletingLocalData ? String(localized: "Deleting local data…") : String(localized: "Delete local data"),
                     titleColor: .red,
                     isLoading: isDeletingLocalData
                 ) {
@@ -417,16 +417,16 @@ struct GlobalSettingsView: View {
     }
 
     private var supportSection: some View {
-        settingsSection(title: "Support", delay: 0.12) {
+        settingsSection(title: String(localized: "Support"), delay: 0.12) {
             SettingsGroup {
                 SettingsButtonRow(
                     icon: "bubble.left.and.bubble.right.fill",
                     iconColor: ProofKitVisual.accentSecondary,
-                    title: "Send feedback",
+                    title: String(localized: "Send feedback"),
                     showsChevron: true
                 ) {
                     services.analytics.trackFeedbackStarted()
-                    openMail(subject: "Proofly Feedback", prompt: "Tell us what would make Proofly better:")
+                    openMail(subject: String(localized: "Proofly Feedback"), prompt: String(localized: "Tell us what would make Proofly better:"))
                 }
 
                 SettingsDivider()
@@ -434,11 +434,11 @@ struct GlobalSettingsView: View {
                 SettingsValueButtonRow(
                     icon: "envelope.badge.fill",
                     iconColor: ProofKitVisual.accent,
-                    title: "Contact support",
+                    title: String(localized: "Contact support"),
                     value: Self.supportEmailAddress
                 ) {
                     services.analytics.trackSupportOpened()
-                    openMail(subject: "Proofly Support", prompt: "How can we help?")
+                    openMail(subject: String(localized: "Proofly Support"), prompt: String(localized: "How can we help?"))
                 }
 
                 SettingsDivider()
@@ -446,11 +446,11 @@ struct GlobalSettingsView: View {
                 SettingsButtonRow(
                     icon: "ladybug.fill",
                     iconColor: .orange,
-                    title: "Report a bug",
+                    title: String(localized: "Report a bug"),
                     showsChevron: true
                 ) {
                     services.analytics.trackSupportOpened()
-                    openMail(subject: "Proofly Bug Report", prompt: "What happened?")
+                    openMail(subject: String(localized: "Proofly Bug Report"), prompt: String(localized: "What happened?"))
                 }
 
                 SettingsDivider()
@@ -458,7 +458,7 @@ struct GlobalSettingsView: View {
                 SettingsButtonRow(
                     icon: "waveform.path.ecg.rectangle.fill",
                     iconColor: ProofKitVisual.accent,
-                    title: "App Status",
+                    title: String(localized: "App Status"),
                     showsChevron: true
                 ) {
                     showingAppStatus = true
@@ -468,12 +468,12 @@ struct GlobalSettingsView: View {
     }
 
     private var aboutSection: some View {
-        settingsSection(title: "About", delay: 0.15) {
+        settingsSection(title: String(localized: "About"), delay: 0.15) {
             SettingsGroup {
                 SettingsButtonRow(
                     icon: "checkmark.seal.fill",
                     iconColor: ProofKitVisual.accent,
-                    title: "About Proofly",
+                    title: String(localized: "About Proofly"),
                     showsChevron: true
                 ) {
                     infoSheet = .aboutProofKit
@@ -484,7 +484,7 @@ struct GlobalSettingsView: View {
                 SettingsButtonRow(
                     icon: "bird.fill",
                     iconColor: ProofKitVisual.accentSecondary,
-                    title: "About Rook",
+                    title: String(localized: "About Rook"),
                     showsChevron: true
                 ) {
                     infoSheet = .aboutRook
@@ -495,7 +495,7 @@ struct GlobalSettingsView: View {
                 SettingsValueRow(
                     icon: "info.circle.fill",
                     iconColor: ProofKitVisual.helperText,
-                    title: "Version",
+                    title: String(localized: "Version"),
                     value: SettingsAppVersionText.current
                 )
             }
@@ -503,12 +503,12 @@ struct GlobalSettingsView: View {
     }
 
     private var accountActionsSection: some View {
-        settingsSection(title: "Account actions", delay: 0.18) {
+        settingsSection(title: String(localized: "Account actions"), delay: 0.18) {
             SettingsGroup {
                 SettingsButtonRow(
                     icon: "person.crop.circle.badge.xmark",
                     iconColor: .red,
-                    title: isDeletingAccount ? "Deleting account..." : "Delete account",
+                    title: isDeletingAccount ? String(localized: "Deleting account...") : String(localized: "Delete account"),
                     titleColor: .red,
                     isLoading: isDeletingAccount
                 ) {
@@ -521,7 +521,7 @@ struct GlobalSettingsView: View {
                 SettingsButtonRow(
                     icon: "rectangle.portrait.and.arrow.right",
                     iconColor: .orange,
-                    title: isSigningOut ? "Signing out..." : "Sign out",
+                    title: isSigningOut ? String(localized: "Signing out...") : String(localized: "Sign out"),
                     titleColor: .orange,
                     isLoading: isSigningOut
                 ) {
@@ -596,7 +596,7 @@ struct GlobalSettingsView: View {
 
         do {
             let balance = try await services.aiCredits.fetchAICreditBalance()
-            return "\(balance.availableCredits) available"
+            return String(localized: "\(balance.availableCredits) available")
         } catch {
             return Self.includedCreditsText(for: entitlement)
         }
@@ -605,10 +605,10 @@ struct GlobalSettingsView: View {
     private static func includedCreditsText(for entitlement: ProofKitEntitlementSnapshot) -> String {
         let credits = entitlement.includedAICredits
         if credits <= 0 {
-            return "Not included"
+            return String(localized: "Not included")
         }
 
-        return "\(credits) \(entitlement.aiCreditRenewalText.lowercased()) included"
+        return String(localized: "\(credits) \(entitlement.aiCreditRenewalText.lowercased()) included")
     }
 
     @MainActor
@@ -625,8 +625,8 @@ struct GlobalSettingsView: View {
     private func saveAccountNameToSupabase(_ name: String) async {
         guard let normalized = Self.normalizedName(name) else {
             settingsNotice = SettingsNotice(
-                title: "Name Required",
-                message: "Enter a name before saving."
+                title: String(localized: "Name Required"),
+                message: String(localized: "Enter a name before saving.")
             )
             return
         }
@@ -635,8 +635,8 @@ struct GlobalSettingsView: View {
             accountProfile.name = normalized
             SettingsAccountProfileStore.saveName(normalized, for: accountSession)
             settingsNotice = SettingsNotice(
-                title: "Saved on This Device",
-                message: "Supabase account services are not configured in this build, so the name was saved locally only."
+                title: String(localized: "Saved on This Device"),
+                message: String(localized: "Supabase account services are not configured in this build, so the name was saved locally only.")
             )
             return
         }
@@ -648,12 +648,12 @@ struct GlobalSettingsView: View {
             SettingsAccountProfileStore.clear(for: updatedSession)
             onAccountSessionUpdated(updatedSession)
             settingsNotice = SettingsNotice(
-                title: "Name Updated",
-                message: "Your Proofly profile name was updated in Supabase."
+                title: String(localized: "Name Updated"),
+                message: String(localized: "Your Proofly profile name was updated in Supabase.")
             )
         } catch {
             settingsNotice = SettingsNotice(
-                title: "Couldn’t Update Name",
+                title: String(localized: "Couldn’t Update Name"),
                 message: Self.message(for: error)
             )
         }
@@ -664,24 +664,24 @@ struct GlobalSettingsView: View {
         guard let normalized = Self.normalizedEmail(email),
               SettingsEmailValidator.isValid(normalized) else {
             settingsNotice = SettingsNotice(
-                title: "Invalid Email",
-                message: "Enter a valid email address before saving."
+                title: String(localized: "Invalid Email"),
+                message: String(localized: "Enter a valid email address before saving.")
             )
             return
         }
 
         if normalized == accountSession?.email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
             settingsNotice = SettingsNotice(
-                title: "Email Unchanged",
-                message: "That is already the email address for this Proofly account."
+                title: String(localized: "Email Unchanged"),
+                message: String(localized: "That is already the email address for this Proofly account.")
             )
             return
         }
 
         guard services.account.isConfigured else {
             settingsNotice = SettingsNotice(
-                title: "Email Not Updated",
-                message: "Supabase account services are not configured in this build, so email changes can’t be requested."
+                title: String(localized: "Email Not Updated"),
+                message: String(localized: "Supabase account services are not configured in this build, so email changes can’t be requested.")
             )
             return
         }
@@ -690,12 +690,12 @@ struct GlobalSettingsView: View {
             try await services.account.requestEmailChange(to: normalized)
             SettingsAccountProfileStore.clearEmail(for: accountSession)
             settingsNotice = SettingsNotice(
-                title: "Confirm Your New Email",
-                message: "Supabase sent a confirmation email to \(normalized). Your Proofly account email will update after you confirm it."
+                title: String(localized: "Confirm Your New Email"),
+                message: String(localized: "Supabase sent a confirmation email to \(normalized). Your Proofly account email will update after you confirm it.")
             )
         } catch {
             settingsNotice = SettingsNotice(
-                title: "Couldn’t Request Email Change",
+                title: String(localized: "Couldn’t Request Email Change"),
                 message: Self.message(for: error)
             )
         }
@@ -712,7 +712,7 @@ struct GlobalSettingsView: View {
             onSignedOut()
         } catch {
             settingsNotice = SettingsNotice(
-                title: "Couldn’t Sign Out",
+                title: String(localized: "Couldn’t Sign Out"),
                 message: Self.message(for: error)
             )
         }
@@ -724,8 +724,8 @@ struct GlobalSettingsView: View {
 
         guard services.account.isConfigured else {
             settingsNotice = SettingsNotice(
-                title: "Account Services Unavailable",
-                message: "Supabase account services are not configured in this build, so your server account can’t be deleted here."
+                title: String(localized: "Account Services Unavailable"),
+                message: String(localized: "Supabase account services are not configured in this build, so your server account can’t be deleted here.")
             )
             return
         }
@@ -738,7 +738,7 @@ struct GlobalSettingsView: View {
             onSignedOut()
         } catch {
             settingsNotice = SettingsNotice(
-                title: "Couldn’t Delete Account",
+                title: String(localized: "Couldn’t Delete Account"),
                 message: Self.message(for: error)
             )
         }
@@ -761,7 +761,7 @@ struct GlobalSettingsView: View {
             exportFile = file
         } catch {
             settingsNotice = SettingsNotice(
-                title: "Couldn’t Export Data",
+                title: String(localized: "Couldn’t Export Data"),
                 message: Self.message(for: error)
             )
         }
@@ -791,7 +791,7 @@ struct GlobalSettingsView: View {
         } catch {
             modelContext.rollback()
             settingsNotice = SettingsNotice(
-                title: "Couldn’t Delete Local Data",
+                title: String(localized: "Couldn’t Delete Local Data"),
                 message: Self.message(for: error)
             )
         }
@@ -836,8 +836,8 @@ struct GlobalSettingsView: View {
 
     private static func mailUnavailableNotice(subject: String) -> SettingsNotice {
         SettingsNotice(
-            title: "Email App Not Available",
-            message: "Open your email app and send a message to \(supportEmailAddress) with the subject \"\(subject)\"."
+            title: String(localized: "Email App Not Available"),
+            message: String(localized: "Open your email app and send a message to \(supportEmailAddress) with the subject \"\(subject)\".")
         )
     }
 
@@ -906,21 +906,21 @@ struct GlobalSettingsView: View {
     ) -> SettingsNotice {
         if snapshot.caseCount == 0, snapshot.fileURLs.isEmpty {
             return SettingsNotice(
-                title: "No Local Data Found",
-                message: "Proofly did not find local cases, proof files, OCR text, or packets to delete on this device."
+                title: String(localized: "No Local Data Found"),
+                message: String(localized: "Proofly did not find local cases, proof files, OCR text, or packets to delete on this device.")
             )
         }
 
-        var message = "Removed \(snapshot.caseCount) case\(snapshot.caseCount == 1 ? "" : "s") and local proof records from this device."
+        var message = String(localized: "Removed \(snapshot.caseCount) case\(snapshot.caseCount == 1 ? "" : "s") and local proof records from this device.")
         if removalResult.removedCount > 0 {
-            message += " Removed \(removalResult.removedCount) stored file\(removalResult.removedCount == 1 ? "" : "s")."
+            message += String(localized: " Removed \(removalResult.removedCount) stored file\(removalResult.removedCount == 1 ? "" : "s").")
         }
         if removalResult.failedCount > 0 {
-            message += " \(removalResult.failedCount) file\(removalResult.failedCount == 1 ? "" : "s") could not be removed; try again or contact support."
+            message += String(localized: " \(removalResult.failedCount) file\(removalResult.failedCount == 1 ? "" : "s") could not be removed; try again or contact support.")
         }
 
         return SettingsNotice(
-            title: "Local Data Deleted",
+            title: String(localized: "Local Data Deleted"),
             message: message
         )
     }
@@ -1418,11 +1418,11 @@ private enum SettingsInfoPresentation: String, Identifiable {
     var navigationTitle: String {
         switch self {
         case .localFirst:
-            "Local-first storage"
+            String(localized: "Local-first storage")
         case .aboutProofKit:
-            "About Proofly"
+            String(localized: "About Proofly")
         case .aboutRook:
-            "About Rook"
+            String(localized: "About Rook")
         }
     }
 
@@ -1451,11 +1451,11 @@ private enum SettingsInfoPresentation: String, Identifiable {
     var message: String {
         switch self {
         case .localFirst:
-            "Proofly keeps your cases and proof private on this device unless you choose to export or share them."
+            String(localized: "Proofly keeps your cases and proof private on this device unless you choose to export or share them.")
         case .aboutProofKit:
-            "Proofly helps you organize screenshots, receipts, notes, and documents into a clear proof timeline. Your core proof records stay local-first on this device unless you choose to export or share them."
+            String(localized: "Proofly helps you organize screenshots, receipts, notes, and documents into a clear proof timeline. Your core proof records stay local-first on this device unless you choose to export or share them.")
         case .aboutRook:
-            "Rook is Proofly’s little proof keeper — a calm guide for turning messy screenshots and receipts into a clear timeline."
+            String(localized: "Rook is Proofly’s little proof keeper — a calm guide for turning messy screenshots and receipts into a clear timeline.")
         }
     }
 }
@@ -1569,9 +1569,9 @@ private enum SettingsAppVersionText {
         case let (version?, nil):
             return version
         case let (nil, build?):
-            return "Build \(build)"
+            return String(localized: "Build \(build)")
         default:
-            return "Development"
+            return String(localized: "Development")
         }
     }
 }

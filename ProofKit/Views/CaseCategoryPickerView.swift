@@ -38,7 +38,7 @@ struct CaseCategoryPickerView: View {
                 }
                 .buttonStyle(ProofKitCardButtonStyle())
                 .proofKitAppear(delay: min(Double(index) * 0.02, 0.12))
-                .accessibilityHint(selection == category ? "Selected" : "Double tap to select this category.")
+                .accessibilityHint(selection == category ? String(localized: "Selected") : String(localized: "Double tap to select this category."))
             }
         }
     }
@@ -145,7 +145,7 @@ struct CaseCategoryPurposeCard: View {
         }
         .contentShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(category.onboardingPurposeTitle). \(category.onboardingPurposeOutcome)")
+        .accessibilityLabel(String(localized: "\(category.onboardingPurposeTitle). \(category.onboardingPurposeOutcome)"))
         .accessibilityValue(accessibilityValue)
     }
 
@@ -172,7 +172,7 @@ struct CaseCategoryPurposeCard: View {
         case .chevron:
             ""
         case .selection:
-            isSelected ? "Selected" : "Not selected"
+            isSelected ? String(localized: "Selected") : String(localized: "Not selected")
         }
     }
 }
@@ -235,8 +235,8 @@ struct CaseCategoryCard: View {
         .contentShape(RoundedRectangle(cornerRadius: ProofKitVisual.cardCornerRadius, style: .continuous))
         .animation(ProofKitMotion.standard, value: isSelected)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(category.title). \(category.description)")
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityLabel(String(localized: "\(category.title). \(category.description)"))
+        .accessibilityValue(isSelected ? String(localized: "Selected") : String(localized: "Not selected"))
     }
 
     @ViewBuilder

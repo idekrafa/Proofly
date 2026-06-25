@@ -55,7 +55,7 @@ final class AIRequestQueueService: ObservableObject {
         modelContext.insert(item)
         try modelContext.save()
         refreshSummary(in: modelContext)
-        lastQueueMessage = "\(actionKind.displayName) will run when connection returns and credits are available."
+        lastQueueMessage = String(localized: "\(actionKind.displayName) will run when connection returns and credits are available.")
         return item
     }
 
@@ -74,7 +74,7 @@ final class AIRequestQueueService: ObservableObject {
         modelContext.insert(item)
         try modelContext.save()
         refreshSummary(in: modelContext)
-        lastQueueMessage = "Clean Up Note will run when connection returns and credits are available."
+        lastQueueMessage = String(localized: "Clean Up Note will run when connection returns and credits are available.")
         return item
     }
 
@@ -122,7 +122,7 @@ final class AIRequestQueueService: ObservableObject {
         guard summary.queuedCount > 0 else { return }
 
         if serviceHealth.snapshot.state == .offline {
-            lastQueueMessage = "AI will run when connection returns and credits are available."
+            lastQueueMessage = String(localized: "AI will run when connection returns and credits are available.")
             return
         }
 
@@ -188,7 +188,7 @@ final class AIRequestQueueService: ObservableObject {
         switch item.actionKind {
         case .timelineSummary, .packetPolish:
             guard let caseFile = try fetchCase(id: item.caseID, in: modelContext) else {
-                throw ProofKitError.remotePolicyViolation("The case for this queued AI request was deleted.")
+                throw ProofKitError.remotePolicyViolation(String(localized: "The case for this queued AI request was deleted."))
             }
             _ = try await aiActions.runQueuedAction(
                 item.actionKind,
@@ -200,11 +200,11 @@ final class AIRequestQueueService: ObservableObject {
 
         case .rewriteNote:
             guard let evidenceItem = try fetchEvidenceItem(id: item.evidenceItemID, in: modelContext) else {
-                throw ProofKitError.remotePolicyViolation("The proof item for this queued AI request was deleted.")
+                throw ProofKitError.remotePolicyViolation(String(localized: "The proof item for this queued AI request was deleted."))
             }
             let userNote = evidenceItem.userNotes.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !userNote.isEmpty else {
-                throw ProofKitError.remotePolicyViolation("The note for this queued cleanup is empty.")
+                throw ProofKitError.remotePolicyViolation(String(localized: "The note for this queued cleanup is empty."))
             }
 
             let result = try await aiRouter.cleanUpNote(
@@ -216,7 +216,7 @@ final class AIRequestQueueService: ObservableObject {
             )
             let rewrittenNote = result.outputText.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !rewrittenNote.isEmpty else {
-                throw ProofKitError.remotePolicyViolation("The AI proxy returned an empty rewrite.")
+                throw ProofKitError.remotePolicyViolation(String(localized: "The AI proxy returned an empty rewrite."))
             }
 
             evidenceItem.userCleanedNote = rewrittenNote
@@ -231,7 +231,7 @@ final class AIRequestQueueService: ObservableObject {
         item.completedAt = .now
         item.lastErrorMessage = nil
         try modelContext.save()
-        lastQueueMessage = "\(item.displayTitle) completed."
+        lastQueueMessage = String(localized: "\(item.displayTitle) completed.")
         refreshSummary(in: modelContext)
     }
 
@@ -273,10 +273,10 @@ final class AIRequestQueueService: ObservableObject {
         }
         for queuedItem in items {
             queuedItem.status = .waitingForCredits
-            queuedItem.lastErrorMessage = "\(queuedItem.displayTitle) needs \(queuedItem.creditCostQuote ?? queuedItem.actionKind.defaultCreditCost) AI credit(s). You have \(availableCredits) available."
+            queuedItem.lastErrorMessage = String(localized: "\(queuedItem.displayTitle) needs \(queuedItem.creditCostQuote ?? queuedItem.actionKind.defaultCreditCost) AI credit(s). You have \(availableCredits) available.")
         }
         try? modelContext.save()
-        lastQueueMessage = "AI queue is waiting for credits. \(item.displayTitle) needs \(requiredCredits), but \(availableCredits) are available."
+        lastQueueMessage = String(localized: "AI queue is waiting for credits. \(item.displayTitle) needs \(requiredCredits), but \(availableCredits) are available.")
         refreshSummary(in: modelContext)
     }
 
@@ -285,7 +285,7 @@ final class AIRequestQueueService: ObservableObject {
         item.nextAttemptAt = Date().addingTimeInterval(min(300, Double(max(1, item.attemptCount)) * 30))
         item.lastErrorMessage = Self.message(for: error)
         try? modelContext.save()
-        lastQueueMessage = "AI queue paused. It will retry when services return."
+        lastQueueMessage = String(localized: "AI queue paused. It will retry when services return.")
         refreshSummary(in: modelContext)
     }
 
@@ -293,7 +293,7 @@ final class AIRequestQueueService: ObservableObject {
         item.status = .failed
         item.lastErrorMessage = Self.message(for: error)
         try? modelContext.save()
-        lastQueueMessage = "\(item.displayTitle) needs attention before it can run."
+        lastQueueMessage = String(localized: "\(item.displayTitle) needs attention before it can run.")
         refreshSummary(in: modelContext)
     }
 

@@ -46,7 +46,7 @@ struct AICreditStatusCard: View {
 
             VStack(spacing: 0) {
                 AICreditStatusRow(
-                    title: "Current plan",
+                    title: String(localized: "Current plan"),
                     value: snapshot.planName
                 )
 
@@ -54,7 +54,7 @@ struct AICreditStatusCard: View {
                     .padding(.leading, 16)
 
                 AICreditStatusRow(
-                    title: "Credits remaining",
+                    title: String(localized: "Credits remaining"),
                     value: snapshot.remainingCreditsText
                 )
 
@@ -62,7 +62,7 @@ struct AICreditStatusCard: View {
                     .padding(.leading, 16)
 
                 AICreditStatusRow(
-                    title: "Renews",
+                    title: String(localized: "Renews"),
                     value: snapshot.renewalText
                 )
             }
@@ -149,7 +149,7 @@ struct AICreditStatusCard: View {
 
     private static func statusMessage(for balance: AICreditBalance) -> String? {
         if balance.availableCredits <= 0 {
-            return "AI cleanup and summaries will be available when credits renew."
+            return String(localized: "AI cleanup and summaries will be available when credits renew.")
         }
 
         return nil
@@ -159,13 +159,13 @@ struct AICreditStatusCard: View {
         if let proofKitError = error as? ProofKitError {
             switch proofKitError {
             case .supabaseNotConfigured, .supabaseSDKUnavailable:
-                return "Credit status could not be refreshed. Showing the credits included with your current plan."
+                return String(localized: "Credit status could not be refreshed. Showing the credits included with your current plan.")
             default:
                 break
             }
         }
 
-        return "Credit status could not be refreshed. Showing the credits included with your current plan."
+        return String(localized: "Credit status could not be refreshed. Showing the credits included with your current plan.")
     }
 
     private static func fallbackSnapshot(
@@ -193,7 +193,7 @@ struct AICreditStatusCard: View {
         return entitlement.aiCreditRenewalText
     }
 
-    private static let standardExplanation = "AI credits are only used when you choose an AI action. Importing files, OCR, organizing your timeline, and exporting your case PDF do not use credits."
+    private static let standardExplanation = String(localized: "AI credits are only used when you choose an AI action. Importing files, OCR, organizing your timeline, and exporting your case PDF do not use credits.")
 }
 
 private struct AICreditStatusSnapshot: Equatable {
@@ -205,10 +205,10 @@ private struct AICreditStatusSnapshot: Equatable {
     let hasLoaded: Bool
 
     static let loading = AICreditStatusSnapshot(
-        planName: "Loading…",
-        remainingCreditsText: "Loading…",
-        renewalText: "Monthly",
-        explanation: "Local OCR is always free. AI cleanup and summaries use credits.",
+        planName: String(localized: "Loading…"),
+        remainingCreditsText: String(localized: "Loading…"),
+        renewalText: String(localized: "Monthly"),
+        explanation: String(localized: "Local OCR is always free. AI cleanup and summaries use credits."),
         statusMessage: nil,
         hasLoaded: false
     )

@@ -41,60 +41,60 @@ enum CaseCategory: String, CaseIterable, Identifiable, Hashable {
     var title: String {
         switch self {
         case .apartmentIssue:
-            "Housing lease"
+            String(localized: "Housing lease")
         case .refundWarrantyIssue:
-            "Refund or warranty issue"
+            String(localized: "Refund or warranty issue")
         case .schoolCollegeIssue:
-            "School or college issue"
+            String(localized: "School or college issue")
 //        case .workFreelanceIssue:
 //            "Work or freelance issue"
         case .other:
-            "Something else"
+            String(localized: "Something else")
         }
     }
 
     var description: String {
         switch self {
         case .apartmentIssue:
-            "Lease documents, applications, messages, rent records, photos, or move-in details."
+            String(localized: "Lease documents, applications, messages, rent records, photos, or move-in details.")
         case .refundWarrantyIssue:
-            "Receipts, product photos, support messages, and warranty records."
+            String(localized: "Receipts, product photos, support messages, and warranty records.")
         case .schoolCollegeIssue:
-            "Emails, assignments, forms, notes, and school records."
+            String(localized: "Emails, assignments, forms, notes, and school records.")
 //        case .workFreelanceIssue:
 //            "Contracts, invoices, schedules, messages, and payment records."
         case .other:
-            "Use Proofly for any situation where you need a clean proof timeline."
+            String(localized: "Use Proofly for any situation where you need a clean proof timeline.")
         }
     }
 
     var onboardingPurposeTitle: String {
         switch self {
         case .apartmentIssue:
-            "Housing lease"
+            String(localized: "Housing lease")
         case .refundWarrantyIssue:
-            "Get a refund"
+            String(localized: "Get a refund")
         case .schoolCollegeIssue:
-            "Apply to college"
+            String(localized: "Apply to college")
 //        case .workFreelanceIssue:
 //            "Get paid for work"
         case .other:
-            "Not sure yet?"
+            String(localized: "Not sure yet?")
         }
     }
 
     var onboardingPurposeOutcome: String {
         switch self {
         case .apartmentIssue:
-            "Create a clean rental-ready document packet."
+            String(localized: "Create a clean rental-ready document packet.")
         case .refundWarrantyIssue:
-            "Organize receipts, screenshots, and messages."
+            String(localized: "Organize receipts, screenshots, and messages.")
         case .schoolCollegeIssue:
-            "Keep essays, transcripts, and deadlines together."
+            String(localized: "Keep essays, transcripts, and deadlines together.")
 //        case .workFreelanceIssue:
 //            "Organize contracts, invoices, and messages."
         case .other:
-            "Proofly has your back —\norganize proof for whatever\nlife throws at you."
+            String(localized: "Proofly has your back —\norganize proof for whatever\nlife throws at you.")
         }
     }
 
@@ -131,30 +131,30 @@ enum CaseCategory: String, CaseIterable, Identifiable, Hashable {
     var starterTitle: String {
         switch self {
         case .apartmentIssue:
-            "Housing lease timeline"
+            String(localized: "Housing lease timeline")
         case .refundWarrantyIssue:
-            "Refund or warranty timeline"
+            String(localized: "Refund or warranty timeline")
         case .schoolCollegeIssue:
-            "School issue timeline"
+            String(localized: "School issue timeline")
 //        case .workFreelanceIssue:
 //            "Work issue timeline"
         case .other:
-            "Proof timeline"
+            String(localized: "Proof timeline")
         }
     }
 
     var starterDescription: String {
         switch self {
         case .apartmentIssue:
-            "Track lease details, applications, messages, rent records, photos, and move-in or move-out details."
+            String(localized: "Track lease details, applications, messages, rent records, photos, and move-in or move-out details.")
         case .refundWarrantyIssue:
-            "Track receipts, product photos, support messages, and warranty records."
+            String(localized: "Track receipts, product photos, support messages, and warranty records.")
         case .schoolCollegeIssue:
-            "Track emails, assignments, forms, notes, and school records."
+            String(localized: "Track emails, assignments, forms, notes, and school records.")
 //        case .workFreelanceIssue:
 //            "Track contracts, invoices, schedules, messages, and payment records."
         case .other:
-            "Track screenshots, notes, documents, and important records."
+            String(localized: "Track screenshots, notes, documents, and important records.")
         }
     }
 
@@ -181,26 +181,26 @@ enum CaseCategory: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .apartmentIssue:
             [
-                "Lease or application documents",
-                "Messages with your landlord or property manager",
-                "Rent records",
-                "Photos or videos",
-                "Move-in or move-out details"
+                String(localized: "Lease or application documents"),
+                String(localized: "Messages with your landlord or property manager"),
+                String(localized: "Rent records"),
+                String(localized: "Photos or videos"),
+                String(localized: "Move-in or move-out details")
             ]
         case .refundWarrantyIssue:
             [
-                "Receipts",
-                "Product photos",
-                "Support messages",
-                "Warranty records"
+                String(localized: "Receipts"),
+                String(localized: "Product photos"),
+                String(localized: "Support messages"),
+                String(localized: "Warranty records")
             ]
         case .schoolCollegeIssue:
             [
-                "Emails",
-                "Assignments",
-                "Forms",
-                "Notes",
-                "School records"
+                String(localized: "Emails"),
+                String(localized: "Assignments"),
+                String(localized: "Forms"),
+                String(localized: "Notes"),
+                String(localized: "School records")
             ]
 //        case .workFreelanceIssue:
 //            [
@@ -212,10 +212,10 @@ enum CaseCategory: String, CaseIterable, Identifiable, Hashable {
 //            ]
         case .other:
             [
-                "Screenshots",
-                "Notes",
-                "Documents",
-                "Important records"
+                String(localized: "Screenshots"),
+                String(localized: "Notes"),
+                String(localized: "Documents"),
+                String(localized: "Important records")
             ]
         }
     }

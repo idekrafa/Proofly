@@ -109,7 +109,7 @@ struct PaywallView: View {
                 }
         }
         .buttonStyle(ProofKitCardButtonStyle())
-        .accessibilityLabel("Close paywall")
+        .accessibilityLabel(String(localized: "Close paywall"))
     }
 
     private var heroSection: some View {
@@ -121,7 +121,7 @@ struct PaywallView: View {
                 .frame(maxWidth: 260, maxHeight: 240)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .shadow(color: ProofKitPaywallStyle.shadow.opacity(0.16), radius: 18, x: 0, y: 12)
-                .accessibilityLabel("Rook holding an organized proof packet")
+                .accessibilityLabel(String(localized: "Rook holding an organized proof packet"))
 
             VStack(spacing: 10) {
                 Text("Your proof, organized.")
@@ -146,13 +146,13 @@ struct PaywallView: View {
 
     private var benefitCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            PaywallBenefitRow(text: "Organize screenshots, photos, notes, and documents")
-            PaywallBenefitRow(text: "Turn messy proof into a clear timeline")
-            PaywallBenefitRow(text: "Full Pro access during trial, including unlimited cases, unlimited proof, clean exports, and 3 AI credits")
-            PaywallBenefitRow(text: "Weekly Pro includes 15 AI credits/week")
-            PaywallBenefitRow(text: "Monthly Pro includes 75 AI credits/month")
-            PaywallBenefitRow(text: "Cancel anytime before the trial ends")
-            PaywallBenefitRow(text: "Raw files stay on your device")
+            PaywallBenefitRow(text: String(localized: "Organize screenshots, photos, notes, and documents"))
+            PaywallBenefitRow(text: String(localized: "Turn messy proof into a clear timeline"))
+            PaywallBenefitRow(text: String(localized: "Full Pro access during trial, including unlimited cases, unlimited proof, clean exports, and 3 AI credits"))
+            PaywallBenefitRow(text: String(localized: "Weekly Pro includes 15 AI credits/week"))
+            PaywallBenefitRow(text: String(localized: "Monthly Pro includes 75 AI credits/month"))
+            PaywallBenefitRow(text: String(localized: "Cancel anytime before the trial ends"))
+            PaywallBenefitRow(text: String(localized: "Raw files stay on your device"))
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -182,7 +182,7 @@ struct PaywallView: View {
             }
             .paywallStatusCard()
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Loading App Store prices")
+            .accessibilityLabel(String(localized: "Loading App Store prices"))
         case .loaded:
             EmptyView()
         case .failed(let message):
@@ -203,7 +203,7 @@ struct PaywallView: View {
                         .font(.subheadline.weight(.semibold))
                 }
                 .buttonStyle(.bordered)
-                .accessibilityLabel("Retry loading plans")
+                .accessibilityLabel(String(localized: "Retry loading plans"))
             }
             .paywallStatusCard()
         }
@@ -266,7 +266,7 @@ struct PaywallView: View {
 
             HStack(spacing: 12) {
                 Link("Terms", destination: ProofKitPaywallLinks.termsURL)
-                    .accessibilityLabel("Terms")
+                    .accessibilityLabel(String(localized: "Terms"))
 
                 Circle()
                     .fill(ProofKitPaywallStyle.border)
@@ -274,7 +274,7 @@ struct PaywallView: View {
                     .accessibilityHidden(true)
 
                 Link("Privacy", destination: ProofKitPaywallLinks.privacyURL)
-                    .accessibilityLabel("Privacy")
+                    .accessibilityLabel(String(localized: "Privacy"))
 
                 Circle()
                     .fill(ProofKitPaywallStyle.border)
@@ -295,7 +295,7 @@ struct PaywallView: View {
                     }
                 }
                 .disabled(purchaseManager.isPurchasing || purchaseManager.isRestoring)
-                .accessibilityLabel("Restore purchases")
+                .accessibilityLabel(String(localized: "Restore purchases"))
             }
             .font(.footnote.weight(.semibold))
             .foregroundStyle(ProofKitPaywallStyle.teal)
@@ -334,14 +334,14 @@ struct PaywallView: View {
 
     private var purchaseButtonTitle: String {
         if purchaseManager.isPurchasing {
-            return "Starting…"
+            return String(localized: "Starting…")
         }
 
         switch purchaseManager.selectedProduct {
         case .weekly:
-            return "Start free trial"
+            return String(localized: "Start free trial")
         case .monthly:
-            return "Continue with Monthly Pro"
+            return String(localized: "Continue with Monthly Pro")
         }
     }
 
@@ -351,12 +351,12 @@ struct PaywallView: View {
         switch selectedPlan.product {
         case .weekly:
             let trialText = selectedPlan.package?.introductoryOfferDurationText.map {
-                "Your free trial lasts \($0)."
-            } ?? "The App Store checkout shows your exact free-trial length."
+                String(localized: "Your free trial lasts \($0).")
+            } ?? String(localized: "The App Store checkout shows your exact free-trial length.")
 
-            return "\(trialText) Then \(selectedPlan.renewalPriceText) after trial. Trial includes full Pro access and 3 AI credits. Weekly Pro includes 15 AI credits/week."
+            return String(localized: "\(trialText) Then \(selectedPlan.renewalPriceText) after trial. Trial includes full Pro access and 3 AI credits. Weekly Pro includes 15 AI credits/week.")
         case .monthly:
-            return "Monthly Pro is \(selectedPlan.renewalPriceText) and includes 75 AI credits/month."
+            return String(localized: "Monthly Pro is \(selectedPlan.renewalPriceText) and includes 75 AI credits/month.")
         }
     }
 }

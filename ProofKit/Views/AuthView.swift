@@ -31,7 +31,7 @@ struct ProofKitAuthView: View {
         self.onAuthenticated = onAuthenticated
         _notice = State(
             initialValue: initialErrorMessage.map {
-                ProofKitAuthNotice(title: "Authentication Unavailable", message: $0)
+                ProofKitAuthNotice(title: String(localized: "Authentication Unavailable"), message: $0)
             }
         )
     }
@@ -164,7 +164,7 @@ struct ProofKitAuthView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(ProofKitAuthPressButtonStyle())
-                .accessibilityLabel("Already have an account? Sign in")
+                .accessibilityLabel(String(localized: "Already have an account? Sign in"))
             }
             .proofKitAppear(delay: reduceMotion ? 0 : 0.12)
             .padding(.bottom, welcomeBottomPadding(for: proxy))
@@ -187,8 +187,8 @@ struct ProofKitAuthView: View {
                 .frame(height: landingHeroTitleSpacing(for: proxy))
 
             authHeadline(
-                title: "Welcome back",
-                subtitle: "Sign in to your account"
+                title: String(localized: "Welcome back"),
+                subtitle: String(localized: "Sign in to your account")
             )
             .proofKitAppear(delay: reduceMotion ? 0 : 0.08)
 
@@ -220,8 +220,8 @@ struct ProofKitAuthView: View {
                 .frame(height: landingHeroTitleSpacing(for: proxy))
 
             authHeadline(
-                title: "Sign in to use Proofly",
-                subtitle: "Your cases stay private on this device."
+                title: String(localized: "Sign in to use Proofly"),
+                subtitle: String(localized: "Your cases stay private on this device.")
             )
             .proofKitAppear(delay: reduceMotion ? 0 : 0.08)
 
@@ -253,7 +253,7 @@ struct ProofKitAuthView: View {
                     .frame(height: 34)
 
                 authHeadline(
-                    title: isSignUpMode ? "Create account" : "Welcome back",
+                    title: isSignUpMode ? String(localized: "Create account") : String(localized: "Welcome back"),
                     subtitle: emailAuthSubtitle
                 )
 
@@ -364,7 +364,7 @@ struct ProofKitAuthView: View {
     ) -> some View {
         VStack(spacing: 14) {
             ProofKitAuthButton(
-                title: "Continue with Apple",
+                title: String(localized: "Continue with Apple"),
                 foreground: .white,
                 background: .black,
                 fontSize: 24,
@@ -377,7 +377,7 @@ struct ProofKitAuthView: View {
             )
 
             ProofKitAuthButton(
-                title: "Continue with Google",
+                title: String(localized: "Continue with Google"),
                 foreground: ProofKitAuthPalette.googleText,
                 background: ProofKitAuthPalette.googleButton,
                 fontSize: 23,
@@ -389,7 +389,7 @@ struct ProofKitAuthView: View {
             )
 
             ProofKitAuthButton(
-                title: "Continue with Email",
+                title: String(localized: "Continue with Email"),
                 foreground: .white,
                 background: ProofKitAuthPalette.emailButton,
                 fontSize: 22,
@@ -428,23 +428,23 @@ struct ProofKitAuthView: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(ProofKitAuthPressButtonStyle())
-        .accessibilityLabel(isSignUpMode ? "Already have an account? Sign in" : "Don't have an account? Sign up")
+        .accessibilityLabel(isSignUpMode ? String(localized: "Already have an account? Sign in") : String(localized: "Don't have an account? Sign up"))
     }
 
     private var emailAuthSubtitle: String {
         if isSignUpMode {
             if selectedPurpose != nil {
-                return "Your cases stay private on this device."
+                return String(localized: "Your cases stay private on this device.")
             }
 
-            return "Sign up with your email"
+            return String(localized: "Sign up with your email")
         }
 
         if selectedPurpose != nil {
-            return "Sign in to access your workspace and start this case."
+            return String(localized: "Sign in to access your workspace and start this case.")
         }
 
-        return "Sign in with your email"
+        return String(localized: "Sign in with your email")
     }
 
     private var shouldShowMagicLinkButton: Bool {
@@ -594,33 +594,33 @@ struct ProofKitAuthView: View {
         if authMode == .email {
             switch emailBackDestination {
             case .welcome:
-                return "Back to welcome"
+                return String(localized: "Back to welcome")
             case .name:
-                return "Back to name"
+                return String(localized: "Back to name")
             case .privacy:
-                return "Back to privacy promise"
+                return String(localized: "Back to privacy promise")
             case .purpose:
-                return "Back to proof purpose"
+                return String(localized: "Back to proof purpose")
             case .purposeAuth:
-                return "Back to sign in to use Proofly"
+                return String(localized: "Back to sign in to use Proofly")
             case .landing, .email:
-                return "Back to sign in options"
+                return String(localized: "Back to sign in options")
             }
         }
 
         if authMode == .purposeAuth {
-            return "Back to proof purpose"
+            return String(localized: "Back to proof purpose")
         }
 
         if authMode == .purpose {
-            return "Back to name"
+            return String(localized: "Back to name")
         }
 
         if authMode == .privacy {
-            return "Back to name"
+            return String(localized: "Back to name")
         }
 
-        return "Back to welcome"
+        return String(localized: "Back to welcome")
     }
 
     private func beginOnboarding() {
@@ -724,7 +724,7 @@ struct ProofKitAuthView: View {
                 )
                 return
             } catch {
-                notice = ProofKitAuthNotice(title: "Couldn’t Sign In", message: Self.message(for: error))
+                notice = ProofKitAuthNotice(title: String(localized: "Couldn’t Sign In"), message: Self.message(for: error))
             }
             isWorking = false
         }
@@ -757,7 +757,7 @@ struct ProofKitAuthView: View {
                 return
             } catch {
                 if !Self.isAppleSignInCancellation(error) {
-                    notice = ProofKitAuthNotice(title: "Couldn’t Sign In", message: Self.message(for: error))
+                    notice = ProofKitAuthNotice(title: String(localized: "Couldn’t Sign In"), message: Self.message(for: error))
                 }
             }
             isWorking = false
@@ -770,19 +770,19 @@ struct ProofKitAuthView: View {
 
         let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
         guard cleanEmail.contains("@") else {
-            notice = ProofKitAuthNotice(title: "Email Required", message: "Enter the email address for your Proofly account.")
+            notice = ProofKitAuthNotice(title: String(localized: "Email Required"), message: String(localized: "Enter the email address for your Proofly account."))
             focusedField = .email
             return
         }
 
         guard password.count >= 8 else {
-            notice = ProofKitAuthNotice(title: "Password Required", message: "Enter a password with at least 8 characters.")
+            notice = ProofKitAuthNotice(title: String(localized: "Password Required"), message: String(localized: "Enter a password with at least 8 characters."))
             focusedField = .password
             return
         }
 
         if isSignUpMode, password != confirmationPassword {
-            notice = ProofKitAuthNotice(title: "Passwords Don’t Match", message: "Confirm your password before creating your account.")
+            notice = ProofKitAuthNotice(title: String(localized: "Passwords Don’t Match"), message: String(localized: "Confirm your password before creating your account."))
             focusedField = .confirmationPassword
             return
         }
@@ -836,7 +836,7 @@ struct ProofKitAuthView: View {
                     ProofKitPendingOnboardingSeedStore.clearAccountCreationAttempt()
                 }
 
-                notice = ProofKitAuthNotice(title: shouldCreateAccount ? "Couldn’t Create Account" : "Couldn’t Sign In", message: Self.message(for: error))
+                notice = ProofKitAuthNotice(title: shouldCreateAccount ? String(localized: "Couldn’t Create Account") : String(localized: "Couldn’t Sign In"), message: Self.message(for: error))
             }
             isWorking = false
         }
@@ -848,7 +848,7 @@ struct ProofKitAuthView: View {
 
         let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
         guard cleanEmail.contains("@") else {
-            notice = ProofKitAuthNotice(title: "Email Required", message: "Enter your email address and we’ll send a sign-in link.")
+            notice = ProofKitAuthNotice(title: String(localized: "Email Required"), message: String(localized: "Enter your email address and we’ll send a sign-in link."))
             focusedField = .email
             return
         }
@@ -859,11 +859,11 @@ struct ProofKitAuthView: View {
             do {
                 try await services.account.sendMagicLink(email: cleanEmail)
                 notice = ProofKitAuthNotice(
-                    title: "Check Your Email",
-                    message: "We sent a secure Proofly sign-in link to \(cleanEmail)."
+                    title: String(localized: "Check Your Email"),
+                    message: String(localized: "We sent a secure Proofly sign-in link to \(cleanEmail).")
                 )
             } catch {
-                notice = ProofKitAuthNotice(title: "Couldn’t Send Link", message: Self.message(for: error))
+                notice = ProofKitAuthNotice(title: String(localized: "Couldn’t Send Link"), message: Self.message(for: error))
             }
             isWorking = false
         }
@@ -872,8 +872,8 @@ struct ProofKitAuthView: View {
     private func ensureConfigured() -> Bool {
         guard services.account.isConfigured else {
             notice = ProofKitAuthNotice(
-                title: "Authentication Not Configured",
-                message: "Add Supabase URL and publishable-key configuration to this build before signing in."
+                title: String(localized: "Authentication Not Configured"),
+                message: String(localized: "Add Supabase URL and publishable-key configuration to this build before signing in.")
             )
             return false
         }
@@ -966,7 +966,7 @@ struct ProofKitSignupSuccessView: View {
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
 
-                Text(email.map { "Opening your private Proofly workspace for \($0)." } ?? "Opening your private Proofly workspace.")
+                Text(email.map { String(localized: "Opening your private Proofly workspace for \($0).") } ?? String(localized: "Opening your private Proofly workspace."))
                     .font(.system(size: 18, weight: .regular, design: .rounded))
                     .foregroundStyle(ProofKitAuthPalette.secondaryText)
                     .multilineTextAlignment(.center)

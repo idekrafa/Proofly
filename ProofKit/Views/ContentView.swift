@@ -244,8 +244,8 @@ struct ContentView: View {
             return true
         } catch {
             contentNotice = ProofKitContentNotice(
-                title: "First Case Not Created",
-                message: "Proofly could not create the starter case. Please try again."
+                title: String(localized: "First Case Not Created"),
+                message: String(localized: "Proofly could not create the starter case. Please try again.")
             )
             return false
         }
@@ -657,7 +657,7 @@ private struct ProofKitFirstCaseCreationSheet: View {
         if didCreate {
             focusedField = nil
         } else {
-            saveErrorMessage = "Your first case could not be created. Please try again."
+            saveErrorMessage = String(localized: "Your first case could not be created. Please try again.")
         }
     }
 }
@@ -760,18 +760,18 @@ private struct ProofKitFirstCaseAhaSheet: View {
                     VStack(alignment: .leading, spacing: 12) {
                         ProofKitFirstCaseMetadataRow(
                             systemImage: "folder.fill",
-                            label: "Case title",
+                            label: String(localized: "Case title"),
                             value: route.caseFile.userTitle
                         )
                         ProofKitFirstCaseMetadataRow(
                             systemImage: "tag.fill",
-                            label: "Case category",
+                            label: String(localized: "Case category"),
                             value: route.seed.caseTypeLabel
                         )
                         ProofKitFirstCaseMetadataRow(
                             systemImage: "lock.fill",
-                            label: "Proof storage",
-                            value: "Local to this device"
+                            label: String(localized: "Proof storage"),
+                            value: String(localized: "Local to this device")
                         )
                     }
                     .proofKitFirstCaseCard()
@@ -808,11 +808,13 @@ private struct ProofKitFirstCaseAhaSheet: View {
     }
 
     private var ahaTitle: String {
-        "\(proofCount) \(proofCount == 1 ? "proof item" : "proof items") added"
+        proofCount == 1
+            ? String(localized: "\(proofCount) proof item added")
+            : String(localized: "\(proofCount) proof items added")
     }
 
     private var ahaBody: String {
-        "Proofly started “\(route.caseFile.userTitle)” and kept your proof local to this device. You can keep adding proof or manage the case anytime."
+        String(localized: "Proofly started “\(route.caseFile.userTitle)” and kept your proof local to this device. You can keep adding proof or manage the case anytime.")
     }
 }
 

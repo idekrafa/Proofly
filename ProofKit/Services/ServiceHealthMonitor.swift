@@ -16,17 +16,17 @@ enum ServiceHealthState: String, CaseIterable, Equatable {
     var statusTitle: String {
         switch self {
         case .healthy:
-            "All good"
+            String(localized: "All good")
         case .offline:
-            "Proofly is offline"
+            String(localized: "Proofly is offline")
         case .supabaseDown:
-            "Supabase connection issue"
+            String(localized: "Supabase connection issue")
         case .aiProviderDown:
-            "AI provider unavailable"
+            String(localized: "AI provider unavailable")
         case .degraded:
-            "Services degraded"
+            String(localized: "Services degraded")
         case .checking:
-            "Checking services"
+            String(localized: "Checking services")
         }
     }
 
@@ -35,13 +35,13 @@ enum ServiceHealthState: String, CaseIterable, Equatable {
         case .healthy:
             nil
         case .offline:
-            "Offline"
+            String(localized: "Offline")
         case .supabaseDown:
-            "Server issues"
+            String(localized: "Server issues")
         case .aiProviderDown:
-            "AI delayed"
+            String(localized: "AI delayed")
         case .degraded:
-            "Server issues"
+            String(localized: "Server issues")
         case .checking:
             nil
         }
@@ -56,14 +56,14 @@ struct ServiceHealthSnapshot: Equatable {
 
     static let checking = ServiceHealthSnapshot(
         state: .checking,
-        message: "Checking Proofly services...",
+        message: String(localized: "Checking Proofly services..."),
         lastCheckedAt: nil,
         nextRecheckAt: nil
     )
 
     static let healthy = ServiceHealthSnapshot(
         state: .healthy,
-        message: "Proofly services are reachable.",
+        message: String(localized: "Proofly services are reachable."),
         lastCheckedAt: .now,
         nextRecheckAt: nil
     )
@@ -112,7 +112,7 @@ final class ServiceHealthMonitor: ObservableObject {
             if snapshot.state == .offline || snapshot.state == .checking {
                 snapshot = ServiceHealthSnapshot(
                     state: .healthy,
-                    message: "Network is reachable. Proofly will recheck services as needed.",
+                    message: String(localized: "Network is reachable. Proofly will recheck services as needed."),
                     lastCheckedAt: .now,
                     nextRecheckAt: nil
                 )
@@ -120,7 +120,7 @@ final class ServiceHealthMonitor: ObservableObject {
         } else {
             snapshot = ServiceHealthSnapshot(
                 state: .offline,
-                message: "No network connection is available. Local proof, OCR, notes, and exports remain on this device.",
+                message: String(localized: "No network connection is available. Local proof, OCR, notes, and exports remain on this device."),
                 lastCheckedAt: .now,
                 nextRecheckAt: nil
             )
@@ -133,7 +133,7 @@ final class ServiceHealthMonitor: ObservableObject {
         guard monitor.currentPath.status == .satisfied else {
             snapshot = ServiceHealthSnapshot(
                 state: .offline,
-                message: "No network connection is available. Local proof, OCR, notes, and exports remain on this device.",
+                message: String(localized: "No network connection is available. Local proof, OCR, notes, and exports remain on this device."),
                 lastCheckedAt: .now,
                 nextRecheckAt: nil
             )
@@ -143,7 +143,7 @@ final class ServiceHealthMonitor: ObservableObject {
         guard account.isConfigured else {
             snapshot = ServiceHealthSnapshot(
                 state: .degraded,
-                message: "Server features are not configured in this build. Local-first features still work.",
+                message: String(localized: "Server features are not configured in this build. Local-first features still work."),
                 lastCheckedAt: .now,
                 nextRecheckAt: nil
             )
@@ -152,7 +152,7 @@ final class ServiceHealthMonitor: ObservableObject {
 
         snapshot = ServiceHealthSnapshot(
             state: .checking,
-            message: "Checking Proofly services...",
+            message: String(localized: "Checking Proofly services..."),
             lastCheckedAt: snapshot.lastCheckedAt,
             nextRecheckAt: nil
         )
@@ -175,7 +175,7 @@ final class ServiceHealthMonitor: ObservableObject {
         )
     }
 
-    func markHealthy(message: String = "Proofly services are reachable.") {
+    func markHealthy(message: String = String(localized: "Proofly services are reachable.")) {
         guard monitor.currentPath.status == .satisfied else { return }
         snapshot = ServiceHealthSnapshot(
             state: .healthy,
@@ -253,19 +253,19 @@ final class ServiceHealthMonitor: ObservableObject {
     ) -> String {
         switch state {
         case .offline:
-            "No network connection is available. Local proof, OCR, notes, and exports remain on this device."
+            String(localized: "No network connection is available. Local proof, OCR, notes, and exports remain on this device.")
         case .supabaseDown:
-            "Proofly could not reach its server functions. AI and credit refreshes are queued or paused until services return."
+            String(localized: "Proofly could not reach its server functions. AI and credit refreshes are queued or paused until services return.")
         case .aiProviderDown:
-            "The AI provider is temporarily unavailable or rate limited. AI requests will wait and retry."
+            String(localized: "The AI provider is temporarily unavailable or rate limited. AI requests will wait and retry.")
         case .degraded:
             context == .auth
-                ? "Your server session may need a refresh. Local proof remains usable."
-                : "Some server-backed features are temporarily limited. Local proof remains usable."
+                ? String(localized: "Your server session may need a refresh. Local proof remains usable.")
+                : String(localized: "Some server-backed features are temporarily limited. Local proof remains usable.")
         case .checking:
-            "Checking Proofly services..."
+            String(localized: "Checking Proofly services...")
         case .healthy:
-            "Proofly services are reachable."
+            String(localized: "Proofly services are reachable.")
         }
     }
 

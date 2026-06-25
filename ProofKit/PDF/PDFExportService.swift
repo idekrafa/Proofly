@@ -63,11 +63,11 @@ enum PDFSignaturePage: String, CaseIterable, Hashable, Identifiable {
     var displayName: String {
         switch self {
         case .firstPage:
-            "First page"
+            String(localized: "First page")
         case .lastPage:
-            "Last page"
+            String(localized: "Last page")
         case .everyPage:
-            "Every page"
+            String(localized: "Every page")
         }
     }
 }
@@ -84,15 +84,15 @@ enum PDFSignaturePlacement: String, CaseIterable, Hashable, Identifiable {
     var displayName: String {
         switch self {
         case .upperLeft:
-            "Upper left"
+            String(localized: "Upper left")
         case .upperRight:
-            "Upper right"
+            String(localized: "Upper right")
         case .center:
-            "Center"
+            String(localized: "Center")
         case .lowerLeft:
-            "Lower left"
+            String(localized: "Lower left")
         case .lowerRight:
-            "Lower right"
+            String(localized: "Lower right")
         }
     }
 }
@@ -106,18 +106,18 @@ enum PDFExportMode: String, CaseIterable, Hashable, Identifiable {
     var displayName: String {
         switch self {
         case .cleanPacket:
-            "Clean Packet"
+            String(localized: "Clean Packet")
         case .fullArchive:
-            "Full Archive"
+            String(localized: "Full Archive")
         }
     }
 
     var shortDescription: String {
         switch self {
         case .cleanPacket:
-            "Rendered files only on blank pages"
+            String(localized: "Rendered files only on blank pages")
         case .fullArchive:
-            "Adds cover, timeline, index, notes, metadata, and rendered files"
+            String(localized: "Adds cover, timeline, index, notes, metadata, and rendered files")
         }
     }
 }
@@ -278,7 +278,7 @@ private final class PDFCaseRenderer {
 
     static func caseTitle(for caseFile: CaseFile) -> String {
         let title = caseFile.userTitle.trimmedForPDF
-        return title.isEmpty ? "Proofly Proof Packet" : "\(title) Proof Packet"
+        return title.isEmpty ? String(localized: "Proofly Proof Packet") : String(localized: "\(title) Proof Packet")
     }
 
     func render(to destinationURL: URL) throws {
@@ -340,7 +340,7 @@ private final class PDFCaseRenderer {
         y += 58
 
         drawText(
-            "Proof Packet",
+            String(localized: "Proof Packet"),
             in: CGRect(x: x, y: y, width: contentWidth, height: 22),
             font: .systemFont(ofSize: 14, weight: .semibold),
             color: .pdfSecondary
@@ -348,7 +348,7 @@ private final class PDFCaseRenderer {
         y += 34
 
         let titleHeight = drawText(
-            caseFile.userTitle.trimmedForPDF.isEmpty ? "Untitled Case" : caseFile.userTitle.trimmedForPDF,
+            CaseFile.displayTitle(forTrimmedTitle: caseFile.userTitle.trimmedForPDF),
             in: CGRect(x: x, y: y, width: contentWidth, height: 110),
             font: .systemFont(ofSize: 34, weight: .semibold),
             color: .pdfInk,
@@ -356,9 +356,9 @@ private final class PDFCaseRenderer {
         )
         y += titleHeight + 12
 
-        let proofItemText = evidenceItems.count == 1 ? "1 proof item" : "\(evidenceItems.count) proof items"
+        let proofItemText = evidenceItems.count == 1 ? String(localized: "1 proof item") : String(localized: "\(evidenceItems.count) proof items")
         drawText(
-            "Prepared \(Self.shortDateFormatter.string(from: request.generatedAt)) • \(proofItemText)",
+            String(localized: "Prepared \(Self.shortDateFormatter.string(from: request.generatedAt)) • \(proofItemText)"),
             in: CGRect(x: x, y: y, width: contentWidth, height: 18),
             font: .systemFont(ofSize: 11.5, weight: .regular),
             color: .pdfSecondary
@@ -369,12 +369,12 @@ private final class PDFCaseRenderer {
         y += 30
 
         let metadata = [
-            ("Case type", caseFile.caseType.displayName),
-            ("Status", caseFile.status.displayName),
-            ("Prepared", Self.longDateTimeFormatter.string(from: request.generatedAt)),
-            ("Proof items", "\(evidenceItems.count)"),
-            ("Attachments", "\(attachmentCount)"),
-            ("Date range", dateRangeText)
+            (String(localized: "Case type"), caseFile.caseType.displayName),
+            (String(localized: "Status"), caseFile.status.displayName),
+            (String(localized: "Prepared"), Self.longDateTimeFormatter.string(from: request.generatedAt)),
+            (String(localized: "Proof items"), "\(evidenceItems.count)"),
+            (String(localized: "Attachments"), "\(attachmentCount)"),
+            (String(localized: "Date range"), dateRangeText)
         ]
         let metadataHeight = drawMetadataGrid(metadata, x: x, y: y, columns: 2)
         y += metadataHeight + 24
@@ -393,7 +393,7 @@ private final class PDFCaseRenderer {
             let rect = CGRect(x: x, y: y, width: contentWidth, height: bodyHeight + 48)
             drawRoundedRect(rect, fill: .white, stroke: .pdfDivider, strokeAlpha: 0.42, cornerRadius: 8)
             drawText(
-                "Summary",
+                String(localized: "Summary"),
                 in: CGRect(x: rect.minX + 16, y: rect.minY + 14, width: rect.width - 32, height: 16),
                 font: .systemFont(ofSize: 10.5, weight: .semibold),
                 color: .pdfInk
@@ -411,18 +411,18 @@ private final class PDFCaseRenderer {
     private func drawCaseSummaryAndTimelinePages(_ context: UIGraphicsPDFRendererContext) {
         beginContentPage(
             context,
-            title: "Case Summary"
+            title: String(localized: "Case Summary")
         )
 
-        drawSectionTitle("Overview")
+        drawSectionTitle(String(localized: "Overview"))
         let overviewGridHeight = drawMetadataGrid(
             [
-                ("Case title", caseTitleValue),
-                ("Case type", caseFile.caseType.displayName),
-                ("Status", caseFile.status.displayName),
-                ("Proof items", "\(evidenceItems.count)"),
-                ("Created", Self.shortDateFormatter.string(from: caseFile.createdAt)),
-                ("Last updated", Self.shortDateTimeFormatter.string(from: caseFile.updatedAt))
+                (String(localized: "Case title"), caseTitleValue),
+                (String(localized: "Case type"), caseFile.caseType.displayName),
+                (String(localized: "Status"), caseFile.status.displayName),
+                (String(localized: "Proof items"), "\(evidenceItems.count)"),
+                (String(localized: "Created"), Self.shortDateFormatter.string(from: caseFile.createdAt)),
+                (String(localized: "Last updated"), Self.shortDateTimeFormatter.string(from: caseFile.updatedAt))
             ],
             x: margin,
             y: cursorY,
@@ -433,7 +433,7 @@ private final class PDFCaseRenderer {
         if !caseFile.userSummary.trimmedForPDF.isEmpty {
             drawTextBlock(
                 context,
-                title: "Summary",
+                title: String(localized: "Summary"),
                 text: caseFile.userSummary.trimmedForPDF,
                 emptyText: "",
                 maxCharacters: 900
@@ -443,22 +443,22 @@ private final class PDFCaseRenderer {
         if !caseFile.userNotes.trimmedForPDF.isEmpty {
             drawTextBlock(
                 context,
-                title: "Notes",
+                title: String(localized: "Notes"),
                 text: caseFile.userNotes.trimmedForPDF,
                 emptyText: "",
                 maxCharacters: 700
             )
         }
 
-        drawSectionTitle("Readiness")
+        drawSectionTitle(String(localized: "Readiness"))
         let importantCount = evidenceItems.filter(\.userMarkedImportant).count
         let reviewedCount = evidenceItems.filter(\.isReviewed).count
         let evidenceOverviewGridHeight = drawMetadataGrid(
             [
-                ("Reviewed", "\(reviewedCount)"),
-                ("Important", "\(importantCount)"),
-                ("Attachments", "\(attachmentCount)"),
-                ("Detected text", textSourceSummary)
+                (String(localized: "Reviewed"), "\(reviewedCount)"),
+                (String(localized: "Important"), "\(importantCount)"),
+                (String(localized: "Attachments"), "\(attachmentCount)"),
+                (String(localized: "Detected text"), textSourceSummary)
             ],
             x: margin,
             y: cursorY,
@@ -471,17 +471,17 @@ private final class PDFCaseRenderer {
     }
 
     private func drawTimelineSection(_ context: UIGraphicsPDFRendererContext) {
-        currentPageTitle = "Timeline"
-        currentPageSubtitle = "Proof items in date order"
+        currentPageTitle = String(localized: "Timeline")
+        currentPageSubtitle = String(localized: "Proof items in date order")
 
         if cursorY > headerBottom + 28 {
             cursorY += 8
         }
         ensureSpace(58, context: context)
-        drawSectionTitle("Timeline")
+        drawSectionTitle(String(localized: "Timeline"))
 
         guard !evidenceItems.isEmpty else {
-            drawEmptyMessage("No proof items have been added yet.")
+            drawEmptyMessage(String(localized: "No proof items have been added yet."))
             return
         }
 
@@ -498,7 +498,7 @@ private final class PDFCaseRenderer {
                 drawRule(y: cursorY, color: .pdfDivider, alpha: 0.5, lineWidth: 0.5)
                 cursorY += 12
                 drawText(
-                    date.map { Self.timelineSectionFormatter.string(from: $0) } ?? "Date not set",
+                    date.map { Self.timelineSectionFormatter.string(from: $0) } ?? String(localized: "Date not set"),
                     in: CGRect(x: margin, y: cursorY, width: contentWidth, height: 20),
                     font: .systemFont(ofSize: 12.5, weight: .semibold),
                     color: .pdfInk,
@@ -515,12 +515,12 @@ private final class PDFCaseRenderer {
     private func drawEvidenceIndexPages(_ context: UIGraphicsPDFRendererContext) {
         beginContentPage(
             context,
-            title: "Proof Item Index",
-            subtitle: "Reference list for the full archive pages that follow."
+            title: String(localized: "Proof Item Index"),
+            subtitle: String(localized: "Reference list for the full archive pages that follow.")
         )
 
         guard !evidenceItems.isEmpty else {
-            drawEmptyMessage("No proof items have been added yet.")
+            drawEmptyMessage(String(localized: "No proof items have been added yet."))
             return
         }
 
@@ -534,7 +534,7 @@ private final class PDFCaseRenderer {
         for (index, evidenceItem) in evidenceItems.enumerated() {
             beginContentPage(
                 context,
-                title: "Exhibit \(evidenceLabel(for: index + 1))",
+                title: String(localized: "Exhibit \(evidenceLabel(for: index + 1))"),
                 subtitle: displayTitle(for: evidenceItem)
             )
 
@@ -545,26 +545,26 @@ private final class PDFCaseRenderer {
     private func drawStatementPlaceholderPage(_ context: UIGraphicsPDFRendererContext) {
         beginContentPage(
             context,
-            title: "Statement Page",
-            subtitle: "A blank page for a user-prepared statement if needed."
+            title: String(localized: "Statement Page"),
+            subtitle: String(localized: "A blank page for a user-prepared statement if needed.")
         )
 
         drawTextBlock(
             context,
-            title: "Statement page",
-            text: "This page is intentionally left as a placeholder for a statement or cover note prepared outside of Proofly. Proofly does not provide legal advice or generate this statement.",
+            title: String(localized: "Statement page"),
+            text: String(localized: "This page is intentionally left as a placeholder for a statement or cover note prepared outside of Proofly. Proofly does not provide legal advice or generate this statement."),
             emptyText: "",
             maxCharacters: 800
         )
 
         cursorY += 12
-        drawLabeledLine(label: "Prepared by", y: cursorY)
+        drawLabeledLine(label: String(localized: "Prepared by"), y: cursorY)
         cursorY += 48
-        drawLabeledLine(label: "Date", y: cursorY)
+        drawLabeledLine(label: String(localized: "Date"), y: cursorY)
         cursorY += 58
 
         drawText(
-            "Statement",
+            String(localized: "Statement"),
             in: CGRect(x: margin, y: cursorY, width: contentWidth, height: 18),
             font: .systemFont(ofSize: 12, weight: .semibold),
             color: .pdfInk
@@ -584,7 +584,7 @@ private final class PDFCaseRenderer {
     ) {
         let label = evidenceLabel(for: itemNumber)
         let title = displayTitle(for: evidenceItem)
-        let dateText = localEventDate(for: evidenceItem).map(Self.shortDateFormatter.string(from:)) ?? "Date not set"
+        let dateText = localEventDate(for: evidenceItem).map(Self.shortDateFormatter.string(from:)) ?? String(localized: "Date not set")
         let sourceText = pdfDateSourceText(for: localDateSource(for: evidenceItem))
 
         let heroHeight: CGFloat = 84
@@ -620,15 +620,15 @@ private final class PDFCaseRenderer {
         )
         cursorY += heroHeight + 18
 
-        let attachmentText = evidenceItem.attachments.count == 1 ? "1 attachment" : "\(evidenceItem.attachments.count) attachments"
+        let attachmentText = evidenceItem.attachments.count == 1 ? String(localized: "1 attachment") : String(localized: "\(evidenceItem.attachments.count) attachments")
         let itemGridHeight = drawMetadataGrid(
             [
-                ("Event date", dateText),
-                ("Date source", sourceText),
-                ("Category", evidenceItem.category.displayName),
-                ("Attachments", attachmentText),
-                ("Imported", Self.shortDateTimeFormatter.string(from: evidenceItem.createdAt)),
-                ("Important", evidenceItem.userMarkedImportant ? "Yes" : "No")
+                (String(localized: "Event date"), dateText),
+                (String(localized: "Date source"), sourceText),
+                (String(localized: "Category"), evidenceItem.category.displayName),
+                (String(localized: "Attachments"), attachmentText),
+                (String(localized: "Imported"), Self.shortDateTimeFormatter.string(from: evidenceItem.createdAt)),
+                (String(localized: "Important"), evidenceItem.userMarkedImportant ? String(localized: "Yes") : String(localized: "No"))
             ],
             x: margin,
             y: cursorY,
@@ -638,16 +638,16 @@ private final class PDFCaseRenderer {
 
         drawTextBlock(
             context,
-            title: "User note",
+            title: String(localized: "User note"),
             text: evidenceItem.userNotes.trimmedForPDF,
-            emptyText: "No user note entered.",
+            emptyText: String(localized: "No user note entered."),
             maxCharacters: 1_400
         )
 
         if !evidenceItem.userCleanedNote.trimmedForPDF.isEmpty {
             drawTextBlock(
                 context,
-                title: "Cleaned note",
+                title: String(localized: "Cleaned note"),
                 text: evidenceItem.userCleanedNote.trimmedForPDF,
                 emptyText: "",
                 maxCharacters: 1_400
@@ -657,7 +657,7 @@ private final class PDFCaseRenderer {
         if !evidenceItem.userWhyThisMatters.trimmedForPDF.isEmpty {
             drawTextBlock(
                 context,
-                title: "Why this matters",
+                title: String(localized: "Why this matters"),
                 text: evidenceItem.userWhyThisMatters.trimmedForPDF,
                 emptyText: "",
                 maxCharacters: 1_100
@@ -667,11 +667,11 @@ private final class PDFCaseRenderer {
         if !evidenceItem.originalOCRText.trimmedForPDF.isEmpty {
             drawTextBlock(
                 context,
-                title: "Detected text",
+                title: String(localized: "Detected text"),
                 text: evidenceItem.originalOCRText.trimmedForPDF,
                 emptyText: "",
                 maxCharacters: 1_200,
-                footnote: "Detected text was extracted locally on-device and is kept separate from user-edited notes."
+                footnote: String(localized: "Detected text was extracted locally on-device and is kept separate from user-edited notes.")
             )
         }
 
@@ -679,10 +679,10 @@ private final class PDFCaseRenderer {
     }
 
     private func drawAttachments(_ context: UIGraphicsPDFRendererContext, attachments: [Attachment]) {
-        drawSectionTitle("Attachments")
+        drawSectionTitle(String(localized: "Attachments"))
 
         guard !attachments.isEmpty else {
-            drawEmptyMessage("No attachments linked to this proof item.")
+            drawEmptyMessage(String(localized: "No attachments linked to this proof item."))
             return
         }
 
@@ -846,12 +846,12 @@ private final class PDFCaseRenderer {
         pageNumberInFile: Int?,
         filePageCount: Int?
     ) -> String {
-        let baseLabel = "\(evidenceLabel(for: evidenceNumber)) · File \(attachmentNumber)"
+        let baseLabel = String(localized: "\(evidenceLabel(for: evidenceNumber)) · File \(attachmentNumber)")
         guard let pageNumberInFile, let filePageCount else {
             return baseLabel
         }
 
-        return "\(baseLabel) · Page \(pageNumberInFile) of \(filePageCount)"
+        return String(localized: "\(baseLabel) · Page \(pageNumberInFile) of \(filePageCount)")
     }
 
     private func drawRenderableImage(_ image: UIImage, sourceSize: CGSize) {
@@ -905,8 +905,8 @@ private final class PDFCaseRenderer {
 
         let filename = attachment.originalFilename.trimmedForPDF
         let message = filename.isEmpty
-            ? "This file type cannot be rendered inside the PDF."
-            : "\(filename)\n\nThis file type cannot be rendered inside the PDF."
+            ? String(localized: "This file type cannot be rendered inside the PDF.")
+            : String(localized: "\(filename)\n\nThis file type cannot be rendered inside the PDF.")
         drawText(
             message,
             in: canvasRect.insetBy(dx: 28, dy: 28),
@@ -929,13 +929,13 @@ private final class PDFCaseRenderer {
         drawRoundedRect(cardRect, fill: .white, stroke: .pdfDivider, strokeAlpha: 0.48)
 
         drawText(
-            "Attachment \(attachmentNumber)",
+            String(localized: "Attachment \(attachmentNumber)"),
             in: CGRect(x: cardRect.minX + 14, y: cardRect.minY + 13, width: 118, height: 12),
             font: .systemFont(ofSize: 8, weight: .semibold),
             color: .pdfTertiary
         )
 
-        let filename = attachment.originalFilename.trimmedForPDF.isEmpty ? "Attachment" : attachment.originalFilename.trimmedForPDF
+        let filename = attachment.originalFilename.trimmedForPDF.isEmpty ? String(localized: "Attachment") : attachment.originalFilename.trimmedForPDF
         drawText(
             filename,
             in: CGRect(x: cardRect.minX + 14, y: cardRect.minY + 29, width: cardRect.width - 28, height: 22),
@@ -959,7 +959,7 @@ private final class PDFCaseRenderer {
         let textWidth = cardRect.maxX - textX - 14
         var y = cardRect.minY + 69
         drawText(
-            "Type",
+            String(localized: "Type"),
             in: CGRect(x: textX, y: y, width: 74, height: 12),
             font: .systemFont(ofSize: 8, weight: .semibold),
             color: .pdfTertiary
@@ -972,10 +972,10 @@ private final class PDFCaseRenderer {
         )
         y += 22
 
-        let fileSizeText = attachment.fileSizeBytes.map { Self.fileSizeFormatter.string(fromByteCount: $0) } ?? "File size unavailable"
+        let fileSizeText = attachment.fileSizeBytes.map { Self.fileSizeFormatter.string(fromByteCount: $0) } ?? String(localized: "File size unavailable")
         let importedText = Self.shortDateTimeFormatter.string(from: attachment.createdAt)
         drawText(
-            "Size",
+            String(localized: "Size"),
             in: CGRect(x: textX, y: y, width: 74, height: 12),
             font: .systemFont(ofSize: 8, weight: .semibold),
             color: .pdfTertiary
@@ -989,7 +989,7 @@ private final class PDFCaseRenderer {
         y += 22
 
         drawText(
-            "Imported",
+            String(localized: "Imported"),
             in: CGRect(x: textX, y: y, width: 74, height: 12),
             font: .systemFont(ofSize: 8, weight: .semibold),
             color: .pdfTertiary
@@ -1012,9 +1012,9 @@ private final class PDFCaseRenderer {
         let note = timelineNote(for: evidenceItem)
         let why = evidenceItem.userWhyThisMatters.trimmedForPDF
         let noteText = note.isEmpty ? "" : note.limitedForPDF(to: 280)
-        let whyText = why.isEmpty ? "" : "Why this matters: \(why.limitedForPDF(to: 220))"
+        let whyText = why.isEmpty ? "" : String(localized: "Why this matters: \(why.limitedForPDF(to: 220))")
         let detectedText = timelineDetectedText(for: evidenceItem)
-        let dateText = localEventDate(for: evidenceItem).map(Self.shortDateFormatter.string(from:)) ?? "Date not set"
+        let dateText = localEventDate(for: evidenceItem).map(Self.shortDateFormatter.string(from:)) ?? String(localized: "Date not set")
         let sourceText = pdfDateSourceText(for: localDateSource(for: evidenceItem))
         let metaText = "\(dateText) · \(evidenceItem.category.displayName) · \(sourceText)"
         let body = [noteText, whyText]
@@ -1025,13 +1025,13 @@ private final class PDFCaseRenderer {
         let textWidth = contentWidth - 32 - leftRailWidth - 18
 
         let bodyHeight = heightForText(
-            body.isEmpty ? "No note added." : body,
+            body.isEmpty ? String(localized: "No note added.") : body,
             width: textWidth,
             font: .systemFont(ofSize: 10.5, weight: .regular),
             lineSpacing: 2
         )
         let detectedHeight = detectedText.isEmpty ? 0 : heightForText(
-            "Detected text: \(detectedText)",
+            String(localized: "Detected text: \(detectedText)"),
             width: textWidth,
             font: .systemFont(ofSize: 9.5, weight: .regular),
             lineSpacing: 1.5
@@ -1055,21 +1055,21 @@ private final class PDFCaseRenderer {
         drawExhibitBadge(evidenceLabel(for: itemNumber), in: labelRect)
 
         drawPill(
-            evidenceItem.needsReview ? "Needs review" : "Reviewed",
+            evidenceItem.needsReview ? String(localized: "Needs review") : String(localized: "Reviewed"),
             x: cardRect.minX + 12,
             y: labelRect.maxY + 8,
             width: 82
         )
 
         if evidenceItem.userMarkedImportant {
-            drawPill("Important", x: cardRect.minX + 12, y: labelRect.maxY + 32, width: 82)
+            drawPill(String(localized: "Important"), x: cardRect.minX + 12, y: labelRect.maxY + 32, width: 82)
         }
 
         if let previewAttachment {
             let thumbnailRect = CGRect(x: cardRect.minX + 12, y: labelRect.maxY + 58, width: 82, height: 58)
             drawAttachmentThumbnail(previewAttachment, in: thumbnailRect)
 
-            let attachmentText = evidenceItem.attachments.count == 1 ? "1 file" : "\(evidenceItem.attachments.count) files"
+            let attachmentText = evidenceItem.attachments.count == 1 ? String(localized: "1 file") : String(localized: "\(evidenceItem.attachments.count) files")
             drawText(
                 attachmentText,
                 in: CGRect(x: thumbnailRect.minX, y: thumbnailRect.maxY + 5, width: thumbnailRect.width, height: 12),
@@ -1097,7 +1097,7 @@ private final class PDFCaseRenderer {
         )
         textY += 18
         drawText(
-            body.isEmpty ? "No note added." : body,
+            body.isEmpty ? String(localized: "No note added.") : body,
             in: CGRect(x: textX, y: textY, width: textWidth, height: bodyHeight + 6),
             font: .systemFont(ofSize: 10.5, weight: .regular),
             color: .pdfSecondary,
@@ -1107,7 +1107,7 @@ private final class PDFCaseRenderer {
 
         if !detectedText.isEmpty {
             drawText(
-                "Detected text: \(detectedText)",
+                String(localized: "Detected text: \(detectedText)"),
                 in: CGRect(x: textX, y: textY, width: textWidth, height: detectedHeight),
                 font: .systemFont(ofSize: 9.5, weight: .regular),
                 color: .pdfTertiary,
@@ -1124,11 +1124,11 @@ private final class PDFCaseRenderer {
 
         let y = headerRect.minY + 8
         let headerFont = UIFont.systemFont(ofSize: 7.7, weight: .semibold)
-        drawText("Exhibit", in: CGRect(x: margin + 10, y: y, width: 62, height: 12), font: headerFont, color: .pdfTertiary)
-        drawText("Date", in: CGRect(x: margin + 76, y: y, width: 82, height: 12), font: headerFont, color: .pdfTertiary)
-        drawText("Title", in: CGRect(x: margin + 166, y: y, width: 190, height: 12), font: headerFont, color: .pdfTertiary)
-        drawText("Category", in: CGRect(x: margin + 364, y: y, width: 82, height: 12), font: headerFont, color: .pdfTertiary)
-        drawText("Files", in: CGRect(x: margin + 454, y: y, width: 40, height: 12), font: headerFont, color: .pdfTertiary, alignment: .right)
+        drawText(String(localized: "Exhibit"), in: CGRect(x: margin + 10, y: y, width: 62, height: 12), font: headerFont, color: .pdfTertiary)
+        drawText(String(localized: "Date"), in: CGRect(x: margin + 76, y: y, width: 82, height: 12), font: headerFont, color: .pdfTertiary)
+        drawText(String(localized: "Title"), in: CGRect(x: margin + 166, y: y, width: 190, height: 12), font: headerFont, color: .pdfTertiary)
+        drawText(String(localized: "Category"), in: CGRect(x: margin + 364, y: y, width: 82, height: 12), font: headerFont, color: .pdfTertiary)
+        drawText(String(localized: "Files"), in: CGRect(x: margin + 454, y: y, width: 40, height: 12), font: headerFont, color: .pdfTertiary, alignment: .right)
         cursorY += 34
         drawRule(y: cursorY, color: .pdfDivider, alpha: 0.55, lineWidth: 0.5)
         cursorY += 8
@@ -1229,7 +1229,7 @@ private final class PDFCaseRenderer {
         guard !categoryPairs.isEmpty else { return }
 
         ensureSpace(96, context: context)
-        drawSectionTitle("Categories")
+        drawSectionTitle(String(localized: "Categories"))
         let gridHeight = drawMetadataGrid(
             categoryPairs,
             x: margin,
@@ -1550,7 +1550,7 @@ private final class PDFCaseRenderer {
 
         signatureStamp.image.draw(in: imageRect, blendMode: .normal, alpha: 0.96)
         drawText(
-            "Proofly signature token: \(signatureStamp.validationToken)",
+            String(localized: "Proofly signature token: \(signatureStamp.validationToken)"),
             in: CGRect(x: signatureRect.minX, y: imageBounds.maxY + 3, width: signatureRect.width, height: 18),
             font: .monospacedSystemFont(ofSize: 5.6, weight: .medium),
             color: UIColor.pdfSecondary.withAlphaComponent(0.82),
@@ -1598,7 +1598,7 @@ private final class PDFCaseRenderer {
 
     private func drawPageHeader(title: String, subtitle: String?) {
         drawText(
-            "\(coverTitle) · Proofly packet",
+            String(localized: "\(coverTitle) · Proofly packet"),
             in: CGRect(x: margin, y: headerTop, width: contentWidth * 0.54, height: 16),
             font: .systemFont(ofSize: 8.8, weight: .regular),
             color: .pdfSecondary
@@ -1641,7 +1641,7 @@ private final class PDFCaseRenderer {
         let footerY = pageRect.height - 44
         if currentPageTitle == "Cover" {
             drawText(
-                "Proofly organizes user-provided records and does not provide legal advice.",
+                String(localized: "Proofly organizes user-provided records and does not provide legal advice."),
                 in: CGRect(x: margin, y: footerY, width: contentWidth, height: 16),
                 font: .systemFont(ofSize: 8.5, weight: .regular),
                 color: .pdfTertiary
@@ -1652,7 +1652,7 @@ private final class PDFCaseRenderer {
         if request.exportMode == .cleanPacket && currentPageTitle == "Rendered File" {
             guard request.includeProofKitWatermark else { return }
             drawText(
-                "Generated with Proofly",
+                String(localized: "Generated with Proofly"),
                 in: CGRect(x: margin, y: footerY, width: contentWidth, height: 16),
                 font: .systemFont(ofSize: 7.8, weight: .regular),
                 color: UIColor.pdfTertiary.withAlphaComponent(0.62),
@@ -1680,7 +1680,7 @@ private final class PDFCaseRenderer {
             )
         }
         drawText(
-            "Page \(pageNumber)",
+            String(localized: "Page \(pageNumber)"),
             in: CGRect(x: margin + contentWidth * 0.72, y: footerY, width: contentWidth * 0.28, height: 16),
             font: .systemFont(ofSize: 8.5, weight: .regular),
             color: .pdfTertiary,
@@ -1690,7 +1690,7 @@ private final class PDFCaseRenderer {
 
     private var footerGeneratedText: String {
         if request.includeProofKitWatermark {
-            return "Generated with Proofly"
+            return String(localized: "Generated with Proofly")
         }
 
         return ""
@@ -1757,7 +1757,7 @@ private final class PDFCaseRenderer {
         )
 
         drawText(
-            "Exhibit",
+            String(localized: "Exhibit"),
             in: CGRect(x: rect.minX + 4, y: rect.minY + (emphasized ? 9 : 7), width: rect.width - 8, height: 9),
             font: .systemFont(ofSize: emphasized ? 7.4 : 6.7, weight: .semibold),
             color: .pdfTertiary,
@@ -1913,7 +1913,7 @@ private final class PDFCaseRenderer {
             return filename
         }
 
-        return "Untitled proof item"
+        return String(localized: "Untitled proof item")
     }
 
     private func timelineNote(for evidenceItem: EvidenceItem) -> String {
@@ -1971,25 +1971,25 @@ private final class PDFCaseRenderer {
     private func pdfDateSourceText(for source: DateSource) -> String {
         switch source {
         case .notSpecified:
-            "date source not set"
+            String(localized: "date source not set")
         case .userEntered:
-            "user-entered date"
+            String(localized: "user-entered date")
         case .fileMetadata:
-            "date from file details"
+            String(localized: "date from file details")
         case .filename:
-            "date from filename"
+            String(localized: "date from filename")
         case .visionOCR:
-            "date found in text"
+            String(localized: "date found in text")
         case .importedMetadata:
-            "date from import details"
+            String(localized: "date from import details")
         case .aiSuggested:
-            "suggested date"
+            String(localized: "suggested date")
         }
     }
 
     private var coverTitle: String {
         let title = caseFile.userTitle.trimmedForPDF
-        return title.isEmpty ? "Untitled case" : title.singleLineLimitedForPDF(to: 54)
+        return title.isEmpty ? String(localized: "Untitled case") : title.singleLineLimitedForPDF(to: 54)
     }
 
     private var attachmentCount: Int {
@@ -2002,14 +2002,14 @@ private final class PDFCaseRenderer {
                 evidenceItem.sortedAttachments.contains { !$0.originalOCRText.trimmedForPDF.isEmpty }
         }.count
 
-        guard count > 0 else { return "No detected text" }
-        return count == 1 ? "1 item with detected text" : "\(count) items with detected text"
+        guard count > 0 else { return String(localized: "No detected text") }
+        return count == 1 ? String(localized: "1 item with detected text") : String(localized: "\(count) items with detected text")
     }
 
     private var dateRangeText: String {
         let dates = evidenceItems.compactMap(localEventDate(for:))
         guard let firstDate = dates.min(), let lastDate = dates.max() else {
-            return "Date not set"
+            return String(localized: "Date not set")
         }
 
         if Self.dayKeyFormatter.string(from: firstDate) == Self.dayKeyFormatter.string(from: lastDate) {
@@ -2085,7 +2085,7 @@ private extension String {
         let value = trimmedForPDF
         guard value.count > maxCharacters else { return value }
         let endIndex = value.index(value.startIndex, offsetBy: maxCharacters)
-        return "\(value[..<endIndex])…\n\n[Additional text remains in the original Proofly record.]"
+        return String(localized: "\(value[..<endIndex])…\n\n[Additional text remains in the original Proofly record.]")
     }
 
     func singleLineLimitedForPDF(to maxCharacters: Int) -> String {

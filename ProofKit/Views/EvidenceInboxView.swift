@@ -33,21 +33,21 @@ struct EvidenceInboxView: View {
             if caseFile.evidenceItems.isEmpty {
                 PlaceholderPanel(
                     systemImage: "tray",
-                    title: "Inbox is empty",
-                    message: "When you add proof, new imported items can appear here first so you can confirm the details before they join the timeline.",
+                    title: String(localized: "Inbox is empty"),
+                    message: String(localized: "When you add proof, new imported items can appear here first so you can confirm the details before they join the timeline."),
                     steps: [
                         PlaceholderStep(
                             systemImage: "photo.on.rectangle",
-                            title: "Import or write",
-                            detail: "Add a photo, screenshot, PDF, document, or note."
+                            title: String(localized: "Import or write"),
+                            detail: String(localized: "Add a photo, screenshot, PDF, document, or note.")
                         ),
                         PlaceholderStep(
                             systemImage: "checkmark.circle",
-                            title: "Confirm what matters",
-                            detail: "Review the title, date, category, and notes at your own pace."
+                            title: String(localized: "Confirm what matters"),
+                            detail: String(localized: "Review the title, date, category, and notes at your own pace.")
                         )
                     ],
-                    footnote: "Manual notes and imported files remain editable later."
+                    footnote: String(localized: "Manual notes and imported files remain editable later.")
                 )
             } else if reviewItems.isEmpty {
                 InboxEmptyStateCard(imageName: "RookInboxEmpty")
@@ -90,24 +90,24 @@ struct EvidenceInboxView: View {
     }
 
     private var reviewTitle: String {
-        "Review new proof"
+        String(localized: "Review new proof")
     }
 
     private var reviewSubtitle: String {
         if caseFile.evidenceItems.isEmpty {
-            return "This is a quiet holding area for proof you have not reviewed yet."
+            return String(localized: "This is a quiet holding area for proof you have not reviewed yet.")
         }
 
         if reviewItems.isEmpty {
-            return "No action is needed here right now."
+            return String(localized: "No action is needed here right now.")
         }
 
         let count = reviewItems.count
         if count == 1 {
-            return "1 item needs confirmation before it appears in your timeline."
+            return String(localized: "1 item needs confirmation before it appears in your timeline.")
         }
 
-        return "\(count) items need confirmation before they appear in your timeline."
+        return String(localized: "\(count) items need confirmation before they appear in your timeline.")
     }
 
     private func confirm(_ evidenceItem: EvidenceItem) {
@@ -155,13 +155,13 @@ private struct InboxEmptyStateCard: View {
     private let actions = [
         InboxEmptyAction(
             systemImage: "plus",
-            title: "Add more proof",
-            detail: "Use Add Proof when you have another screenshot, file, or note."
+            title: String(localized: "Add more proof"),
+            detail: String(localized: "Use Add Proof when you have another screenshot, file, or note.")
         ),
         InboxEmptyAction(
             systemImage: "calendar",
-            title: "Check the timeline",
-            detail: "Reviewed proof is organized by date."
+            title: String(localized: "Check the timeline"),
+            detail: String(localized: "Reviewed proof is organized by date.")
         )
     ]
 
@@ -306,7 +306,7 @@ private struct EvidenceReviewCard: View {
                     onConfirm()
                 } label: {
                     ReviewActionLabel(
-                        title: "Confirm",
+                        title: String(localized: "Confirm"),
                         foreground: ProofKitVisual.primaryActionForeground,
                         background: ProofKitVisual.primaryActionBackground
                     )
@@ -317,7 +317,7 @@ private struct EvidenceReviewCard: View {
                     EvidenceDetailEditView(evidenceItem: evidenceItem)
                 } label: {
                     ReviewActionLabel(
-                        title: "Edit",
+                        title: String(localized: "Edit"),
                         foreground: ProofKitVisual.accent,
                         background: ProofKitVisual.accent.opacity(0.12)
                     )
@@ -328,7 +328,7 @@ private struct EvidenceReviewCard: View {
                     onSkip()
                 } label: {
                     ReviewActionLabel(
-                        title: "Skip",
+                        title: String(localized: "Skip"),
                         foreground: ProofKitVisual.helperText,
                         background: ProofKitVisual.quietFill
                     )
@@ -379,18 +379,18 @@ private struct EvidenceReviewCard: View {
 
     private var detectedDateText: String {
         if let detectedEventDate = evidenceItem.detectedEventDate {
-            return "Detected \(ProofKitDateFormatting.shortDate(detectedEventDate))"
+            return String(localized: "Detected \(ProofKitDateFormatting.shortDate(detectedEventDate))")
         }
 
         if let eventDate = evidenceItem.eventDate {
-            return "Date \(ProofKitDateFormatting.shortDate(eventDate))"
+            return String(localized: "Date \(ProofKitDateFormatting.shortDate(eventDate))")
         }
 
         if !evidenceItem.requiresEventDateForCompletion {
-            return "Date optional"
+            return String(localized: "Date optional")
         }
 
-        return "No date detected"
+        return String(localized: "No date detected")
     }
 
     private var displayTitle: String {
@@ -409,21 +409,21 @@ private struct EvidenceReviewCard: View {
 
         switch evidenceItem.category {
         case .photo:
-            return "Proof photo"
+            return String(localized: "Proof photo")
         case .screenshot:
-            return "Proof screenshot"
+            return String(localized: "Proof screenshot")
         case .message:
-            return "Message screenshot"
+            return String(localized: "Message screenshot")
         case .email:
-            return "Email record"
+            return String(localized: "Email record")
         case .receipt:
-            return "Receipt"
+            return String(localized: "Receipt")
         case .document, .contract:
-            return "Document"
+            return String(localized: "Document")
         case .note:
-            return "Case note"
+            return String(localized: "Case note")
         case .uncategorized, .other:
-            return "Proof item"
+            return String(localized: "Proof item")
         }
     }
 
@@ -438,10 +438,10 @@ private struct EvidenceReviewCard: View {
         }
 
         if evidenceItem.ocrHasFinished {
-            return ReviewOCRLine(text: "No text detected", isPreview: false)
+            return ReviewOCRLine(text: String(localized: "No text detected"), isPreview: false)
         }
 
-        return ReviewOCRLine(text: "OCR pending", isPreview: false)
+        return ReviewOCRLine(text: String(localized: "OCR pending"), isPreview: false)
     }
 }
 
@@ -668,23 +668,23 @@ private extension EvidenceItem {
         let searchableText = reviewSearchableText
 
         if searchableText.containsAnyReviewTerm(["ceiling", "leak", "water", "drip", "mold"]) {
-            return "Ceiling leak photo"
+            return String(localized: "Ceiling leak photo")
         }
 
         if searchableText.containsAnyReviewTerm(["wall", "damage", "crack", "hole", "paint"]) {
-            return "Wall damage photo"
+            return String(localized: "Wall damage photo")
         }
 
         if searchableText.containsAnyReviewTerm(["receipt", "invoice", "paid", "repair", "$"]) || category == .receipt {
-            return "Repair receipt"
+            return String(localized: "Repair receipt")
         }
 
         if searchableText.containsAnyReviewTerm(["landlord", "message", "text", "sms", "conversation"]) || category == .message {
-            return "Landlord message screenshot"
+            return String(localized: "Landlord message screenshot")
         }
 
         if searchableText.containsAnyReviewTerm(["email", "from:", "subject:"]) || category == .email {
-            return "Email thread"
+            return String(localized: "Email thread")
         }
 
         return nil
