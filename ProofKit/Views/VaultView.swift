@@ -232,7 +232,7 @@ struct VaultView: View {
             return String(localized: "Upload files to keep reusable proof ready.")
         }
 
-        return String(localized: "\(vaultFiles.count.fileCountText) stored locally")
+        return String(localized: "\(vaultFiles.count) files stored locally")
     }
 
     @ViewBuilder

@@ -273,7 +273,9 @@ final class AIRequestQueueService: ObservableObject {
         }
         for queuedItem in items {
             queuedItem.status = .waitingForCredits
-            queuedItem.lastErrorMessage = String(localized: "\(queuedItem.displayTitle) needs \(queuedItem.creditCostQuote ?? queuedItem.actionKind.defaultCreditCost) AI credit(s). You have \(availableCredits) available.")
+            let requiredForItem = queuedItem.creditCostQuote ?? queuedItem.actionKind.defaultCreditCost
+            let creditPhrase = String(localized: "\(requiredForItem) AI credit")
+            queuedItem.lastErrorMessage = String(localized: "\(queuedItem.displayTitle) needs \(creditPhrase). You have \(availableCredits) available.")
         }
         try? modelContext.save()
         lastQueueMessage = String(localized: "AI queue is waiting for credits. \(item.displayTitle) needs \(requiredCredits), but \(availableCredits) are available.")

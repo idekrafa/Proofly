@@ -1050,7 +1050,9 @@ struct EvidenceDetailEditView: View {
 
         if let remainingCredits = result.remainingCredits {
             if let creditsUsed = result.creditsUsed {
-                return String(localized: "AI-cleaned note saved locally. \(creditsUsed) AI credit\(creditsUsed == 1 ? "" : "s") used server-side. \(remainingCredits) remaining.")
+                let usedPhrase = String(localized: "\(creditsUsed) AI credit used server-side")
+                let remainingPhrase = String(localized: "\(remainingCredits) AI credit remaining")
+                return String(localized: "AI-cleaned note saved locally. \(usedPhrase). \(remainingPhrase).")
             }
 
             return String(localized: "AI-cleaned note saved locally. Credits were handled server-side. \(remainingCredits) remaining.")

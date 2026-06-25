@@ -53,8 +53,9 @@ final class AIService: AIActionServicing {
         let balance = try await aiCredits.fetchAICreditBalance()
         let creditCost = actionKind.defaultCreditCost
         guard balance.availableCredits >= creditCost else {
+            let creditPhrase = String(localized: "\(creditCost) AI credit")
             throw ProofKitError.planLimitReached(
-                String(localized: "\(actionKind.displayName) uses \(creditCost) AI credit\(creditCost == 1 ? "" : "s"), but you have \(balance.availableCredits) available. Local OCR and timeline editing are still free.")
+                String(localized: "\(actionKind.displayName) uses \(creditPhrase), but you have \(balance.availableCredits) available. Local OCR and timeline editing are still free.")
             )
         }
 

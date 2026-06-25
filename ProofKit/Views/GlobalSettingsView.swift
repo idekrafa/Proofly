@@ -911,12 +911,12 @@ struct GlobalSettingsView: View {
             )
         }
 
-        var message = String(localized: "Removed \(snapshot.caseCount) case\(snapshot.caseCount == 1 ? "" : "s") and local proof records from this device.")
+        var message = String(localized: "Removed \(snapshot.caseCount) cases and local proof records from this device.")
         if removalResult.removedCount > 0 {
-            message += String(localized: " Removed \(removalResult.removedCount) stored file\(removalResult.removedCount == 1 ? "" : "s").")
+            message += String(localized: " Removed \(removalResult.removedCount) stored files.")
         }
         if removalResult.failedCount > 0 {
-            message += String(localized: " \(removalResult.failedCount) file\(removalResult.failedCount == 1 ? "" : "s") could not be removed; try again or contact support.")
+            message += String(localized: " \(removalResult.failedCount) files could not be removed; try again or contact support.")
         }
 
         return SettingsNotice(
@@ -1592,7 +1592,7 @@ private struct SettingsExportReadySheet: View {
                     Text("Data Export Ready")
                         .font(.title2.weight(.bold))
 
-                    Text("Your JSON export includes case, evidence, attachment metadata, OCR text, notes, and export history for \(exportFile.caseCount) case\(exportFile.caseCount == 1 ? "" : "s"). It does not include raw image, PDF, or attachment bytes.")
+                    Text("Your JSON export includes case, evidence, attachment metadata, OCR text, notes, and export history for \(exportFile.caseCount) cases. It does not include raw image, PDF, or attachment bytes.")
                         .font(.subheadline)
                         .foregroundStyle(ProofKitVisual.helperText)
                         .fixedSize(horizontal: false, vertical: true)

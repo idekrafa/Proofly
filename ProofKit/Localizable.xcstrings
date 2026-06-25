@@ -210,13 +210,84 @@
         }
       }
     },
-    "%@ stored locally": {
+    "%lld cases stored locally": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld case stored locally"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld cases stored locally"
+                }
+              }
+            }
+          }
+        },
         "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ armazenados localmente"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld caso armazenado localmente"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld casos armazenados localmente"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld files stored locally": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld file stored locally"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld files stored locally"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld arquivo armazenado localmente"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld arquivos armazenados localmente"
+                }
+              }
+            }
           }
         }
       }

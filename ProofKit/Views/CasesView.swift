@@ -185,7 +185,7 @@ struct CasesView: View {
             return String(localized: "Create a case to start organizing proof.")
         }
 
-        return String(localized: "\(cases.count.caseCountText) stored locally")
+        return String(localized: "\(cases.count) cases stored locally")
     }
 
     @ViewBuilder

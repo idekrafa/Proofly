@@ -87,7 +87,7 @@ final class PlaceholderPaywallService: PaywallServicing {
             if remainingCount == 0 {
                 message = String(localized: "\(entitlement.statusDisplayText) includes \(entitlement.limits.evidenceItemLimitText). Start Pro to add more proof.")
             } else {
-                message = String(localized: "You can add \(remainingCount) more proof item\(remainingCount == 1 ? "" : "s") on \(entitlement.statusDisplayText). Select fewer files or start Pro for a higher limit.")
+                message = String(localized: "You can add \(remainingCount) more proof items on \(entitlement.statusDisplayText). Select fewer files or start Pro for a higher limit.")
             }
 
             return PaywallAccessDecision(
