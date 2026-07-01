@@ -26,6 +26,6 @@ final class CaseListViewModel: ObservableObject {
     }
 
     private func nextCaseTitle() -> String {
-        "Untitled Case"
+        CaseFile.untitledCaseSentinel
     }
 }

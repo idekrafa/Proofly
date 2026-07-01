@@ -15,12 +15,12 @@ struct CaseSettingsView: View {
 
     private var displayCaseName: String {
         let trimmed = caseFile.userTitle.manageTrimmedText
-        return trimmed.isEmpty ? "Untitled case" : trimmed
+        return trimmed.isEmpty ? String(localized: "Untitled case") : trimmed
     }
 
     private var displayCaseNotes: String {
         let trimmed = caseFile.userSummary.manageTrimmedText
-        return trimmed.isEmpty ? "Add optional context" : trimmed
+        return trimmed.isEmpty ? String(localized: "Add optional context") : trimmed
     }
 
     private var generatedLocalCaseFileCount: Int {
@@ -119,12 +119,12 @@ struct CaseSettingsView: View {
     }
 
     private var caseDetailsSection: some View {
-        CaseManageSection(title: "Case details") {
+        CaseManageSection(title: String(localized: "Case details")) {
             VStack(spacing: 0) {
                 CaseManageActionRow(
                     icon: "textformat",
                     iconColor: ProofKitVisual.accentSecondary,
-                    title: "Case name",
+                    title: String(localized: "Case name"),
                     value: displayCaseName
                 ) {
                     activeSheet = .editName
@@ -135,7 +135,7 @@ struct CaseSettingsView: View {
                 CaseManageActionRow(
                     icon: "folder.badge.gearshape",
                     iconColor: ProofKitVisual.accent,
-                    title: "Category/type",
+                    title: String(localized: "Category/type"),
                     value: caseFile.caseType.manageCaseTypeDisplayName
                 ) {
                     activeSheet = .editCategory
@@ -146,7 +146,7 @@ struct CaseSettingsView: View {
                 CaseManageActionRow(
                     icon: "note.text",
                     iconColor: Color.yellow,
-                    title: "Description/context",
+                    title: String(localized: "Description/context"),
                     value: displayCaseNotes,
                     isPlaceholderValue: caseFile.userSummary.manageTrimmedText.isEmpty
                 ) {
@@ -158,7 +158,7 @@ struct CaseSettingsView: View {
                 CaseManageReadOnlyRow(
                     icon: "calendar",
                     iconColor: ProofKitVisual.subduedText,
-                    title: "Created date",
+                    title: String(localized: "Created date"),
                     value: ProofKitDateFormatting.shortDateTime(caseFile.createdAt)
                 )
 
@@ -167,7 +167,7 @@ struct CaseSettingsView: View {
                 CaseManageReadOnlyRow(
                     icon: "clock.arrow.circlepath",
                     iconColor: ProofKitVisual.subduedText,
-                    title: "Last updated date",
+                    title: String(localized: "Last updated date"),
                     value: ProofKitDateFormatting.shortDateTime(caseFile.updatedAt)
                 )
             }
@@ -176,15 +176,15 @@ struct CaseSettingsView: View {
 
     private var exportAndDataSection: some View {
         CaseManageSection(
-            title: "Export & data",
-            footer: "Your proof stays on this device unless you choose to export or share it. Original imported proof files stay in Vault; this screen only manages this case’s links and generated files."
+            title: String(localized: "Export & data"),
+            footer: String(localized: "Your proof stays on this device unless you choose to export or share it. Original imported proof files stay in Vault; this screen only manages this case’s links and generated files.")
         ) {
             VStack(spacing: 0) {
                 CaseManageActionRow(
                     icon: "doc.richtext",
                     iconColor: ProofKitVisual.accentSecondary,
-                    title: "Export PDF packet",
-                    value: "Open the packet builder for this case"
+                    title: String(localized: "Export PDF packet"),
+                    value: String(localized: "Open the packet builder for this case")
                 ) {
                     onRequestExportPDF()
                 }
@@ -194,8 +194,8 @@ struct CaseSettingsView: View {
                 CaseManageActionRow(
                     icon: "square.and.arrow.up",
                     iconColor: ProofKitVisual.accent,
-                    title: isPreparingCaseDataExport ? "Preparing case data…" : "Export case data",
-                    value: "Share a JSON copy of this case only"
+                    title: isPreparingCaseDataExport ? String(localized: "Preparing case data…") : String(localized: "Export case data"),
+                    value: String(localized: "Share a JSON copy of this case only")
                 ) {
                     prepareCaseDataExport()
                 }
@@ -206,8 +206,8 @@ struct CaseSettingsView: View {
                 CaseManageActionRow(
                     icon: "externaldrive.badge.xmark",
                     iconColor: Color.orange,
-                    title: "Delete local case files",
-                    value: generatedLocalCaseFileCount == 1 ? "Delete 1 generated PDF file" : "Delete generated PDF files for this case"
+                    title: String(localized: "Delete local case files"),
+                    value: generatedLocalCaseFileCount == 1 ? String(localized: "Delete 1 generated PDF file") : String(localized: "Delete generated PDF files for this case")
                 ) {
                     requestGeneratedFileDeletion()
                 }
@@ -216,13 +216,13 @@ struct CaseSettingsView: View {
     }
 
     private var dangerZoneSection: some View {
-        CaseManageSection(title: "Danger zone") {
+        CaseManageSection(title: String(localized: "Danger zone")) {
             VStack(spacing: 0) {
                 CaseManageActionRow(
                     icon: "trash",
                     iconColor: Color.red,
-                    title: "Delete case",
-                    value: "Remove this case timeline and local case data",
+                    title: String(localized: "Delete case"),
+                    value: String(localized: "Remove this case timeline and local case data"),
                     isDestructive: true
                 ) {
                     onRequestDeleteCase()
@@ -237,7 +237,7 @@ struct CaseSettingsView: View {
         guard !trimmedName.isEmpty else { return false }
 
         caseFile.userTitle = trimmedName
-        return saveCaseChanges(failureTitle: "Case name not saved")
+        return saveCaseChanges(failureTitle: String(localized: "Case name not saved"))
     }
 
     @discardableResult
@@ -245,13 +245,13 @@ struct CaseSettingsView: View {
         let newOption = CaseManageCategoryOption.option(for: newCaseType)
         caseFile.caseType = newCaseType
         caseFile.userNotes = caseFile.userNotes.updatingManageSelectedCategoryLine(to: newOption.title)
-        return saveCaseChanges(failureTitle: "Case type not saved")
+        return saveCaseChanges(failureTitle: String(localized: "Case type not saved"))
     }
 
     @discardableResult
     private func saveCaseNotes(_ newNotes: String) -> Bool {
         caseFile.userSummary = newNotes.manageTrimmedText
-        return saveCaseChanges(failureTitle: "Case notes not saved")
+        return saveCaseChanges(failureTitle: String(localized: "Case notes not saved"))
     }
 
     @discardableResult
@@ -265,7 +265,7 @@ struct CaseSettingsView: View {
             modelContext.rollback()
             notice = CaseManageNotice(
                 title: failureTitle,
-                message: "Proofly could not save this change. Please try again."
+                message: String(localized: "Proofly could not save this change. Please try again.")
             )
             return false
         }
@@ -280,8 +280,8 @@ struct CaseSettingsView: View {
             activeSheet = .caseDataExport(exportFile)
         } catch {
             notice = CaseManageNotice(
-                title: "Couldn’t export case data",
-                message: "Proofly could not prepare this case export. Please try again."
+                title: String(localized: "Couldn’t export case data"),
+                message: String(localized: "Proofly could not prepare this case export. Please try again.")
             )
         }
 
@@ -291,8 +291,8 @@ struct CaseSettingsView: View {
     private func requestGeneratedFileDeletion() {
         guard generatedLocalCaseFileCount > 0 else {
             notice = CaseManageNotice(
-                title: "No generated files to delete",
-                message: "This case does not have any generated PDF packet files stored on this device. Original proof files were not touched."
+                title: String(localized: "No generated files to delete"),
+                message: String(localized: "This case does not have any generated PDF packet files stored on this device. Original proof files were not touched.")
             )
             return
         }
@@ -311,8 +311,8 @@ struct CaseSettingsView: View {
 
         guard !paths.isEmpty else {
             notice = CaseManageNotice(
-                title: "No generated files to delete",
-                message: "This case does not have any generated PDF packet files stored on this device. Original proof files were not touched."
+                title: String(localized: "No generated files to delete"),
+                message: String(localized: "This case does not have any generated PDF packet files stored on this device. Original proof files were not touched.")
             )
             return
         }
@@ -334,16 +334,16 @@ struct CaseSettingsView: View {
             try modelContext.save()
 
             notice = CaseManageNotice(
-                title: "Local case files deleted",
+                title: String(localized: "Local case files deleted"),
                 message: deletedCount == 1
-                ? "Deleted 1 generated PDF packet file for this case. Original imported proof files remain in Vault."
-                : "Deleted \(deletedCount) generated PDF packet files for this case. Original imported proof files remain in Vault."
+                ? String(localized: "Deleted 1 generated PDF packet file for this case. Original imported proof files remain in Vault.")
+                : String(localized: "Deleted \(deletedCount) generated PDF packet files for this case. Original imported proof files remain in Vault.")
             )
         } catch {
             modelContext.rollback()
             notice = CaseManageNotice(
-                title: "Files not deleted",
-                message: "Proofly could not delete the generated case files. Original imported proof files were not touched."
+                title: String(localized: "Files not deleted"),
+                message: String(localized: "Proofly could not delete the generated case files. Original imported proof files were not touched.")
             )
         }
     }
@@ -422,15 +422,15 @@ private enum CaseManageCategoryOption: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .apartmentDrama:
-            "Housing lease"
+            String(localized: "Housing lease")
         case .refundFight:
-            "Refund fight"
+            String(localized: "Refund fight")
         case .schoolCollegeIssue:
-            "School or college issue"
+            String(localized: "School or college issue")
         case .workFreelanceProblem:
-            "Work or freelance problem"
+            String(localized: "Work or freelance problem")
         case .somethingElse:
-            "Something else"
+            String(localized: "Something else")
         }
     }
 
@@ -821,7 +821,7 @@ private struct CaseDataExportReadySheet: View {
     let exportFile: CaseDataExportFile
 
     private var caseTitle: String {
-        exportFile.caseTitle.manageTrimmedText.isEmpty ? "this case" : "“\(exportFile.caseTitle.manageTrimmedText)”"
+        exportFile.caseTitle.manageTrimmedText.isEmpty ? String(localized: "this case") : "“\(exportFile.caseTitle.manageTrimmedText)”"
     }
 
     var body: some View {

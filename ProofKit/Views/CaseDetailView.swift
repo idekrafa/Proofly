@@ -313,7 +313,7 @@ struct CaseDetailView: View {
         .buttonBorderShape(.capsule)
         .controlSize(.small)
         .fixedSize(horizontal: true, vertical: false)
-        .accessibilityHint("Opens proof import options.")
+        .accessibilityHint(String(localized: "Opens proof import options."))
     }
 
     private var metadataPills: some View {
@@ -408,7 +408,7 @@ struct CaseDetailView: View {
     }
 
     private var deleteCaseConfirmationMessage: String {
-        "This removes the case timeline, proof links, notes, and local case data from this device. This can’t be undone."
+        String(localized: "This removes the case timeline, proof links, notes, and local case data from this device. This can’t be undone.")
     }
 
     private func deleteCurrentCase() {
@@ -418,8 +418,8 @@ struct CaseDetailView: View {
             dismiss()
         } catch {
             caseDeletionNotice = CaseDetailDeletionNotice(
-                title: "Case not deleted",
-                message: "This case could not be deleted. Please try again."
+                title: String(localized: "Case not deleted"),
+                message: String(localized: "This case could not be deleted. Please try again.")
             )
         }
     }
@@ -436,13 +436,13 @@ private enum CaseDetailSection: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .timeline:
-            "Timeline"
+            String(localized: "Timeline")
         case .inbox:
-            "Inbox"
+            String(localized: "Inbox")
         case .export:
-            "Export"
+            String(localized: "Export")
         case .manage:
-            "Manage"
+            String(localized: "Manage")
         }
     }
 
@@ -574,14 +574,13 @@ private struct CaseWorkspaceProgressSummary: View {
     }
 
     private var missingAccessibilityText: String {
-        readiness.blockers.isEmpty ? "No immediate readiness blockers." : "Improve \(readiness.blockers.joined(separator: ", "))."
+        readiness.blockers.isEmpty ? String(localized: "No immediate readiness blockers.") : String(localized: "Improve \(readiness.blockers.joined(separator: ", ")).")
     }
 }
 
 private extension CaseFile {
     var caseDetailDisplayTitle: String {
-        let trimmedTitle = userTitle.caseDetailTrimmedText
-        return trimmedTitle.isEmpty ? "Untitled Case" : trimmedTitle
+        CaseFile.displayTitle(forTrimmedTitle: userTitle.caseDetailTrimmedText)
     }
 
     var caseDetailSummaryText: String {
@@ -591,7 +590,7 @@ private extension CaseFile {
         }
 
         if caseReadinessCategory.isSchool {
-            return "Deadlines, emails, essays, documents, and confirmations — organized into one timeline."
+            return String(localized: "Deadlines, emails, essays, documents, and confirmations — organized into one timeline.")
         }
 
         return trimmedSummary

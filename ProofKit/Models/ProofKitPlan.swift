@@ -10,11 +10,11 @@ enum ProofKitPlan: String, CaseIterable, Codable, Identifiable {
     var displayName: String {
         switch self {
         case .free:
-            "No active Pro"
+            String(localized: "No active Pro")
         case .paidUrgentExport:
-            "Paid urgent export"
+            String(localized: "Paid urgent export")
         case .pro:
-            "Pro"
+            String(localized: "Pro")
         }
     }
 
@@ -107,24 +107,37 @@ struct ProofKitPlanLimits: Codable, Equatable {
     let exportsAreWatermarked: Bool
 
     var activeCaseLimitText: String {
-        activeCaseLimit.map { "\($0) active case\($0 == 1 ? "" : "s")" } ?? "Unlimited active cases"
+        activeCaseLimit.map { count in
+            count == 1
+                ? String(localized: "\(count) active case")
+                : String(localized: "\(count) active cases")
+        } ?? String(localized: "Unlimited active cases")
     }
 
     var evidenceItemLimitText: String {
-        evidenceItemLimit.map { "\($0) proof items" } ?? "Unlimited proof items"
+        evidenceItemLimit.map { String(localized: "\($0) proof items") } ?? String(localized: "Unlimited proof items")
     }
 
     var aiCreditLimitText: String {
-        guard monthlyAICredits > 0 else { return "No AI credits" }
-        return "\(monthlyAICredits) AI credit\(monthlyAICredits == 1 ? "" : "s")\(aiCreditsRenewMonthly ? "/month" : "")"
+        guard monthlyAICredits > 0 else { return String(localized: "No AI credits") }
+        if aiCreditsRenewMonthly {
+            return monthlyAICredits == 1
+                ? String(localized: "\(monthlyAICredits) AI credit/month")
+                : String(localized: "\(monthlyAICredits) AI credits/month")
+        }
+        return monthlyAICredits == 1
+            ? String(localized: "\(monthlyAICredits) AI credit")
+            : String(localized: "\(monthlyAICredits) AI credits")
     }
 
     var exportLimitText: String {
         if let finalCaseExportLimit {
-            return "\(finalCaseExportLimit) final case export\(finalCaseExportLimit == 1 ? "" : "s")"
+            return finalCaseExportLimit == 1
+                ? String(localized: "\(finalCaseExportLimit) final case export")
+                : String(localized: "\(finalCaseExportLimit) final case exports")
         }
 
-        return exportsAreWatermarked ? "Watermarked PDF exports" : "Non-watermarked exports"
+        return exportsAreWatermarked ? String(localized: "Watermarked PDF exports") : String(localized: "Non-watermarked exports")
     }
 }
 
@@ -137,11 +150,11 @@ enum ProofKitEntitlementSource: String, Codable {
     var displayName: String {
         switch self {
         case .placeholder:
-            "Placeholder"
+            String(localized: "Placeholder")
         case .placeholderOverride:
-            "Placeholder override"
+            String(localized: "Placeholder override")
         case .purchaseEntitlement:
-            "Purchase entitlement"
+            String(localized: "Purchase entitlement")
         case .revenueCat:
             "RevenueCat"
         }
@@ -160,19 +173,19 @@ enum ProofKitSubscriptionStatus: String, Codable, Equatable {
     var displayName: String {
         switch self {
         case .trialing:
-            "Trial"
+            String(localized: "Trial")
         case .activeWeekly:
-            "Weekly Pro"
+            String(localized: "Weekly Pro")
         case .activeMonthly:
-            "Monthly Pro"
+            String(localized: "Monthly Pro")
         case .expired:
-            "Expired"
+            String(localized: "Expired")
         case .cancelled:
-            "Cancelled"
+            String(localized: "Cancelled")
         case .billingRetry:
-            "Billing retry"
+            String(localized: "Billing retry")
         case .revokedOrRefunded:
-            "Revoked or refunded"
+            String(localized: "Revoked or refunded")
         }
     }
 
@@ -202,14 +215,14 @@ struct ProofKitEntitlementSnapshot: Equatable {
 
     var aiCreditRenewalText: String {
         if subscriptionStatus == .trialing {
-            return "Trial, then weekly"
+            return String(localized: "Trial, then weekly")
         }
 
         if let subscriptionProduct {
             return subscriptionProduct.creditRenewalText
         }
 
-        return limits.aiCreditsRenewMonthly ? "Monthly" : "One-time"
+        return limits.aiCreditsRenewMonthly ? String(localized: "Monthly") : String(localized: "One-time")
     }
 
     var statusDisplayText: String {
@@ -274,18 +287,18 @@ extension ProofKitSubscriptionProduct {
     var creditRenewalText: String {
         switch self {
         case .weekly:
-            "Weekly"
+            String(localized: "Weekly")
         case .monthly:
-            "Monthly"
+            String(localized: "Monthly")
         }
     }
 
     var creditLineText: String {
         switch self {
         case .weekly:
-            "15 AI credits/week"
+            String(localized: "15 AI credits/week")
         case .monthly:
-            "75 AI credits/month"
+            String(localized: "75 AI credits/month")
         }
     }
 }
@@ -307,8 +320,8 @@ struct ProofKitExportAccess: Equatable {
         guard !isAllowed else { return nil }
         return PaywallAccessDecision(
             isAllowed: false,
-            title: blockedTitle ?? "Export limit reached",
-            message: blockedMessage ?? "This plan has reached its export limit.",
+            title: blockedTitle ?? String(localized: "Export limit reached"),
+            message: blockedMessage ?? String(localized: "This plan has reached its export limit."),
             suggestedPlan: .pro
         )
     }

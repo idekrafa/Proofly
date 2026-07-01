@@ -131,8 +131,8 @@ struct ManualEvidenceEntryView: View {
             VStack(alignment: .leading, spacing: ProofKitVisual.sectionSpacing) {
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
                     EvidenceFieldHeader(
-                        title: "Event date",
-                        subtitle: "Use the date this happened, or the date this record refers to."
+                        title: String(localized: "Event date"),
+                        subtitle: String(localized: "Use the date this happened, or the date this record refers to.")
                     )
 
                     DatePicker(
@@ -145,7 +145,7 @@ struct ManualEvidenceEntryView: View {
                 }
 
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
-                    EvidenceFieldHeader(title: "Title")
+                    EvidenceFieldHeader(title: String(localized: "Title"))
 
                     TextField("Example: Email about repair request", text: $title, axis: .vertical)
                         .textFieldStyle(.plain)
@@ -158,7 +158,7 @@ struct ManualEvidenceEntryView: View {
                 }
 
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
-                    EvidenceFieldHeader(title: "Category")
+                    EvidenceFieldHeader(title: String(localized: "Category"))
 
                     Picker("Category", selection: $category) {
                         ForEach(EvidenceCategory.allCases) { category in
@@ -184,27 +184,27 @@ struct ManualEvidenceEntryView: View {
             VStack(alignment: .leading, spacing: ProofKitVisual.sectionSpacing) {
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
                     EvidenceFieldHeader(
-                        title: "User note",
-                        subtitle: "Add the context you want to remember."
+                        title: String(localized: "User note"),
+                        subtitle: String(localized: "Add the context you want to remember.")
                     )
 
                     CalmTextEditor(
                         text: $userNote,
                         minHeight: 120,
-                        accessibilityLabel: "User note"
+                        accessibilityLabel: String(localized: "User note")
                     )
                 }
 
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
                     EvidenceFieldHeader(
-                        title: "Why this matters",
-                        subtitle: "Keep this practical: what this record helps show or explain."
+                        title: String(localized: "Why this matters"),
+                        subtitle: String(localized: "Keep this practical: what this record helps show or explain.")
                     )
 
                     CalmTextEditor(
                         text: $whyThisMatters,
                         minHeight: 96,
-                        accessibilityLabel: "Why this matters"
+                        accessibilityLabel: String(localized: "Why this matters")
                     )
                 }
             }
@@ -286,7 +286,7 @@ struct ManualEvidenceEntryView: View {
             dismiss()
         } catch {
             withAnimation(ProofKitMotion.standard) {
-                saveErrorMessage = "Proof could not be saved. Please try again."
+                saveErrorMessage = String(localized: "Proof could not be saved. Please try again.")
             }
         }
     }

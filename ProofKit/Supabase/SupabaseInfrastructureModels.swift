@@ -160,17 +160,17 @@ enum AIActionKind: String, CaseIterable, Codable, Identifiable {
     var displayName: String {
         switch self {
         case .timelineSummary:
-            "Timeline Summary"
+            String(localized: "Timeline Summary")
         case .packetPolish:
-            "Packet Polish"
+            String(localized: "Packet Polish")
         case .deepReview:
-            "Deep Review"
+            String(localized: "Deep Review")
         case .askAIShort:
-            "Ask AI"
+            String(localized: "Ask AI")
         case .askAICase:
-            "Ask AI with Case Context"
+            String(localized: "Ask AI with Case Context")
         case .rewriteNote:
-            "Clean Up Note"
+            String(localized: "Clean Up Note")
         }
     }
 
@@ -194,13 +194,13 @@ enum AIActionKind: String, CaseIterable, Codable, Identifiable {
     var estimatedWaitMessage: String {
         switch self {
         case .timelineSummary:
-            "Usually under a minute."
+            String(localized: "Usually under a minute.")
         case .packetPolish:
-            "May take about a minute."
+            String(localized: "May take about a minute.")
         case .deepReview:
-            "May take a few minutes for large timelines."
+            String(localized: "May take a few minutes for large timelines.")
         case .askAIShort, .askAICase, .rewriteNote:
-            "Usually under a minute."
+            String(localized: "Usually under a minute.")
         }
     }
 

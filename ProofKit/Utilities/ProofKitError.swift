@@ -17,27 +17,27 @@ enum ProofKitError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notImplemented(let feature):
-            "\(feature) is not implemented yet."
+            String(localized: "\(feature) is not implemented yet.")
         case .unsupportedFileType(let fileType):
-            "Unsupported file type: \(fileType)."
+            String(localized: "Unsupported file type: \(fileType).")
         case .missingLocalFile(let url):
-            "Missing local file at \(url.path())."
+            String(localized: "Missing local file at \(url.path()).")
         case .localOnlyViolation(let message):
             message
         case .ocrFailed(let message):
-            "OCR failed: \(message)"
+            String(localized: "OCR failed: \(message)")
         case .planLimitReached(let message):
             message
         case .revenueCatNotConfigured:
-            "RevenueCat is not configured for this build."
+            String(localized: "RevenueCat is not configured for this build.")
         case .revenueCatSDKUnavailable:
-            "RevenueCat SDK is unavailable in this build."
+            String(localized: "RevenueCat SDK is unavailable in this build.")
         case .revenueCatOfferingUnavailable(let message):
             message
         case .supabaseNotConfigured:
-            "Supabase is not configured for this build."
+            String(localized: "Supabase is not configured for this build.")
         case .supabaseSDKUnavailable:
-            "Supabase SDK is unavailable in this build."
+            String(localized: "Supabase SDK is unavailable in this build.")
         case .remotePolicyViolation(let message):
             message
         }

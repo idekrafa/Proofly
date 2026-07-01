@@ -125,7 +125,7 @@ struct CreateCaseFlowView: View {
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(ProofKitVisual.helperText)
 
-                TextField(selectedCategory?.starterTitle ?? "Example: Kitchen repair records", text: $title)
+                TextField(selectedCategory?.starterTitle ?? String(localized: "Example: Kitchen repair records"), text: $title)
                     .textInputAutocapitalization(.words)
                     .submitLabel(.done)
                     .focused($titleIsFocused)

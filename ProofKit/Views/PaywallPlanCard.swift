@@ -81,7 +81,7 @@ struct PaywallPlanCard: View {
         }
         .buttonStyle(ProofKitCardButtonStyle())
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("\(plan.accessibilityDescription), \(isSelected ? "selected" : "not selected")"))
+        .accessibilityLabel(Text("\(plan.accessibilityDescription), \(isSelected ? String(localized: "selected") : String(localized: "not selected"))"))
         .accessibilityHint(Text("Double tap to select this plan."))
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
@@ -144,23 +144,23 @@ struct PaywallLimitsCard: View {
             }
 
             VStack(spacing: 0) {
-                PlanLimitRow(title: "Cases", value: entitlement.limits.activeCaseLimitText)
+                PlanLimitRow(title: String(localized: "Cases"), value: entitlement.limits.activeCaseLimitText)
                 Divider()
                     .padding(.leading, 14)
-                PlanLimitRow(title: "Evidence", value: entitlement.limits.evidenceItemLimitText)
+                PlanLimitRow(title: String(localized: "Evidence"), value: entitlement.limits.evidenceItemLimitText)
                 Divider()
                     .padding(.leading, 14)
-                PlanLimitRow(title: "AI credits", value: aiCreditLimitText)
+                PlanLimitRow(title: String(localized: "AI credits"), value: aiCreditLimitText)
                 Divider()
                     .padding(.leading, 14)
-                PlanLimitRow(title: "Export", value: entitlement.limits.exportLimitText)
+                PlanLimitRow(title: String(localized: "Export"), value: entitlement.limits.exportLimitText)
             }
             .background {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(ProofKitVisual.fieldBackground)
             }
 
-            Text(entitlement.source == .revenueCat ? "RevenueCat checks the Pro entitlement. Local cases, proof files, OCR text, and exports remain stored in Proofly’s account-scoped local storage." : "Purchases are placeholder-backed for now. RevenueCat can replace this entitlement source without changing local proof storage.")
+            Text(entitlement.source == .revenueCat ? String(localized: "RevenueCat checks the Pro entitlement. Local cases, proof files, OCR text, and exports remain stored in Proofly’s account-scoped local storage.") : String(localized: "Purchases are placeholder-backed for now. RevenueCat can replace this entitlement source without changing local proof storage."))
                 .font(.caption)
                 .foregroundStyle(ProofKitVisual.helperText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -182,10 +182,10 @@ struct PaywallLimitsCard: View {
 
     private var aiCreditLimitText: String {
         guard entitlement.includedAICredits > 0 else {
-            return "Not included"
+            return String(localized: "Not included")
         }
 
-        return "\(entitlement.includedAICredits) \(entitlement.aiCreditRenewalText.lowercased())"
+        return String(localized: "\(entitlement.includedAICredits) \(entitlement.aiCreditRenewalText.lowercased())")
     }
 }
 

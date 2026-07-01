@@ -63,8 +63,8 @@ final class PlaceholderPaywallService: PaywallServicing {
         guard activeCaseCount < activeCaseLimit else {
             return PaywallAccessDecision(
                 isAllowed: false,
-                title: "Case limit reached",
-                message: "\(entitlement.statusDisplayText) includes \(entitlement.limits.activeCaseLimitText). Start Pro for unlimited cases.",
+                title: String(localized: "Case limit reached"),
+                message: String(localized: "\(entitlement.statusDisplayText) includes \(entitlement.limits.activeCaseLimitText). Start Pro for unlimited cases."),
                 suggestedPlan: .pro
             )
         }
@@ -85,14 +85,14 @@ final class PlaceholderPaywallService: PaywallServicing {
         guard currentCount + requestedCount <= evidenceItemLimit else {
             let message: String
             if remainingCount == 0 {
-                message = "\(entitlement.statusDisplayText) includes \(entitlement.limits.evidenceItemLimitText). Start Pro to add more proof."
+                message = String(localized: "\(entitlement.statusDisplayText) includes \(entitlement.limits.evidenceItemLimitText). Start Pro to add more proof.")
             } else {
-                message = "You can add \(remainingCount) more proof item\(remainingCount == 1 ? "" : "s") on \(entitlement.statusDisplayText). Select fewer files or start Pro for a higher limit."
+                message = String(localized: "You can add \(remainingCount) more proof items on \(entitlement.statusDisplayText). Select fewer files or start Pro for a higher limit.")
             }
 
             return PaywallAccessDecision(
                 isAllowed: false,
-                title: "Evidence limit reached",
+                title: String(localized: "Evidence limit reached"),
                 message: message,
                 suggestedPlan: .pro
             )
@@ -106,8 +106,8 @@ final class PlaceholderPaywallService: PaywallServicing {
         guard entitlement.includedAICredits > 0, entitlement.subscriptionStatus.allowsAI || entitlement.plan == .pro else {
             return PaywallAccessDecision(
                 isAllowed: false,
-                title: "AI credits unavailable",
-                message: "\(entitlement.statusDisplayText) does not include available AI credits. Local OCR and organization still work.",
+                title: String(localized: "AI credits unavailable"),
+                message: String(localized: "\(entitlement.statusDisplayText) does not include available AI credits. Local OCR and organization still work."),
                 suggestedPlan: .pro
             )
         }
@@ -127,8 +127,8 @@ final class PlaceholderPaywallService: PaywallServicing {
                 isWatermarked: entitlement.limits.exportsAreWatermarked,
                 exportedCaseCount: exportedCaseCount,
                 limit: exportLimit,
-                blockedTitle: "Final export already used",
-                blockedMessage: "\(entitlement.statusDisplayText) includes \(entitlement.limits.exportLimitText). Start Pro for additional non-watermarked exports."
+                blockedTitle: String(localized: "Final export already used"),
+                blockedMessage: String(localized: "\(entitlement.statusDisplayText) includes \(entitlement.limits.exportLimitText). Start Pro for additional non-watermarked exports.")
             )
         }
 

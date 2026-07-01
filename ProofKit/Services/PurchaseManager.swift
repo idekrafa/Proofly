@@ -13,7 +13,7 @@ struct PaywallPlanOption: Equatable, Identifiable {
         case .weekly:
             nil
         case .monthly:
-            "Best value for keeping every case organized."
+            String(localized: "Best value for keeping every case organized.")
         }
     }
 
@@ -31,9 +31,9 @@ struct PaywallPlanOption: Equatable, Identifiable {
 
         switch product {
         case .weekly:
-            return "\(price)/week"
+            return String(localized: "\(price)/week")
         case .monthly:
-            return "\(price)/month"
+            return String(localized: "\(price)/month")
         }
     }
 
@@ -41,14 +41,14 @@ struct PaywallPlanOption: Equatable, Identifiable {
         guard product == .weekly else { return nil }
 
         if let duration = package?.introductoryOfferDurationText {
-            return "Start with a free trial for \(duration) and 3 AI credits. Then \(renewalPriceText) after trial."
+            return String(localized: "Start with a free trial for \(duration) and 3 AI credits. Then \(renewalPriceText) after trial.")
         }
 
-        return "Start with the free trial shown at checkout and 3 AI credits. Then \(renewalPriceText) after trial."
+        return String(localized: "Start with the free trial shown at checkout and 3 AI credits. Then \(renewalPriceText) after trial.")
     }
 
     var badgeText: String? {
-        product == .monthly ? "Best value" : nil
+        product == .monthly ? String(localized: "Best value") : nil
     }
 
     var accessibilityDescription: String {
@@ -83,7 +83,7 @@ struct PurchaseManagerNotice: Identifiable, Equatable {
     init(
         title: String,
         message: String,
-        buttonTitle: String = "OK",
+        buttonTitle: String = String(localized: "OK"),
         action: Action = .acknowledge
     ) {
         self.title = title
@@ -146,16 +146,16 @@ final class PurchaseManager: ObservableObject {
     func purchaseSelectedPlan() async -> RevenueCatPurchaseOutcome? {
         guard let subscriptions else {
             notice = PurchaseManagerNotice(
-                title: "Purchases Unavailable",
-                message: "Purchases are not ready yet. Please try again."
+                title: String(localized: "Purchases Unavailable"),
+                message: String(localized: "Purchases are not ready yet. Please try again.")
             )
             return nil
         }
 
         guard let selectedPackage else {
             notice = PurchaseManagerNotice(
-                title: "Plans Still Loading",
-                message: "We couldn’t load this App Store plan yet. Check your connection and try again."
+                title: String(localized: "Plans Still Loading"),
+                message: String(localized: "We couldn’t load this App Store plan yet. Check your connection and try again.")
             )
             return nil
         }
@@ -165,15 +165,15 @@ final class PurchaseManager: ObservableObject {
         defer { isPurchasing = false }
 
         let outcome = await subscriptions.purchase(selectedPackage)
-        handlePurchase(outcome, fallbackTitle: "Couldn’t Start Purchase")
+        handlePurchase(outcome, fallbackTitle: String(localized: "Couldn’t Start Purchase"))
         return outcome
     }
 
     func restorePurchases() async {
         guard let subscriptions else {
             notice = PurchaseManagerNotice(
-                title: "Restore Unavailable",
-                message: "Purchases are not ready yet. Please try again."
+                title: String(localized: "Restore Unavailable"),
+                message: String(localized: "Purchases are not ready yet. Please try again.")
             )
             return
         }
@@ -183,7 +183,7 @@ final class PurchaseManager: ObservableObject {
         defer { isRestoring = false }
 
         let outcome = await subscriptions.restorePurchases()
-        handleRestore(outcome, fallbackTitle: "Couldn’t Restore Purchases")
+        handleRestore(outcome, fallbackTitle: String(localized: "Couldn’t Restore Purchases"))
     }
 
     private func loadOffering() async {
@@ -191,7 +191,7 @@ final class PurchaseManager: ObservableObject {
 
         guard subscriptions.isConfigured else {
             offering = .empty
-            offeringState = .failed("Purchases are not configured for this build yet. Add the RevenueCat public SDK key, then try again.")
+            offeringState = .failed(String(localized: "Purchases are not configured for this build yet. Add the RevenueCat public SDK key, then try again."))
             return
         }
 
@@ -210,7 +210,7 @@ final class PurchaseManager: ObservableObject {
             }
 
             if loadedOffering.availablePackages.isEmpty {
-                offeringState = .failed("We couldn’t find the weekly and monthly Pro plans in the current RevenueCat offering. Please retry after the offering is configured.")
+                offeringState = .failed(String(localized: "We couldn’t find the weekly and monthly Pro plans in the current RevenueCat offering. Please retry after the offering is configured."))
             } else {
                 offeringState = .loaded
             }
@@ -246,9 +246,9 @@ final class PurchaseManager: ObservableObject {
     private func handlePurchase(_ outcome: RevenueCatPurchaseOutcome, fallbackTitle: String) {
         if outcome.customerInfo?.isProofKitProActive == true {
             notice = PurchaseManagerNotice(
-                title: "Welcome to Proofly Pro",
-                message: "You’re all set. Unlimited cases, unlimited proof, clean exports, and your Pro AI credits are ready.",
-                buttonTitle: "Start Organizing",
+                title: String(localized: "Welcome to Proofly Pro"),
+                message: String(localized: "You’re all set. Unlimited cases, unlimited proof, clean exports, and your Pro AI credits are ready."),
+                buttonTitle: String(localized: "Start Organizing"),
                 action: .dismissPaywallForActiveEntitlement
             )
             return
@@ -270,7 +270,7 @@ final class PurchaseManager: ObservableObject {
         guard !outcome.userCancelled else { return }
 
         notice = PurchaseManagerNotice(
-            title: outcome.isSuccessful ? "Subscription Updated" : fallbackTitle,
+            title: outcome.isSuccessful ? String(localized: "Subscription Updated") : fallbackTitle,
             message: outcome.message
         )
     }

@@ -34,11 +34,11 @@ struct HomeView: View {
             return accountSession.welcomeBackGreeting
         }
 
-        return cases.isEmpty ? "Welcome to Proofly" : "Welcome back"
+        return cases.isEmpty ? String(localized: "Welcome to Proofly") : String(localized: "Welcome back")
     }
 
     private var headerSubtitle: String {
-        cases.isEmpty ? "A calm place for proof, timelines, and packets." : "Your calm proof workspace."
+        cases.isEmpty ? String(localized: "A calm place for proof, timelines, and packets.") : String(localized: "Your calm proof workspace.")
     }
 
     var body: some View {
@@ -102,8 +102,8 @@ struct HomeView: View {
                     CaseDetailView(caseFile: createdCaseToOpen)
                 } else {
                     EmptyStateView(
-                        title: "Case created",
-                        message: "Your case was created locally.",
+                        title: String(localized: "Case created"),
+                        message: String(localized: "Your case was created locally."),
                         systemImage: "checkmark.circle"
                     )
                 }
@@ -200,7 +200,7 @@ struct HomeView: View {
                     }
             }
             .buttonStyle(HomeIconButtonStyle())
-            .accessibilityLabel("New Case")
+            .accessibilityLabel(String(localized: "New Case"))
 
 //  This was the Settings redirection button, not being used for now
 //            Button(action: onSettingsTapped) {
@@ -292,7 +292,7 @@ private struct FeaturedCaseCard: View {
 
                     HStack(spacing: 8) {
                         HomeMetadataPill(text: readiness.category.displayName)
-                        HomeMetadataPill(text: "\(readiness.score)% ready")
+                        HomeMetadataPill(text: String(localized: "\(readiness.score)% ready"))
                     }
                 }
                 .layoutPriority(1)
@@ -473,8 +473,8 @@ private struct ProgressTrack: View {
                     .frame(width: width * clampedProgress)
             }
         }
-        .accessibilityLabel("Case progress")
-        .accessibilityValue("\(Int((progress * 100).rounded())) percent complete")
+        .accessibilityLabel(String(localized: "Case progress"))
+        .accessibilityValue(String(localized: "\(Int((progress * 100).rounded())) percent complete"))
         .animation(ProofKitMotion.slowEase, value: progress)
     }
 }
@@ -652,10 +652,10 @@ private struct EmptyHomeWorkspaceCard: View {
             }
 
             Button(action: onNewCase) {
-                HomePrimaryActionLabel(title: "Create first case", systemImage: "plus")
+                HomePrimaryActionLabel(title: String(localized: "Create first case"), systemImage: "plus")
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Create first case")
+            .accessibilityLabel(String(localized: "Create first case"))
         }
         .homeCard(padding: 20, cornerRadius: 26)
     }
@@ -774,26 +774,26 @@ private enum HomeNextAction: Equatable {
     var line: String {
         switch self {
         case .addProof:
-            "Next: Add proof"
+            String(localized: "Next: Add proof")
         case .reviewInbox:
-            "Next: Review inbox"
+            String(localized: "Next: Review inbox")
         case .checkTimeline:
-            "Next: Check timeline"
+            String(localized: "Next: Check timeline")
         case .exportPacket:
-            "Next: Export packet"
+            String(localized: "Next: Export packet")
         }
     }
 
     var ctaTitle: String {
         switch self {
         case .addProof:
-            "Add proof"
+            String(localized: "Add proof")
         case .reviewInbox:
-            "Review inbox"
+            String(localized: "Review inbox")
         case .checkTimeline:
-            "View timeline"
+            String(localized: "View timeline")
         case .exportPacket:
-            "Export packet"
+            String(localized: "Export packet")
         }
     }
 
@@ -839,13 +839,13 @@ private enum HomeNextAction: Equatable {
     var helperCopy: String {
         switch self {
         case .addProof:
-            "Start with one screenshot, receipt, note, or document."
+            String(localized: "Start with one screenshot, receipt, note, or document.")
         case .reviewInbox:
-            "Review new proof so it can be added to your timeline."
+            String(localized: "Review new proof so it can be added to your timeline.")
         case .checkTimeline:
-            "Check dates so your timeline tells the story clearly."
+            String(localized: "Check dates so your timeline tells the story clearly.")
         case .exportPacket:
-            "Your packet is ready when you are."
+            String(localized: "Your packet is ready when you are.")
         }
     }
 }
@@ -947,14 +947,13 @@ private extension View {
 
 private extension CaseFile {
     var homeDisplayTitle: String {
-        let trimmedTitle = userTitle.homeTrimmedText
-        return trimmedTitle.isEmpty ? "Untitled Case" : trimmedTitle
+        CaseFile.displayTitle(forTrimmedTitle: userTitle.homeTrimmedText)
     }
 
     var homeUpdatedText: String {
         Calendar.current.isDateInToday(updatedAt)
-            ? "Updated today"
-            : "Updated \(ProofKitDateFormatting.shortDate(updatedAt))"
+            ? String(localized: "Updated today")
+            : String(localized: "Updated \(ProofKitDateFormatting.shortDate(updatedAt))")
     }
 
     var homeThumbnailPath: String? {
@@ -976,7 +975,8 @@ private extension CaseFile {
     }
 
     var homeThumbnailInitials: String {
-        let source = homeDisplayTitle == "Untitled Case" ? caseReadinessCategory.displayName : homeDisplayTitle
+        let trimmedTitle = userTitle.homeTrimmedText
+        let source = CaseFile.isUntitledTitle(trimmedTitle) ? caseReadinessCategory.displayName : trimmedTitle
         let words = source
             .split(separator: " ")
             .prefix(2)

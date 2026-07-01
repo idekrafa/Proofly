@@ -23,37 +23,37 @@ enum CaseType: String, CaseIterable, Codable, Identifiable {
     var displayName: String {
         switch self {
         case .general:
-            "General"
+            String(localized: "General")
         case .apartmentIssue:
-            "Housing Lease"
+            String(localized: "Housing Lease")
         case .unpaidFreelanceWork:
-            "Work or Freelance Issue"
+            String(localized: "Work or Freelance Issue")
         case .refundWarrantyIssue:
-            "Refund or Warranty Issue"
+            String(localized: "Refund or Warranty Issue")
         case .workplaceIssue:
-            "Work or Freelance Issue"
+            String(localized: "Work or Freelance Issue")
         case .schoolCollegeIssue:
-            "School or College Issue"
+            String(localized: "School or College Issue")
         case .workFreelanceIssue:
-            "Work or Freelance Issue"
+            String(localized: "Work or Freelance Issue")
         case .insuranceIssue:
-            "Insurance Issue"
+            String(localized: "Insurance Issue")
         case .smallClaims:
-            "Small Claims"
+            String(localized: "Small Claims")
         case .tenantLandlord:
-            "Housing Lease"
+            String(localized: "Housing Lease")
         case .employment:
-            "Employment"
+            String(localized: "Employment")
         case .consumer:
-            "Consumer"
+            String(localized: "Consumer")
         case .insurance:
-            "Insurance"
+            String(localized: "Insurance")
         case .family:
-            "Family"
+            String(localized: "Family")
         case .immigration:
-            "Immigration"
+            String(localized: "Immigration")
         case .other:
-            "Something Else"
+            String(localized: "Something Else")
         }
     }
 }
@@ -70,15 +70,15 @@ enum CaseStatus: String, CaseIterable, Codable, Identifiable {
     var displayName: String {
         switch self {
         case .draft:
-            "Draft"
+            String(localized: "Draft")
         case .active:
-            "Active"
+            String(localized: "Active")
         case .readyForExport:
-            "Ready for Export"
+            String(localized: "Ready for Export")
         case .exported:
-            "Exported"
+            String(localized: "Exported")
         case .archived:
-            "Archived"
+            String(localized: "Archived")
         }
     }
 }
@@ -100,25 +100,25 @@ enum EvidenceCategory: String, CaseIterable, Codable, Identifiable {
     var displayName: String {
         switch self {
         case .uncategorized:
-            "Uncategorized"
+            String(localized: "Uncategorized")
         case .screenshot:
-            "Screenshot"
+            String(localized: "Screenshot")
         case .photo:
-            "Photo"
+            String(localized: "Photo")
         case .message:
-            "Message"
+            String(localized: "Message")
         case .email:
-            "Email"
+            String(localized: "Email")
         case .document:
-            "Document"
+            String(localized: "Document")
         case .receipt:
-            "Receipt"
+            String(localized: "Receipt")
         case .contract:
-            "Contract"
+            String(localized: "Contract")
         case .note:
-            "Note"
+            String(localized: "Note")
         case .other:
-            "Something Else"
+            String(localized: "Something Else")
         }
     }
 
@@ -145,17 +145,17 @@ enum AttachmentType: String, CaseIterable, Codable, Identifiable {
     var displayName: String {
         switch self {
         case .screenshot:
-            "Screenshot"
+            String(localized: "Screenshot")
         case .photo:
-            "Photo"
+            String(localized: "Photo")
         case .pdf:
-            "PDF"
+            String(localized: "PDF")
         case .document:
-            "Document"
+            String(localized: "Document")
         case .textNote:
-            "Text Note"
+            String(localized: "Text Note")
         case .other:
-            "Something Else"
+            String(localized: "Something Else")
         }
     }
 }
@@ -173,17 +173,17 @@ enum AITaskType: String, CaseIterable, Codable, Identifiable {
     var displayName: String {
         switch self {
         case .rewriteNote:
-            "Rewrite Note"
+            String(localized: "Rewrite Note")
         case .suggestTitle:
-            "Suggest Title"
+            String(localized: "Suggest Title")
         case .classifyEvidence:
-            "Classify Evidence"
+            String(localized: "Classify Evidence")
         case .summarizeItem:
-            "Summarize Item"
+            String(localized: "Summarize Item")
         case .summarizeTimeline:
-            "Summarize Timeline"
+            String(localized: "Summarize Timeline")
         case .finalCaseNarrative:
-            "Final Case Narrative"
+            String(localized: "Final Case Narrative")
         }
     }
 
@@ -211,19 +211,19 @@ enum DateSource: String, CaseIterable, Codable, Identifiable {
     var displayName: String {
         switch self {
         case .notSpecified:
-            "Not Specified"
+            String(localized: "Not Specified")
         case .userEntered:
-            "User Entered"
+            String(localized: "User Entered")
         case .fileMetadata:
-            "File Metadata"
+            String(localized: "File Metadata")
         case .filename:
-            "Filename"
+            String(localized: "Filename")
         case .visionOCR:
-            "Vision OCR"
+            String(localized: "Vision OCR")
         case .importedMetadata:
-            "Imported Metadata"
+            String(localized: "Imported Metadata")
         case .aiSuggested:
-            "AI Suggested"
+            String(localized: "AI Suggested")
         }
     }
 }

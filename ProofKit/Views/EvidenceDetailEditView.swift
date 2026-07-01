@@ -101,7 +101,7 @@ struct EvidenceDetailEditView: View {
 
     private var summaryTitle: String {
         let trimmedTitle = title.detailTrimmedText
-        return trimmedTitle.isEmpty ? "Add a clear proof name" : trimmedTitle
+        return trimmedTitle.isEmpty ? String(localized: "Add a clear proof name") : trimmedTitle
     }
 
     private var summaryTitleIsPlaceholder: Bool {
@@ -131,7 +131,7 @@ struct EvidenceDetailEditView: View {
 
     private var sourceText: String {
         guard let primaryAttachment else {
-            return "Manual entry"
+            return String(localized: "Manual entry")
         }
 
         return sourceDescription(for: primaryAttachment)
@@ -139,16 +139,16 @@ struct EvidenceDetailEditView: View {
 
     private var originalFilenameText: String {
         guard let primaryAttachment else {
-            return "No file attached"
+            return String(localized: "No file attached")
         }
 
         let originalFilename = primaryAttachment.originalFilename.detailTrimmedText
         guard !originalFilename.isEmpty else {
-            return "Not available"
+            return String(localized: "Not available")
         }
 
         if Self.isGenericProofKitImageName(originalFilename) {
-            return "Original filename unavailable"
+            return String(localized: "Original filename unavailable")
         }
 
         return originalFilename
@@ -178,7 +178,7 @@ struct EvidenceDetailEditView: View {
     }
 
     private var ocrStatusText: String {
-        originalOCRText.isEmpty ? "No text detected" : "Text detected"
+        originalOCRText.isEmpty ? String(localized: "No text detected") : String(localized: "Text detected")
     }
 
     var body: some View {
@@ -238,8 +238,8 @@ struct EvidenceDetailEditView: View {
         EvidenceDetailCard {
             VStack(alignment: .leading, spacing: 14) {
                 EvidenceDetailFieldHeader(
-                    title: "Proof preview",
-                    subtitle: "Original file is stored locally and never overwritten."
+                    title: String(localized: "Proof preview"),
+                    subtitle: String(localized: "Original file is stored locally and never overwritten.")
                 )
 
                 HStack(alignment: .top, spacing: 14) {
@@ -259,15 +259,15 @@ struct EvidenceDetailEditView: View {
                         VStack(alignment: .leading, spacing: 7) {
                             EvidenceSummaryChip(
                                 systemImage: proofTypeSystemImage,
-                                text: "Proof type: \(proofTypeText)"
+                                text: String(localized: "Proof type: \(proofTypeText)")
                             )
                             EvidenceSummaryChip(
                                 systemImage: "photo.on.rectangle",
-                                text: "Source: \(sourceText)"
+                                text: String(localized: "Source: \(sourceText)")
                             )
                             EvidenceSummaryChip(
                                 systemImage: originalOCRText.isEmpty ? "text.viewfinder" : "checkmark.viewfinder",
-                                text: "OCR: \(ocrStatusText)"
+                                text: String(localized: "OCR: \(ocrStatusText)")
                             )
                         }
                     }
@@ -281,14 +281,14 @@ struct EvidenceDetailEditView: View {
         EvidenceDetailCard {
             VStack(alignment: .leading, spacing: ProofKitVisual.sectionSpacing) {
                 EvidenceDetailFieldHeader(
-                    title: "Proof details",
-                    subtitle: "Use a human-readable name for the proof. The original filename stays separate below."
+                    title: String(localized: "Proof details"),
+                    subtitle: String(localized: "Use a human-readable name for the proof. The original filename stays separate below.")
                 )
 
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
                     EvidenceDetailFieldHeader(
-                        title: "Event date",
-                        subtitle: "Use the date this happened, or the date this record refers to."
+                        title: String(localized: "Event date"),
+                        subtitle: String(localized: "Use the date this happened, or the date this record refers to.")
                     )
 
                     Toggle("Use event date", isOn: animatedEventDateToggleBinding)
@@ -311,7 +311,7 @@ struct EvidenceDetailEditView: View {
                 }
 
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
-                    EvidenceDetailFieldHeader(title: "Proof name")
+                    EvidenceDetailFieldHeader(title: String(localized: "Proof name"))
 
                     TextField("Ceiling leak photo", text: $title, axis: .vertical)
                         .textFieldStyle(.plain)
@@ -335,7 +335,7 @@ struct EvidenceDetailEditView: View {
                 }
 
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
-                    EvidenceDetailFieldHeader(title: "Proof type")
+                    EvidenceDetailFieldHeader(title: String(localized: "Proof type"))
 
                     Picker("Proof type", selection: $category) {
                         ForEach(Self.editableProofTypeCategories, id: \.id) { category in
@@ -357,28 +357,28 @@ struct EvidenceDetailEditView: View {
         EvidenceDetailCard {
             VStack(alignment: .leading, spacing: ProofKitVisual.sectionSpacing) {
                 EvidenceDetailFieldHeader(
-                    title: "Notes",
-                    subtitle: "Keep your own context separate from OCR and any AI cleanup."
+                    title: String(localized: "Notes"),
+                    subtitle: String(localized: "Keep your own context separate from OCR and any AI cleanup.")
                 )
 
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
                     EvidenceDetailFieldHeader(
-                        title: "Your note",
-                        subtitle: "Your original context and observations."
+                        title: String(localized: "Your note"),
+                        subtitle: String(localized: "Your original context and observations.")
                     )
 
                     EvidenceDetailTextEditor(
                         text: $userNote,
                         minHeight: 112,
-                        accessibilityLabel: "Your note"
+                        accessibilityLabel: String(localized: "Your note")
                     )
                 }
 
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
                     HStack(alignment: .top, spacing: 12) {
                         EvidenceDetailFieldHeader(
-                            title: "AI-cleaned note",
-                            subtitle: "A tidy version you can use later in the case. AI cleanup does not change your note or OCR text."
+                            title: String(localized: "AI-cleaned note"),
+                            subtitle: String(localized: "A tidy version you can use later in the case. AI cleanup does not change your note or OCR text.")
                         )
 
                         Spacer(minLength: 12)
@@ -411,7 +411,7 @@ struct EvidenceDetailEditView: View {
                     EvidenceDetailTextEditor(
                         text: $cleanedNote,
                         minHeight: 112,
-                        accessibilityLabel: "AI-cleaned note"
+                        accessibilityLabel: String(localized: "AI-cleaned note")
                     )
 
                     if userNote.detailTrimmedText.isEmpty {
@@ -450,14 +450,14 @@ struct EvidenceDetailEditView: View {
 
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
                     EvidenceDetailFieldHeader(
-                        title: "What this proves",
-                        subtitle: "Describe what this record helps show or explain."
+                        title: String(localized: "What this proves"),
+                        subtitle: String(localized: "Describe what this record helps show or explain.")
                     )
 
                     EvidenceDetailTextEditor(
                         text: $whyThisMatters,
                         minHeight: 92,
-                        accessibilityLabel: "What this proves"
+                        accessibilityLabel: String(localized: "What this proves")
                     )
                 }
 
@@ -553,29 +553,29 @@ struct EvidenceDetailEditView: View {
         EvidenceDetailCard {
             VStack(alignment: .leading, spacing: 14) {
                 EvidenceDetailFieldHeader(
-                    title: "File details",
-                    subtitle: "Metadata is shown separately from the proof name so the proof reads clearly."
+                    title: String(localized: "File details"),
+                    subtitle: String(localized: "Metadata is shown separately from the proof name so the proof reads clearly.")
                 )
 
                 VStack(spacing: 0) {
                     EvidenceMetadataRow(
-                        title: "Original file",
+                        title: String(localized: "Original file"),
                         value: originalFilenameText
                     )
                     EvidenceMetadataRow(
-                        title: "Source",
+                        title: String(localized: "Source"),
                         value: sourceText
                     )
                     EvidenceMetadataRow(
-                        title: "OCR",
+                        title: String(localized: "OCR"),
                         value: ocrStatusText
                     )
                     EvidenceMetadataRow(
-                        title: "Imported",
+                        title: String(localized: "Imported"),
                         value: importedDateText
                     )
                     EvidenceMetadataRow(
-                        title: "File size",
+                        title: String(localized: "File size"),
                         value: fileSizeText
                     )
                 }
@@ -587,8 +587,8 @@ struct EvidenceDetailEditView: View {
         EvidenceDetailCard {
             VStack(alignment: .leading, spacing: ProofKitVisual.sectionSpacing) {
                 EvidenceDetailFieldHeader(
-                    title: "File actions",
-                    subtitle: "View the local original or remove this proof from the case."
+                    title: String(localized: "File actions"),
+                    subtitle: String(localized: "View the local original or remove this proof from the case.")
                 )
 
                 VStack(spacing: 10) {
@@ -719,19 +719,19 @@ struct EvidenceDetailEditView: View {
     private static func proofTypeDisplayName(for category: EvidenceCategory) -> String {
         switch editableProofTypeCategory(for: category) {
         case .photo:
-            return "Photo"
+            return String(localized: "Photo")
         case .screenshot:
-            return "Screenshot"
+            return String(localized: "Screenshot")
         case .document:
-            return "Document"
+            return String(localized: "Document")
         case .message:
-            return "Message"
+            return String(localized: "Message")
         case .receipt:
-            return "Receipt"
+            return String(localized: "Receipt")
         case .other:
-            return "Other"
+            return String(localized: "Other")
         case .uncategorized, .email, .contract, .note:
-            return "Other"
+            return String(localized: "Other")
         }
     }
 
@@ -739,9 +739,9 @@ struct EvidenceDetailEditView: View {
         if let source = importedMetadataValue("source", for: attachment) {
             switch source {
             case "PhotosPicker":
-                return "Photos Library"
+                return String(localized: "Photos Library")
             case "FilesPicker", "DocumentPicker":
-                return "Files app"
+                return String(localized: "Files app")
             default:
                 return source
             }
@@ -749,13 +749,13 @@ struct EvidenceDetailEditView: View {
 
         switch attachment.attachmentType {
         case .photo, .screenshot:
-            return "Photos Library"
+            return String(localized: "Photos Library")
         case .pdf, .document:
-            return "Files app"
+            return String(localized: "Files app")
         case .textNote:
-            return "Manual entry"
+            return String(localized: "Manual entry")
         case .other:
-            return "Local file"
+            return String(localized: "Local file")
         }
     }
 
@@ -821,13 +821,13 @@ struct EvidenceDetailEditView: View {
             }
             withAnimation(ProofKitMotion.standard) {
                 savedSnapshot = currentSnapshot
-                saveMessage = "Saved locally."
+                saveMessage = String(localized: "Saved locally.")
                 saveErrorMessage = nil
             }
         } catch {
             withAnimation(ProofKitMotion.standard) {
                 saveMessage = nil
-                saveErrorMessage = "Changes could not be saved. Please try again."
+                saveErrorMessage = String(localized: "Changes could not be saved. Please try again.")
             }
         }
     }
@@ -836,7 +836,7 @@ struct EvidenceDetailEditView: View {
         guard let originalFileURL else {
             withAnimation(ProofKitMotion.standard) {
                 saveMessage = nil
-                saveErrorMessage = "No original file is linked to this proof."
+                saveErrorMessage = String(localized: "No original file is linked to this proof.")
             }
             return
         }
@@ -844,7 +844,7 @@ struct EvidenceDetailEditView: View {
         guard FileManager.default.fileExists(atPath: originalFileURL.path(percentEncoded: false)) else {
             withAnimation(ProofKitMotion.standard) {
                 saveMessage = nil
-                saveErrorMessage = "The local original file could not be found on this device."
+                saveErrorMessage = String(localized: "The local original file could not be found on this device.")
             }
             return
         }
@@ -863,7 +863,7 @@ struct EvidenceDetailEditView: View {
         } catch {
             withAnimation(ProofKitMotion.standard) {
                 saveMessage = nil
-                saveErrorMessage = "This proof could not be deleted. Please try again."
+                saveErrorMessage = String(localized: "This proof could not be deleted. Please try again.")
             }
         }
     }
@@ -873,7 +873,7 @@ struct EvidenceDetailEditView: View {
         guard !trimmedUserNote.isEmpty else {
             withAnimation(ProofKitMotion.standard) {
                 aiCleanupMessage = nil
-                aiCleanupErrorMessage = "Add a note to clean it up with AI."
+                aiCleanupErrorMessage = String(localized: "Add a note to clean it up with AI.")
             }
             return
         }
@@ -903,11 +903,11 @@ struct EvidenceDetailEditView: View {
 
         do {
             withAnimation(ProofKitMotion.standard) {
-                aiCleanupMessage = "Checking AI credits…"
+                aiCleanupMessage = String(localized: "Checking AI credits…")
             }
             _ = try await requireAvailableAICredits()
             withAnimation(ProofKitMotion.standard) {
-                aiCleanupMessage = "Cleaning note with the text-only AI proxy…"
+                aiCleanupMessage = String(localized: "Cleaning note with the text-only AI proxy…")
             }
 
             let result = try await services.aiRouter.cleanUpNote(
@@ -919,7 +919,7 @@ struct EvidenceDetailEditView: View {
 
             let rewrittenNote = result.outputText.detailTrimmedText
             guard !rewrittenNote.isEmpty else {
-                throw ProofKitError.remotePolicyViolation("The AI proxy returned an empty rewrite.")
+                throw ProofKitError.remotePolicyViolation(String(localized: "The AI proxy returned an empty rewrite."))
             }
 
             withAnimation(ProofKitMotion.standard) {
@@ -975,7 +975,7 @@ struct EvidenceDetailEditView: View {
 
                     withAnimation(ProofKitMotion.standard) {
                         savedSnapshot.userNote = trimmedUserNote
-                        aiCleanupMessage = "Clean Up Note queued. AI will run when connection returns and credits are available."
+                        aiCleanupMessage = String(localized: "Clean Up Note queued. AI will run when connection returns and credits are available.")
                         aiCleanupErrorMessage = nil
                     }
                 } catch {
@@ -1005,7 +1005,7 @@ struct EvidenceDetailEditView: View {
         let balance = try await services.aiCredits.fetchAICreditBalance()
         guard balance.availableCredits > 0 else {
             throw ProofKitError.remotePolicyViolation(
-                "You’re out of AI credits. Clean Up Note needs 1 AI credit. Local OCR, importing, timeline editing, and free watermarked exports still work."
+                String(localized: "You’re out of AI credits. Clean Up Note needs 1 AI credit. Local OCR, importing, timeline editing, and free watermarked exports still work.")
             )
         }
 
@@ -1045,27 +1045,29 @@ struct EvidenceDetailEditView: View {
 
     private func cleanupSuccessMessage(for result: AITaskRouteResult) -> String {
         if result.wasCacheHit {
-            return "AI-cleaned note restored from local cache. No new AI credits were used."
+            return String(localized: "AI-cleaned note restored from local cache. No new AI credits were used.")
         }
 
         if let remainingCredits = result.remainingCredits {
             if let creditsUsed = result.creditsUsed {
-                return "AI-cleaned note saved locally. \(creditsUsed) AI credit\(creditsUsed == 1 ? "" : "s") used server-side. \(remainingCredits) remaining."
+                let usedPhrase = String(localized: "\(creditsUsed) AI credit used server-side")
+                let remainingPhrase = String(localized: "\(remainingCredits) AI credit remaining")
+                return String(localized: "AI-cleaned note saved locally. \(usedPhrase). \(remainingPhrase).")
             }
 
-            return "AI-cleaned note saved locally. Credits were handled server-side. \(remainingCredits) remaining."
+            return String(localized: "AI-cleaned note saved locally. Credits were handled server-side. \(remainingCredits) remaining.")
         }
 
-        return "AI-cleaned note saved locally. Credits were handled server-side."
+        return String(localized: "AI-cleaned note saved locally. Credits were handled server-side.")
     }
 
     private func cleanupErrorMessage(for error: Error) -> String {
         if let proofKitError = error as? ProofKitError {
             switch proofKitError {
             case .supabaseNotConfigured:
-                return "AI credits are not configured for this build. Local OCR and proof organization still work."
+                return String(localized: "AI credits are not configured for this build. Local OCR and proof organization still work.")
             case .supabaseSDKUnavailable:
-                return "AI credits are unavailable in this build. Local OCR and proof organization still work."
+                return String(localized: "AI credits are unavailable in this build. Local OCR and proof organization still work.")
             default:
                 break
             }
@@ -1076,7 +1078,7 @@ struct EvidenceDetailEditView: View {
             return description
         }
 
-        return "Proofly could not clean up this note. Please try again."
+        return String(localized: "Proofly could not clean up this note. Please try again.")
     }
 }
 

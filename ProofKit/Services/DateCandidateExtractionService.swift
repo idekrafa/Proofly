@@ -29,7 +29,7 @@ struct DateCandidateExtractionService: DateCandidateExtracting {
                 date: importedAt,
                 source: .importedMetadata,
                 confidence: 0.35,
-                label: "Imported into Proofly",
+                label: String(localized: "Imported into Proofly"),
                 rawValue: ISO8601DateFormatter().string(from: importedAt)
             )
         )
@@ -57,19 +57,19 @@ struct DateCandidateExtractionService: DateCandidateExtracting {
             (
                 exif,
                 kCGImagePropertyExifDateTimeOriginal as String,
-                "Original image creation date",
+                String(localized: "Original image creation date"),
                 0.96
             ),
             (
                 exif,
                 kCGImagePropertyExifDateTimeDigitized as String,
-                "Digitized image date",
+                String(localized: "Digitized image date"),
                 0.86
             ),
             (
                 tiff,
                 kCGImagePropertyTIFFDateTime as String,
-                "Image metadata date",
+                String(localized: "Image metadata date"),
                 0.80
             )
         ]
@@ -102,7 +102,7 @@ struct DateCandidateExtractionService: DateCandidateExtracting {
                 date: parsedDate.date,
                 source: .filename,
                 confidence: parsedDate.isCompactFilenameDate ? 0.72 : 0.76,
-                label: "Date found in filename",
+                label: String(localized: "Date found in filename"),
                 rawValue: parsedDate.rawValue
             )
         }
@@ -117,7 +117,7 @@ struct DateCandidateExtractionService: DateCandidateExtracting {
                 date: parsedDate.date,
                 source: .visionOCR,
                 confidence: parsedDate.hasFourDigitYear ? 0.74 : 0.62,
-                label: "Date found in OCR text",
+                label: String(localized: "Date found in OCR text"),
                 rawValue: parsedDate.rawValue
             )
         }
@@ -146,7 +146,7 @@ struct DateCandidateExtractionService: DateCandidateExtracting {
                 date: normalizedDateIfDateOnly(date, rawValue: rawValue),
                 source: .visionOCR,
                 confidence: rawValueContainsFourDigitYear(rawValue) ? 0.70 : 0.52,
-                label: "Date found in OCR text",
+                label: String(localized: "Date found in OCR text"),
                 rawValue: rawValue
             )
         }

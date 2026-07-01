@@ -76,18 +76,18 @@ enum ProofKitSubscriptionProduct: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .weekly:
-            "Weekly Pro"
+            String(localized: "Weekly Pro")
         case .monthly:
-            "Monthly Pro"
+            String(localized: "Monthly Pro")
         }
     }
 
     var cadenceLabel: String {
         switch self {
         case .weekly:
-            "Weekly"
+            String(localized: "Weekly")
         case .monthly:
-            "Monthly"
+            String(localized: "Monthly")
         }
     }
 
@@ -350,7 +350,7 @@ final class RevenueCatSubscriptionService: SubscriptionServicing {
                 return RevenueCatPurchaseOutcome(
                     customerInfo: snapshot,
                     userCancelled: true,
-                    message: "Purchase cancelled."
+                    message: String(localized: "Purchase cancelled.")
                 )
             }
 
@@ -358,8 +358,8 @@ final class RevenueCatSubscriptionService: SubscriptionServicing {
                 customerInfo: snapshot,
                 userCancelled: false,
                 message: snapshot.isProofKitProActive
-                ? "Proofly Pro is active."
-                : "Purchase completed, but Pro is not active yet. Check that the product is attached to the configured Pro entitlement in RevenueCat."
+                ? String(localized: "Proofly Pro is active.")
+                : String(localized: "Purchase completed, but Pro is not active yet. Check that the product is attached to the configured Pro entitlement in RevenueCat.")
             )
         } catch {
             return RevenueCatPurchaseOutcome(
@@ -372,7 +372,7 @@ final class RevenueCatSubscriptionService: SubscriptionServicing {
         return RevenueCatPurchaseOutcome(
             customerInfo: nil,
             userCancelled: false,
-            message: ProofKitError.revenueCatSDKUnavailable.errorDescription ?? "RevenueCat SDK is unavailable in this build."
+            message: ProofKitError.revenueCatSDKUnavailable.errorDescription ?? String(localized: "RevenueCat SDK is unavailable in this build.")
         )
         #endif
     }
@@ -392,8 +392,8 @@ final class RevenueCatSubscriptionService: SubscriptionServicing {
                 customerInfo: snapshot,
                 userCancelled: false,
                 message: snapshot.isProofKitProActive
-                ? "Purchases restored. Proofly Pro is active."
-                : "Restore finished, but no active Pro entitlement was found for this App Store account."
+                ? String(localized: "Purchases restored. Proofly Pro is active.")
+                : String(localized: "Restore finished, but no active Pro entitlement was found for this App Store account.")
             )
         } catch {
             return RevenueCatPurchaseOutcome(
@@ -406,7 +406,7 @@ final class RevenueCatSubscriptionService: SubscriptionServicing {
         return RevenueCatPurchaseOutcome(
             customerInfo: nil,
             userCancelled: false,
-            message: ProofKitError.revenueCatSDKUnavailable.errorDescription ?? "RevenueCat SDK is unavailable in this build."
+            message: ProofKitError.revenueCatSDKUnavailable.errorDescription ?? String(localized: "RevenueCat SDK is unavailable in this build.")
         )
         #endif
     }
@@ -485,7 +485,7 @@ final class RevenueCatSubscriptionService: SubscriptionServicing {
         }
 
         throw ProofKitError.revenueCatOfferingUnavailable(
-            "Could not find the \(snapshot.product.displayName.lowercased()) package in the current RevenueCat offerings."
+            String(localized: "Could not find the \(snapshot.product.displayName.lowercased()) package in the current RevenueCat offerings.")
         )
     }
 
@@ -525,7 +525,7 @@ final class RevenueCatSubscriptionService: SubscriptionServicing {
             packageIdentifier: package.identifier,
             productIdentifier: storeProduct.productIdentifier,
             title: storeProduct.localizedTitle.isEmpty ? product.displayName : storeProduct.localizedTitle,
-            subtitle: storeProduct.localizedDescription.isEmpty ? "Unlock Proofly Pro" : storeProduct.localizedDescription,
+            subtitle: storeProduct.localizedDescription.isEmpty ? String(localized: "Unlock Proofly Pro") : storeProduct.localizedDescription,
             localizedPrice: package.localizedPriceString,
             localizedIntroductoryPrice: package.localizedIntroductoryPriceString,
             introductoryOfferDurationText: storeProduct.introductoryDiscount?.subscriptionPeriod.proofKitDisplayText
@@ -554,15 +554,15 @@ final class RevenueCatSubscriptionService: SubscriptionServicing {
         if let revenueCatError = (error as NSError).asErrorCode {
             switch revenueCatError {
             case .purchaseCancelledError:
-                return "Purchase cancelled."
+                return String(localized: "Purchase cancelled.")
             case .networkError, .offlineConnectionError:
-                return "Couldn’t reach RevenueCat. Check your connection and try again."
+                return String(localized: "Couldn’t reach RevenueCat. Check your connection and try again.")
             case .productNotAvailableForPurchaseError:
-                return "This subscription product is not available for purchase yet. Check App Store Connect and RevenueCat product configuration."
+                return String(localized: "This subscription product is not available for purchase yet. Check App Store Connect and RevenueCat product configuration.")
             case .purchaseNotAllowedError:
-                return "Purchases are not allowed on this device."
+                return String(localized: "Purchases are not allowed on this device.")
             case .invalidCredentialsError, .configurationError:
-                return "RevenueCat is not configured correctly for this build."
+                return String(localized: "RevenueCat is not configured correctly for this build.")
             default:
                 return (error as NSError).localizedDescription
             }
@@ -641,18 +641,18 @@ private extension SubscriptionPeriod {
         let unitName: String
         switch unit {
         case .day:
-            unitName = value == 1 ? "day" : "days"
+            unitName = value == 1 ? String(localized: "day") : String(localized: "days")
         case .week:
-            unitName = value == 1 ? "week" : "weeks"
+            unitName = value == 1 ? String(localized: "week") : String(localized: "weeks")
         case .month:
-            unitName = value == 1 ? "month" : "months"
+            unitName = value == 1 ? String(localized: "month") : String(localized: "months")
         case .year:
-            unitName = value == 1 ? "year" : "years"
+            unitName = value == 1 ? String(localized: "year") : String(localized: "years")
         @unknown default:
-            unitName = "periods"
+            unitName = String(localized: "periods")
         }
 
-        return "\(value) \(unitName)"
+        return String(localized: "\(value) \(unitName)")
     }
 }
 #endif

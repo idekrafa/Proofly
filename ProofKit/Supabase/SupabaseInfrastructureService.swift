@@ -79,7 +79,7 @@ extension SupabaseInfrastructureService: AccountServicing {
         let normalizedDisplayName = try Self.normalizedDisplayName(displayName)
         let client = try configuredClient
         guard let session = client.auth.currentSession else {
-            throw ProofKitError.remotePolicyViolation("Sign in before updating your Proofly profile.")
+            throw ProofKitError.remotePolicyViolation(String(localized: "Sign in before updating your Proofly profile."))
         }
 
         _ = try await registerProfile(
@@ -123,7 +123,7 @@ extension SupabaseInfrastructureService: AccountServicing {
         #if canImport(Supabase)
         let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !normalizedEmail.isEmpty else {
-            throw ProofKitError.remotePolicyViolation("Enter an email address before saving.")
+            throw ProofKitError.remotePolicyViolation(String(localized: "Enter an email address before saving."))
         }
 
         _ = try await configuredClient.auth.update(
@@ -170,7 +170,7 @@ extension SupabaseInfrastructureService: AccountServicing {
 
         guard let session = response.session else {
             throw ProofKitError.remotePolicyViolation(
-                "Check your email to confirm your account, then return to Proofly to open your private workspace."
+                String(localized: "Check your email to confirm your account, then return to Proofly to open your private workspace.")
             )
         }
 
@@ -288,7 +288,7 @@ extension SupabaseInfrastructureService: AccountServicing {
         )
 
         guard response.deleted else {
-            throw ProofKitError.remotePolicyViolation("Proofly could not confirm the account deletion.")
+            throw ProofKitError.remotePolicyViolation(String(localized: "Proofly could not confirm the account deletion."))
         }
 
         // The Edge Function revokes server sessions before deleting the Auth user.
@@ -363,7 +363,7 @@ extension SupabaseInfrastructureService: AIProxyServicing {
 
                     let client = try configuredClient
                     guard let session = client.auth.currentSession else {
-                        throw ProofKitError.remotePolicyViolation("Sign in before using AI.")
+                        throw ProofKitError.remotePolicyViolation(String(localized: "Sign in before using AI."))
                     }
 
                     var streamingRequest = request
@@ -461,7 +461,7 @@ extension SupabaseInfrastructureService: PDFSignatureValidationServicing {
     func verifyPDFSignatureToken(_ request: PDFSignatureTokenVerifyRequest) async throws -> PDFSignatureTokenVerifyResponse {
         #if canImport(Supabase)
         guard !request.validationToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw ProofKitError.remotePolicyViolation("Enter a signature token before verifying.")
+            throw ProofKitError.remotePolicyViolation(String(localized: "Enter a signature token before verifying."))
         }
         if let signedPDFSHA256 = request.signedPDFSHA256, !Self.isSHA256Hex(signedPDFSHA256) {
             throw ProofKitError.remotePolicyViolation("Signed PDF verification requires a SHA-256 file hash.")
@@ -650,7 +650,7 @@ private extension SupabaseInfrastructureService {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !normalized.isEmpty else {
-            throw ProofKitError.remotePolicyViolation("Enter a name before saving.")
+            throw ProofKitError.remotePolicyViolation(String(localized: "Enter a name before saving."))
         }
 
         if normalized.count > 80 {
