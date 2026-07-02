@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     const signaturePage = requiredString(body.signaturePage, "signaturePage", 48);
     const signaturePlacement = requiredString(body.signaturePlacement, "signaturePlacement", 48);
     if (!["firstPage", "lastPage", "everyPage"].includes(signaturePage)) throw new Error("signaturePage_invalid");
-    if (!["upperLeft", "upperRight", "center", "lowerLeft", "lowerRight"].includes(signaturePlacement)) {
+    if (!["upperLeft", "upperRight", "center", "lowerLeft", "lowerRight", "custom"].includes(signaturePlacement)) {
       throw new Error("signaturePlacement_invalid");
     }
     const signedAt = parseDate(body.signedAt, "signedAt");

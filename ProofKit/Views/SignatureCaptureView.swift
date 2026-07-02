@@ -8,16 +8,23 @@ struct SignatureCaptureView: View {
     @State private var drawing = PKDrawing()
     @State private var page: PDFSignaturePage
     @State private var placement: PDFSignaturePlacement
+    /// Normalized page-relative center (x, y in 0...1, origin top-left) for free placement.
+    /// Mirrors the selected preset until the user drags the signature in the preview.
+    @State private var customOffset: CGPoint
 
-    let onComplete: (UIImage, PDFSignaturePage, PDFSignaturePlacement) -> Void
+    let onComplete: (UIImage, PDFSignaturePage, PDFSignaturePlacement, CGPoint?) -> Void
 
     init(
         initialPage: PDFSignaturePage,
         initialPlacement: PDFSignaturePlacement,
-        onComplete: @escaping (UIImage, PDFSignaturePage, PDFSignaturePlacement) -> Void
+        initialCustomOffset: CGPoint? = nil,
+        onComplete: @escaping (UIImage, PDFSignaturePage, PDFSignaturePlacement, CGPoint?) -> Void
     ) {
         _page = State(initialValue: initialPage)
         _placement = State(initialValue: initialPlacement)
+        _customOffset = State(
+            initialValue: initialCustomOffset ?? initialPlacement.normalizedCenter
+        )
         self.onComplete = onComplete
     }
 
@@ -82,12 +89,13 @@ struct SignatureCaptureView: View {
                         .pickerStyle(.segmented)
 
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {
-                            ForEach(PDFSignaturePlacement.allCases) { option in
+                            ForEach(PDFSignaturePlacement.presets) { option in
                                 let isSelected = placement == option
                                 let selectedColor = ProofKitVisual.accentSecondary
                                 Button {
                                     withAnimation(ProofKitMotion.standard) {
                                         placement = option
+                                        customOffset = option.normalizedCenter
                                     }
                                 } label: {
                                     HStack(spacing: 8) {
@@ -116,6 +124,8 @@ struct SignatureCaptureView: View {
                                 .buttonStyle(.plain)
                             }
                         }
+
+                        placementPreview
                     }
                 }
                 .frame(maxWidth: 620, alignment: .leading)
@@ -137,12 +147,111 @@ struct SignatureCaptureView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Apply") {
                         guard let signatureImage else { return }
-                        onComplete(signatureImage, page, placement)
+                        let offset = placement == .custom ? customOffset : nil
+                        onComplete(signatureImage, page, placement, offset)
                     }
                     .disabled(!canApplySignature)
                 }
             }
         }
+    }
+
+    private var placementPreview: some View {
+        let pageHeight: CGFloat = 220
+        let pageWidth = pageHeight * 612 / 792
+        let sigWidth = pageWidth * (176 / 612)
+        let sigHeight = sigWidth * (80 / 176)
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Fine-tune position")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Spacer()
+
+                if placement == .custom {
+                    Text("Custom")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(ProofKitVisual.accentSecondary)
+                }
+            }
+
+            Text("Drag the signature to place it anywhere on the page.")
+                .font(.caption)
+                .foregroundStyle(ProofKitVisual.helperText)
+
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(ProofKitVisual.cardBorder, lineWidth: 1)
+                }
+                .overlay {
+                    signaturePreviewThumbnail(width: sigWidth, height: sigHeight)
+                        .position(
+                            x: customOffset.x * pageWidth,
+                            y: customOffset.y * pageHeight
+                        )
+                        .allowsHitTesting(false)
+                }
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            updateCustomOffset(
+                                location: value.location,
+                                pageSize: CGSize(width: pageWidth, height: pageHeight),
+                                signatureSize: CGSize(width: sigWidth, height: sigHeight)
+                            )
+                        }
+                )
+                .frame(width: pageWidth, height: pageHeight)
+                .frame(maxWidth: .infinity)
+        }
+        .padding(.top, 4)
+    }
+
+    private func signaturePreviewThumbnail(width: CGFloat, height: CGFloat) -> some View {
+        Group {
+            if let signatureImage {
+                Image(uiImage: signatureImage)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(4)
+            } else {
+                Text("Signature")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(ProofKitVisual.helperText)
+            }
+        }
+        .frame(width: width, height: height)
+        .background {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(ProofKitVisual.accentSecondary.opacity(0.10))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(ProofKitVisual.accentSecondary.opacity(0.55), lineWidth: 1)
+        }
+    }
+
+    private func updateCustomOffset(location: CGPoint, pageSize: CGSize, signatureSize: CGSize) {
+        guard pageSize.width > 0, pageSize.height > 0 else { return }
+
+        let halfWidth = signatureSize.width / 2
+        let halfHeight = signatureSize.height / 2
+        let clampedX = min(max(location.x, halfWidth), pageSize.width - halfWidth)
+        let clampedY = min(max(location.y, halfHeight), pageSize.height - halfHeight)
+
+        // Keep the signature inside the page's content band (away from header/footer),
+        // matching the clamp applied when the signature is stamped onto the PDF.
+        let normalizedY = min(max(clampedY / pageSize.height, 0.12), 0.9)
+
+        if placement != .custom {
+            placement = .custom
+        }
+        customOffset = CGPoint(x: clampedX / pageSize.width, y: normalizedY)
     }
 }
 

@@ -44,6 +44,9 @@ struct PDFSignatureStamp {
     let image: UIImage
     let page: PDFSignaturePage
     let placement: PDFSignaturePlacement
+    /// Normalized page-relative center (x, y in 0...1, origin top-left) used when
+    /// `placement == .custom`. Ignored for preset placements.
+    let customOffset: CGPoint?
     let signedAt: Date
     let validationToken: String
     let encryptedManifest: String
@@ -78,8 +81,15 @@ enum PDFSignaturePlacement: String, CaseIterable, Hashable, Identifiable {
     case center
     case lowerLeft
     case lowerRight
+    case custom
 
     var id: String { rawValue }
+
+    /// The fixed preset positions offered as quick-select buttons. Excludes `.custom`,
+    /// which is driven by a free-form drag rather than a tappable option.
+    static var presets: [PDFSignaturePlacement] {
+        [.upperLeft, .upperRight, .center, .lowerLeft, .lowerRight]
+    }
 
     var displayName: String {
         switch self {
@@ -93,6 +103,28 @@ enum PDFSignaturePlacement: String, CaseIterable, Hashable, Identifiable {
             "Lower left"
         case .lowerRight:
             "Lower right"
+        case .custom:
+            "Custom"
+        }
+    }
+
+    /// Normalized page-relative center (x, y in 0...1, origin top-left) for each preset.
+    /// Approximates the exact render insets in `signatureRect(for:)` so a drag preview can
+    /// reflect a preset selection. `.custom` has no fixed center and returns the page center.
+    var normalizedCenter: CGPoint {
+        switch self {
+        case .upperLeft:
+            CGPoint(x: 0.232, y: 0.16)
+        case .upperRight:
+            CGPoint(x: 0.768, y: 0.16)
+        case .center:
+            CGPoint(x: 0.5, y: 0.5)
+        case .lowerLeft:
+            CGPoint(x: 0.232, y: 0.89)
+        case .lowerRight:
+            CGPoint(x: 0.768, y: 0.89)
+        case .custom:
+            CGPoint(x: 0.5, y: 0.5)
         }
     }
 }
@@ -1588,6 +1620,15 @@ private final class PDFCaseRenderer {
             return CGRect(x: horizontalInset, y: lowerY, width: maxSize.width, height: maxSize.height)
         case .lowerRight:
             return CGRect(x: pageRect.maxX - horizontalInset - maxSize.width, y: lowerY, width: maxSize.width, height: maxSize.height)
+        case .custom:
+            // Place by normalized center, clamped to the same content band the presets respect
+            // so the signature never overlaps the header or footer.
+            let offset = signatureStamp.customOffset ?? PDFSignaturePlacement.center.normalizedCenter
+            let minX = horizontalInset
+            let maxX = pageRect.maxX - horizontalInset - maxSize.width
+            let originX = min(max(offset.x * pageRect.width - maxSize.width / 2, minX), maxX)
+            let originY = min(max(offset.y * pageRect.height - maxSize.height / 2, upperY), lowerY)
+            return CGRect(x: originX, y: originY, width: maxSize.width, height: maxSize.height)
         }
     }
 

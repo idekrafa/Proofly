@@ -107,9 +107,10 @@ struct ExportPreviewView: View {
         .sheet(isPresented: $isSignatureSheetPresented) {
             SignatureCaptureView(
                 initialPage: signatureConfiguration?.page ?? .lastPage,
-                initialPlacement: signatureConfiguration?.placement ?? .lowerRight
-            ) { image, page, placement in
-                Task { await completeSignature(image: image, page: page, placement: placement) }
+                initialPlacement: signatureConfiguration?.placement ?? .lowerRight,
+                initialCustomOffset: signatureConfiguration?.customOffset
+            ) { image, page, placement, customOffset in
+                Task { await completeSignature(image: image, page: page, placement: placement, customOffset: customOffset) }
             }
         }
         .sheet(isPresented: $isSignaturePaywallPresented, onDismiss: openSignatureAfterPaywallIfNeeded) {
@@ -1035,7 +1036,7 @@ struct ExportPreviewView: View {
     }
 
     @MainActor
-    private func completeSignature(image: UIImage, page: PDFSignaturePage, placement: PDFSignaturePlacement) async {
+    private func completeSignature(image: UIImage, page: PDFSignaturePage, placement: PDFSignaturePlacement, customOffset: CGPoint?) async {
         let signedAt = Date()
         let sourceExport = generatedExport
         let shouldGenerateSignedPDF = sourceExport != nil
@@ -1068,6 +1069,7 @@ struct ExportPreviewView: View {
                 image: image,
                 page: page,
                 placement: placement,
+                customOffset: customOffset,
                 signedAt: signedAt,
                 validationToken: issueResponse.validationToken,
                 encryptedManifest: issueResponse.encryptedManifest,
@@ -1193,6 +1195,7 @@ private struct ExportSignatureConfiguration {
     let image: UIImage
     let page: PDFSignaturePage
     let placement: PDFSignaturePlacement
+    let customOffset: CGPoint?
     let signedAt: Date
     let validationToken: String
     let encryptedManifest: String
@@ -1207,6 +1210,7 @@ private struct ExportSignatureConfiguration {
             image: image,
             page: page,
             placement: placement,
+            customOffset: customOffset,
             signedAt: signedAt,
             validationToken: validationToken,
             encryptedManifest: encryptedManifest,
