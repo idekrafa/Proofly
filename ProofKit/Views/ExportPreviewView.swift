@@ -26,6 +26,7 @@ struct ExportPreviewView: View {
     @State private var isSignaturePaywallPresented = false
     @State private var shouldOpenSignatureAfterPaywall = false
     @State private var isIssuingSignatureToken = false
+    @State private var unsignedPreviewURL: URL?
 
     init(
         caseFile: CaseFile,
@@ -104,11 +105,12 @@ struct ExportPreviewView: View {
         .task {
             await refreshExportAccess()
         }
-        .sheet(isPresented: $isSignatureSheetPresented) {
+        .sheet(isPresented: $isSignatureSheetPresented, onDismiss: cleanUpUnsignedPreview) {
             SignatureCaptureView(
                 initialPage: signatureConfiguration?.page ?? .lastPage,
                 initialPlacement: signatureConfiguration?.placement ?? .lowerRight,
-                initialCustomOffset: signatureConfiguration?.customOffset
+                initialCustomOffset: signatureConfiguration?.customOffset,
+                documentURL: unsignedPreviewURL
             ) { image, page, placement, customOffset in
                 Task { await completeSignature(image: image, page: page, placement: placement, customOffset: customOffset) }
             }
@@ -893,6 +895,12 @@ struct ExportPreviewView: View {
             .appending(path: caseFile.id.uuidString)
     }
 
+    private var signaturePreviewDirectory: URL {
+        FileManager.default.temporaryDirectory
+            .appending(path: "SignaturePreview")
+            .appending(path: caseFile.id.uuidString)
+    }
+
     private func encodedEvidenceIDs(_ ids: [UUID]) -> String {
         let values = ids.map(\.uuidString)
         guard let data = try? JSONEncoder().encode(values),
@@ -1105,14 +1113,52 @@ struct ExportPreviewView: View {
             return
         }
 
+        await prepareUnsignedPreview()
         isSignatureSheetPresented = true
+    }
+
+    /// Renders a throwaway, unsigned copy of the packet so the placement preview always
+    /// shows a clean page — never a signature applied in a prior pass.
+    @MainActor
+    private func prepareUnsignedPreview() async {
+        // A generated packet with no signature applied yet is already unsigned; reuse it.
+        if signatureConfiguration == nil, let generatedExport {
+            unsignedPreviewURL = generatedExport.url
+            return
+        }
+
+        do {
+            let access = await services.paywall.exportAccess(for: caseFile)
+            let result = try await services.pdfExporter.exportCasePDF(
+                PDFExportRequest(
+                    caseFile: caseFile,
+                    destinationDirectory: signaturePreviewDirectory,
+                    exportMode: exportMode,
+                    includeStatementPlaceholder: includeStatementPlaceholder,
+                    includeProofKitWatermark: access.isWatermarked,
+                    signatureStamp: nil
+                )
+            )
+            unsignedPreviewURL = result.url
+        } catch {
+            // Fall back to the latest export; the preview degrades to a plain page if nil.
+            unsignedPreviewURL = generatedExport?.url
+        }
+    }
+
+    private func cleanUpUnsignedPreview() {
+        try? FileManager.default.removeItem(at: signaturePreviewDirectory)
+        unsignedPreviewURL = nil
     }
 
     @MainActor
     private func openSignatureAfterPaywallIfNeeded() {
         guard shouldOpenSignatureAfterPaywall else { return }
         shouldOpenSignatureAfterPaywall = false
-        isSignatureSheetPresented = true
+        Task {
+            await prepareUnsignedPreview()
+            isSignatureSheetPresented = true
+        }
     }
 
     private func localURL(for caseExport: ExportPacket) -> URL? {

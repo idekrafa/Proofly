@@ -1,3 +1,4 @@
+import PDFKit
 import PencilKit
 import SwiftUI
 import UIKit
@@ -11,13 +12,23 @@ struct SignatureCaptureView: View {
     /// Normalized page-relative center (x, y in 0...1, origin top-left) for free placement.
     /// Mirrors the selected preset until the user drags the signature in the preview.
     @State private var customOffset: CGPoint
+    /// Rendered image of the document page the signature will land on, shown behind the
+    /// draggable signature so custom placement can target real content. Nil until loaded
+    /// (or when no source document is available).
+    @State private var pagePreviewImage: UIImage?
+    /// Point size of the previewed page's media box, used to map the fixed 176×80 signature
+    /// box and normalized offset onto the rendered page accurately.
+    @State private var previewPageSize = CGSize(width: 612, height: 792)
 
+    /// Source PDF (pre-signature) used to render the placement preview background.
+    let documentURL: URL?
     let onComplete: (UIImage, PDFSignaturePage, PDFSignaturePlacement, CGPoint?) -> Void
 
     init(
         initialPage: PDFSignaturePage,
         initialPlacement: PDFSignaturePlacement,
         initialCustomOffset: CGPoint? = nil,
+        documentURL: URL? = nil,
         onComplete: @escaping (UIImage, PDFSignaturePage, PDFSignaturePlacement, CGPoint?) -> Void
     ) {
         _page = State(initialValue: initialPage)
@@ -25,6 +36,7 @@ struct SignatureCaptureView: View {
         _customOffset = State(
             initialValue: initialCustomOffset ?? initialPlacement.normalizedCenter
         )
+        self.documentURL = documentURL
         self.onComplete = onComplete
     }
 
@@ -153,14 +165,18 @@ struct SignatureCaptureView: View {
                     .disabled(!canApplySignature)
                 }
             }
+            .task(id: page) {
+                loadPagePreview()
+            }
         }
     }
 
     private var placementPreview: some View {
-        let pageHeight: CGFloat = 220
-        let pageWidth = pageHeight * 612 / 792
-        let sigWidth = pageWidth * (176 / 612)
-        let sigHeight = sigWidth * (80 / 176)
+        let pageHeight: CGFloat = 300
+        let previewAspect = previewPageSize.height > 0 ? previewPageSize.width / previewPageSize.height : 612 / 792
+        let pageWidth = pageHeight * previewAspect
+        let sigWidth = pageWidth * (176 / max(previewPageSize.width, 1))
+        let sigHeight = pageHeight * (80 / max(previewPageSize.height, 1))
 
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -177,39 +193,86 @@ struct SignatureCaptureView: View {
                 }
             }
 
-            Text("Drag the signature to place it anywhere on the page.")
+            Text(pagePreviewImage == nil
+                ? "Drag the signature to place it anywhere on the page."
+                : "Drag the signature over the document to place it on an exact spot.")
                 .font(.caption)
                 .foregroundStyle(ProofKitVisual.helperText)
 
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.white)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(ProofKitVisual.cardBorder, lineWidth: 1)
+            Group {
+                if let pagePreviewImage {
+                    Image(uiImage: pagePreviewImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Color.white
                 }
-                .overlay {
-                    signaturePreviewThumbnail(width: sigWidth, height: sigHeight)
-                        .position(
-                            x: customOffset.x * pageWidth,
-                            y: customOffset.y * pageHeight
+            }
+            .frame(width: pageWidth, height: pageHeight)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(ProofKitVisual.cardBorder, lineWidth: 1)
+            }
+            .overlay {
+                signaturePreviewThumbnail(width: sigWidth, height: sigHeight)
+                    .position(
+                        x: customOffset.x * pageWidth,
+                        y: customOffset.y * pageHeight
+                    )
+                    .allowsHitTesting(false)
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        updateCustomOffset(
+                            location: value.location,
+                            pageSize: CGSize(width: pageWidth, height: pageHeight),
+                            signatureSize: CGSize(width: sigWidth, height: sigHeight)
                         )
-                        .allowsHitTesting(false)
-                }
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            updateCustomOffset(
-                                location: value.location,
-                                pageSize: CGSize(width: pageWidth, height: pageHeight),
-                                signatureSize: CGSize(width: sigWidth, height: sigHeight)
-                            )
-                        }
-                )
-                .frame(width: pageWidth, height: pageHeight)
-                .frame(maxWidth: .infinity)
+                    }
+            )
+            .frame(maxWidth: .infinity)
+            .shadow(color: ProofKitVisual.elevatedShadow.opacity(0.35), radius: 8, x: 0, y: 4)
         }
         .padding(.top, 4)
+    }
+
+    /// Renders the page the signature will land on (first, last, or a representative page
+    /// for "every page") from the source PDF, sizing the preview to its real dimensions.
+    private func loadPagePreview() {
+        guard let documentURL,
+              let document = PDFDocument(url: documentURL),
+              document.pageCount > 0 else {
+            pagePreviewImage = nil
+            return
+        }
+
+        let index: Int
+        switch page {
+        case .firstPage, .everyPage:
+            index = 0
+        case .lastPage:
+            index = document.pageCount - 1
+        }
+
+        guard let pdfPage = document.page(at: index) else {
+            pagePreviewImage = nil
+            return
+        }
+
+        let bounds = pdfPage.bounds(for: .mediaBox)
+        guard bounds.width > 0, bounds.height > 0 else {
+            pagePreviewImage = nil
+            return
+        }
+
+        // Render at ~2x the on-screen height for crisp text.
+        let renderHeight: CGFloat = 600
+        let renderSize = CGSize(width: renderHeight * bounds.width / bounds.height, height: renderHeight)
+        previewPageSize = bounds.size
+        pagePreviewImage = pdfPage.thumbnail(of: renderSize, for: .mediaBox)
     }
 
     private func signaturePreviewThumbnail(width: CGFloat, height: CGFloat) -> some View {
