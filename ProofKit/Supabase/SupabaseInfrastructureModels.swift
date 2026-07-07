@@ -110,6 +110,72 @@ struct PDFSignatureTokenVerifyResponse: Codable, Equatable {
     let reason: String?
 }
 
+struct SignatureRequestCreateRequest: Codable, Equatable {
+    let caseID: UUID
+    let exportID: UUID?
+    let pdfBase64: String
+    let pdfSHA256: String
+    let documentTitle: String
+    let requesterName: String?
+    let message: String?
+    let signaturePage: String
+    let signaturePlacement: String
+    let appVersion: String
+    let expiresInDays: Int
+}
+
+struct SignatureRequestCreateResponse: Codable, Equatable {
+    let requestID: UUID
+    let status: String
+    let shareURL: URL
+    let expiresAt: Date
+}
+
+enum SignatureRequestState: String, Codable, Equatable {
+    case none
+    case pending
+    case signed
+    case cancelled
+    case expired
+}
+
+struct SignatureRequestStatusRequest: Codable, Equatable {
+    let requestID: UUID?
+    let caseID: UUID?
+    let cancel: Bool
+    let includeSignatureImage: Bool
+
+    init(
+        requestID: UUID? = nil,
+        caseID: UUID? = nil,
+        cancel: Bool = false,
+        includeSignatureImage: Bool = true
+    ) {
+        self.requestID = requestID
+        self.caseID = caseID
+        self.cancel = cancel
+        self.includeSignatureImage = includeSignatureImage
+    }
+}
+
+struct SignatureRequestStatusResponse: Codable, Equatable {
+    let status: SignatureRequestState
+    let requestID: UUID?
+    let caseID: UUID?
+    let exportID: UUID?
+    let documentTitle: String?
+    let shareURL: URL?
+    let expiresAt: Date?
+    let createdAt: Date?
+    let signaturePage: String?
+    let signaturePlacement: String?
+    let pdfSHA256: String?
+    let signerName: String?
+    let signedAt: Date?
+    let signatureImageSHA256: String?
+    let signatureImageBase64: String?
+}
+
 struct AICreditBalance: Codable, Equatable {
     let availableCredits: Int
     let reservedCredits: Int

@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.verify-signature-token]
 verify_jwt = false
+
+[functions.sign-request]
+verify_jwt = false

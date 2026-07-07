@@ -108,6 +108,8 @@ struct SupabaseFunctionNames: Equatable {
     let createSignatureToken: String
     let finalizeSignatureToken: String
     let verifySignatureToken: String
+    let createSignatureRequest: String
+    let signatureRequestStatus: String
 
     static func load(
         bundle: Bundle = .main,
@@ -159,6 +161,18 @@ struct SupabaseFunctionNames: Equatable {
             verifySignatureToken: configuredFunctionName(
                 key: "PROOFKIT_SUPABASE_FN_VERIFY_SIGNATURE_TOKEN",
                 defaultValue: "verify-signature-token",
+                bundle: bundle,
+                environment: environment
+            ),
+            createSignatureRequest: configuredFunctionName(
+                key: "PROOFKIT_SUPABASE_FN_CREATE_SIGNATURE_REQUEST",
+                defaultValue: "create-signature-request",
+                bundle: bundle,
+                environment: environment
+            ),
+            signatureRequestStatus: configuredFunctionName(
+                key: "PROOFKIT_SUPABASE_FN_SIGNATURE_REQUEST_STATUS",
+                defaultValue: "signature-request-status",
                 bundle: bundle,
                 environment: environment
             )

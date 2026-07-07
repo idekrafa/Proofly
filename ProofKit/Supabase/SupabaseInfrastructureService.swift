@@ -478,6 +478,46 @@ extension SupabaseInfrastructureService: PDFSignatureValidationServicing {
     }
 }
 
+extension SupabaseInfrastructureService: SignatureRequestServicing {
+    func createSignatureRequest(_ request: SignatureRequestCreateRequest) async throws -> SignatureRequestCreateResponse {
+        #if canImport(Supabase)
+        guard Self.isSHA256Hex(request.pdfSHA256) else {
+            throw ProofKitError.remotePolicyViolation("Signature requests require a SHA-256 hash of the PDF.")
+        }
+        guard !request.pdfBase64.isEmpty else {
+            throw ProofKitError.remotePolicyViolation("Signature requests require the PDF to share.")
+        }
+        guard !request.documentTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ProofKitError.remotePolicyViolation("Signature requests require a document title.")
+        }
+
+        return try await configuredClient.functions.invoke(
+            configuredFunctionNames.createSignatureRequest,
+            options: FunctionInvokeOptions(body: request),
+            decoder: Self.remoteJSONDecoder
+        )
+        #else
+        throw ProofKitError.supabaseSDKUnavailable
+        #endif
+    }
+
+    func fetchSignatureRequestStatus(_ request: SignatureRequestStatusRequest) async throws -> SignatureRequestStatusResponse {
+        #if canImport(Supabase)
+        guard request.requestID != nil || request.caseID != nil else {
+            throw ProofKitError.remotePolicyViolation("Signature request lookups need a case or request ID.")
+        }
+
+        return try await configuredClient.functions.invoke(
+            configuredFunctionNames.signatureRequestStatus,
+            options: FunctionInvokeOptions(body: request),
+            decoder: Self.remoteJSONDecoder
+        )
+        #else
+        throw ProofKitError.supabaseSDKUnavailable
+        #endif
+    }
+}
+
 private extension SupabaseInfrastructureService {
     #if canImport(Supabase)
     var configuredClient: SupabaseClient {
