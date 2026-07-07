@@ -203,6 +203,17 @@ struct AskSignView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            VStack(spacing: 10) {
+                ProofKitQRCodeView(content: request.shareURL.absoluteString)
+
+                Text("If they're next to you, they can scan this code with their phone camera and sign right away.")
+                    .font(.caption)
+                    .foregroundStyle(ProofKitVisual.subduedText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity)
+
             VStack(alignment: .leading, spacing: 10) {
                 Text(request.shareURL.absoluteString)
                     .font(.footnote.monospaced())

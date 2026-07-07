@@ -622,6 +622,20 @@ struct ExportPreviewView: View {
                     .foregroundStyle(ProofKitVisual.subduedText)
             }
 
+            if let shareURL = status.shareURL {
+                VStack(spacing: 8) {
+                    ProofKitQRCodeView(content: shareURL.absoluteString, size: 150)
+
+                    Text("In person? They can scan this code to open the signing page.")
+                        .font(.caption)
+                        .foregroundStyle(ProofKitVisual.subduedText)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+            }
+
             HStack(spacing: 10) {
                 if let shareURL = status.shareURL {
                     ShareLink(item: shareURL) {

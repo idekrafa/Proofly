@@ -8,7 +8,7 @@ Ask Sign lets a Proofly user send a generated PDF to another party for electroni
 
 1. Owner generates a PDF packet on the export screen.
 2. Owner taps **Ask Sign** (PRO-gated, same paywall as Sign) → `AskSignView` sheet: optional requester name + message, counterparty signature page/placement, link expiry (3/7/14/30 days).
-3. App uploads the PDF and creates the request → gets a share link → owner shares it via the system share sheet or copies it.
+3. App uploads the PDF and creates the request → gets a share link → owner shares it via the system share sheet, copies it, or has the counterparty scan the QR code shown in the app (the QR encodes the same share URL, so scanning opens the signing page in the counterparty's browser — no app install needed).
 4. Counterparty opens the link in any browser: sees the PDF (pdf.js preview + open-in-tab fallback), enters their full name, draws a signature, checks the electronic-signature consent box, submits.
 5. Back in the app, the Ask Sign card on the export screen shows **Signed** with the signer's name and signature thumbnail (auto-refreshes on screen load, or via Check).
 6. Owner adds their own signature (existing Sign flow) and taps Generate — the new PDF stamps both signatures, and PDF document info carries `ProoflyCounterpartySignerName`, `ProoflyCounterpartySignedAt`, `ProoflyCounterpartyRequestID`, `ProoflyCounterpartySignatureImageSHA256`.
@@ -32,7 +32,7 @@ Share URL defaults to `${SUPABASE_URL}/functions/v1/sign-request?token=…`; set
 
 - `SignatureRequestServicing` (`SupabaseInfrastructureProtocols.swift`) implemented by `SupabaseInfrastructureService`, exposed as `services.signatureRequests`; models in `SupabaseInfrastructureModels.swift`; function names configurable via `PROOFKIT_SUPABASE_FN_CREATE_SIGNATURE_REQUEST` / `PROOFKIT_SUPABASE_FN_SIGNATURE_REQUEST_STATUS`.
 - `PDFExportRequest.counterpartySignatureStamp` (`PDFCounterpartySignatureStamp`) draws the counterparty signature with the caption "Signed by <name> · Proofly Ask Sign <request id>" using the same placement engine as the owner stamp.
-- `AskSignView.swift` — creation sheet + share/copy link UI.
+- `AskSignView.swift` — creation sheet + share/copy link UI + scannable QR code of the share URL (rendered by `ProofKitQRCodeView.swift`, also shown on the pending Ask Sign card in `ExportPreviewView`).
 - `ExportPreviewView.swift` — Ask Sign button in the generated-packet actions, status card (pending: share/check/cancel; signed: signer + thumbnail), automatic inclusion of the counterparty stamp on the next PRO generate.
 
 No SwiftData schema changes; request state lives server-side and is re-fetched by case ID.
