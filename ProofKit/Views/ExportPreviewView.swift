@@ -24,9 +24,14 @@ struct ExportPreviewView: View {
     @State private var signatureConfiguration: ExportSignatureConfiguration?
     @State private var isSignatureSheetPresented = false
     @State private var isSignaturePaywallPresented = false
-    @State private var shouldOpenSignatureAfterPaywall = false
+    @State private var postPaywallAction: PostPaywallAction?
+    @State private var shouldRunPostPaywallAction = false
     @State private var isIssuingSignatureToken = false
     @State private var unsignedPreviewURL: URL?
+    @State private var askSignStatus: SignatureRequestStatusResponse?
+    @State private var isAskSignSheetPresented = false
+    @State private var isAskSignBusy = false
+    @State private var counterpartySignatureImage: UIImage?
 
     init(
         caseFile: CaseFile,
@@ -88,6 +93,8 @@ struct ExportPreviewView: View {
                 .transition(ProofKitMotion.cardInsertion)
                 .proofKitAppear()
 
+            askSignStatusCard
+
             if let previewPDFURL {
                 pdfPreviewCard(url: previewPDFURL)
                     .transition(ProofKitMotion.cardInsertion)
@@ -102,8 +109,10 @@ struct ExportPreviewView: View {
         .animation(ProofKitMotion.standard, value: previewPDFURL)
         .animation(ProofKitMotion.standard, value: latestExport?.id)
         .animation(ProofKitMotion.standard, value: exportScreenStateID)
+        .animation(ProofKitMotion.standard, value: askSignStatus)
         .task {
             await refreshExportAccess()
+            await refreshAskSignStatus()
         }
         .sheet(isPresented: $isSignatureSheetPresented, onDismiss: cleanUpUnsignedPreview) {
             SignatureCaptureView(
@@ -115,12 +124,24 @@ struct ExportPreviewView: View {
                 Task { await completeSignature(image: image, page: page, placement: placement, customOffset: customOffset) }
             }
         }
-        .sheet(isPresented: $isSignaturePaywallPresented, onDismiss: openSignatureAfterPaywallIfNeeded) {
+        .sheet(isPresented: $isSignaturePaywallPresented, onDismiss: runPostPaywallActionIfNeeded) {
             PaywallView {
                 await refreshExportAccess()
                 let entitlement = await services.paywall.currentEntitlement()
                 if entitlement.plan == .pro {
-                    shouldOpenSignatureAfterPaywall = true
+                    shouldRunPostPaywallAction = true
+                }
+            }
+        }
+        .sheet(isPresented: $isAskSignSheetPresented, onDismiss: { Task { await refreshAskSignStatus() } }) {
+            if let generatedExport {
+                AskSignView(
+                    caseFile: caseFile,
+                    exportID: generatedExport.packet.id,
+                    pdfURL: generatedExport.url,
+                    appVersion: Self.appVersion
+                ) {
+                    Task { await refreshAskSignStatus() }
                 }
             }
         }
@@ -242,13 +263,17 @@ struct ExportPreviewView: View {
                     HStack(spacing: 10) {
                         viewPacketButton(url: url)
                         signPacketButton()
+                        askSignButton()
                         sharePacketLink(url: url)
                     }
                     .frame(maxWidth: .infinity)
 
                     VStack(spacing: 10) {
                         viewPacketButton(url: url)
-                        signPacketButton()
+                        HStack(spacing: 10) {
+                            signPacketButton()
+                            askSignButton()
+                        }
                         sharePacketLink(url: url)
                     }
                     .frame(maxWidth: .infinity)
@@ -311,6 +336,18 @@ struct ExportPreviewView: View {
         .buttonStyle(.bordered)
         .controlSize(.large)
         .disabled(isExporting || isIssuingSignatureToken)
+    }
+
+    private func askSignButton() -> some View {
+        Button {
+            Task { await beginAskSignFlow() }
+        } label: {
+            ExportActionLabel(title: "Ask Sign", systemImage: "paperplane")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .disabled(isExporting || isIssuingSignatureToken || isAskSignBusy)
     }
 
     private func exportHeroCard<Content: View>(
@@ -529,6 +566,135 @@ struct ExportPreviewView: View {
         .overlay {
             RoundedRectangle(cornerRadius: ProofKitVisual.panelCornerRadius, style: .continuous)
                 .stroke(ProofKitVisual.cardBorder, lineWidth: 1)
+        }
+    }
+
+    @ViewBuilder
+    private var askSignStatusCard: some View {
+        if let askSignStatus, askSignStatus.status == .pending || askSignStatus.status == .signed {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline) {
+                    Label("Ask Sign", systemImage: "paperplane")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+
+                    Spacer(minLength: 12)
+
+                    ExportStatusPill(
+                        text: askSignStatus.status == .signed ? "Signed" : "Waiting",
+                        color: askSignStatus.status == .signed ? ExportPagePalette.ready : ExportPagePalette.guidance
+                    )
+                }
+
+                if askSignStatus.status == .signed {
+                    askSignSignedContent(askSignStatus)
+                } else {
+                    askSignPendingContent(askSignStatus)
+                }
+            }
+            .padding(ProofKitVisual.cardPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: ProofKitVisual.panelCornerRadius, style: .continuous)
+                    .fill(ProofKitVisual.cardBackground)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: ProofKitVisual.panelCornerRadius, style: .continuous)
+                    .stroke(
+                        (askSignStatus.status == .signed ? ExportPagePalette.ready : ExportPagePalette.guidance).opacity(0.28),
+                        lineWidth: 1
+                    )
+            }
+            .transition(ProofKitMotion.cardInsertion)
+        }
+    }
+
+    private func askSignPendingContent(_ status: SignatureRequestStatusResponse) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Waiting for the other party to sign \"\(status.documentTitle ?? "your packet")\". Share the link through any channel — WhatsApp, Instagram, email, or anything else.")
+                .font(.subheadline)
+                .foregroundStyle(ProofKitVisual.helperText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let expiresAt = status.expiresAt {
+                Label("Link expires \(Self.exportDateFormatter.string(from: expiresAt))", systemImage: "clock")
+                    .font(.caption)
+                    .foregroundStyle(ProofKitVisual.subduedText)
+            }
+
+            HStack(spacing: 10) {
+                if let shareURL = status.shareURL {
+                    ShareLink(item: shareURL) {
+                        ExportActionLabel(title: "Share Link", systemImage: "square.and.arrow.up")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .tint(ExportPagePalette.guidance)
+                }
+
+                Button {
+                    Task { await refreshAskSignStatus(quiet: false) }
+                } label: {
+                    ExportActionLabel(
+                        title: isAskSignBusy ? "Checking…" : "Check",
+                        systemImage: "arrow.clockwise"
+                    )
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .disabled(isAskSignBusy)
+            }
+
+            Button("Cancel request") {
+                Task { await cancelAskSignRequest() }
+            }
+            .font(.caption.weight(.semibold))
+            .buttonStyle(.plain)
+            .foregroundStyle(.red)
+            .disabled(isAskSignBusy)
+        }
+    }
+
+    private func askSignSignedContent(_ status: SignatureRequestStatusResponse) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                if let counterpartySignatureImage {
+                    Image(uiImage: counterpartySignatureImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 128, height: 54)
+                        .padding(6)
+                        .background {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color.white)
+                        }
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(ProofKitVisual.cardBorder, lineWidth: 1)
+                        }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Signed by \(status.signerName ?? "the other party")")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    if let signedAt = status.signedAt {
+                        Text(Self.exportDateFormatter.string(from: signedAt))
+                            .font(.caption)
+                            .foregroundStyle(ProofKitVisual.subduedText)
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            Text("Their signature is stamped into the next PDF you generate. Add your own signature, then generate the final packet.")
+                .font(.caption)
+                .foregroundStyle(ProofKitVisual.helperText)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -805,6 +971,7 @@ struct ExportPreviewView: View {
                 throw ProofKitError.planLimitReached(access.blockedMessage ?? "This plan has reached its export limit.")
             }
             let signatureForExport = access.plan == .pro ? signatureConfiguration : nil
+            let counterpartyForExport = access.plan == .pro ? counterpartyStampForExport : nil
 
             let result = try await services.pdfExporter.exportCasePDF(
                 PDFExportRequest(
@@ -813,7 +980,8 @@ struct ExportPreviewView: View {
                     exportMode: exportMode,
                     includeStatementPlaceholder: includeStatementPlaceholder,
                     includeProofKitWatermark: access.isWatermarked,
-                    signatureStamp: signatureForExport?.stamp
+                    signatureStamp: signatureForExport?.stamp,
+                    counterpartySignatureStamp: counterpartyForExport
                 )
             )
 
@@ -932,7 +1100,12 @@ struct ExportPreviewView: View {
             "signatureManifestSHA256": signatureConfiguration?.manifestSHA256 ?? "",
             "signatureManifestSignature": signatureConfiguration?.manifestSignature ?? "",
             "signatureVerificationURL": signatureConfiguration?.verificationURL?.absoluteString ?? "",
-            "signedPDFSHA256": signedPDFSHA256 ?? ""
+            "signedPDFSHA256": signedPDFSHA256 ?? "",
+            "askSignIncluded": access.plan == .pro && counterpartyStampForExport != nil,
+            "askSignRequestID": counterpartyStampForExport?.requestID ?? "",
+            "askSignSignerName": counterpartyStampForExport?.signerName ?? "",
+            "askSignSignedAt": counterpartyStampForExport.map { Self.exportOptionDateFormatter.string(from: $0.signedAt) } ?? "",
+            "askSignSignatureImageSHA256": counterpartyStampForExport?.signatureImageSHA256 ?? ""
         ]
 
         guard let data = try? JSONSerialization.data(withJSONObject: values, options: [.sortedKeys]),
@@ -1108,13 +1281,117 @@ struct ExportPreviewView: View {
         await refreshExportAccess()
 
         guard entitlement.plan == .pro else {
-            shouldOpenSignatureAfterPaywall = false
+            shouldRunPostPaywallAction = false
+            postPaywallAction = .sign
             isSignaturePaywallPresented = true
             return
         }
 
         await prepareUnsignedPreview()
         isSignatureSheetPresented = true
+    }
+
+    @MainActor
+    private func beginAskSignFlow() async {
+        let entitlement = await services.paywall.currentEntitlement()
+        await refreshExportAccess()
+
+        guard entitlement.plan == .pro else {
+            shouldRunPostPaywallAction = false
+            postPaywallAction = .askSign
+            isSignaturePaywallPresented = true
+            return
+        }
+
+        isAskSignSheetPresented = true
+    }
+
+    @MainActor
+    private func refreshAskSignStatus(quiet: Bool = true) async {
+        if !quiet {
+            withAnimation(ProofKitMotion.standard) {
+                isAskSignBusy = true
+            }
+        }
+
+        do {
+            let status = try await services.signatureRequests.fetchSignatureRequestStatus(
+                SignatureRequestStatusRequest(caseID: caseFile.id)
+            )
+            applyAskSignStatus(status)
+        } catch {
+            // Auto-refresh stays silent (signed out, offline, or unconfigured
+            // Supabase should not surface errors on the export screen).
+            if !quiet {
+                withAnimation(ProofKitMotion.standard) {
+                    exportErrorMessage = error.localizedDescription
+                }
+            }
+        }
+
+        if !quiet {
+            withAnimation(ProofKitMotion.standard) {
+                isAskSignBusy = false
+            }
+        }
+    }
+
+    @MainActor
+    private func cancelAskSignRequest() async {
+        guard let requestID = askSignStatus?.requestID else { return }
+        withAnimation(ProofKitMotion.standard) {
+            isAskSignBusy = true
+        }
+
+        do {
+            let status = try await services.signatureRequests.fetchSignatureRequestStatus(
+                SignatureRequestStatusRequest(requestID: requestID, cancel: true)
+            )
+            applyAskSignStatus(status)
+        } catch {
+            withAnimation(ProofKitMotion.standard) {
+                exportErrorMessage = error.localizedDescription
+            }
+        }
+
+        withAnimation(ProofKitMotion.standard) {
+            isAskSignBusy = false
+        }
+    }
+
+    @MainActor
+    private func applyAskSignStatus(_ status: SignatureRequestStatusResponse) {
+        withAnimation(ProofKitMotion.standard) {
+            askSignStatus = (status.status == .pending || status.status == .signed) ? status : nil
+
+            if status.status == .signed,
+               let base64 = status.signatureImageBase64,
+               let data = Data(base64Encoded: base64),
+               let image = UIImage(data: data) {
+                counterpartySignatureImage = image
+            } else if status.status != .signed {
+                counterpartySignatureImage = nil
+            }
+        }
+    }
+
+    private var counterpartyStampForExport: PDFCounterpartySignatureStamp? {
+        guard let askSignStatus,
+              askSignStatus.status == .signed,
+              let counterpartySignatureImage,
+              let requestID = askSignStatus.requestID else {
+            return nil
+        }
+
+        return PDFCounterpartySignatureStamp(
+            image: counterpartySignatureImage,
+            signerName: askSignStatus.signerName ?? "Requested signer",
+            page: askSignStatus.signaturePage.flatMap(PDFSignaturePage.init(rawValue:)) ?? .lastPage,
+            placement: askSignStatus.signaturePlacement.flatMap(PDFSignaturePlacement.init(rawValue:)) ?? .lowerLeft,
+            signedAt: askSignStatus.signedAt ?? .now,
+            requestID: requestID.uuidString,
+            signatureImageSHA256: askSignStatus.signatureImageSHA256 ?? ""
+        )
     }
 
     /// Renders a throwaway, unsigned copy of the packet so the placement preview always
@@ -1152,12 +1429,20 @@ struct ExportPreviewView: View {
     }
 
     @MainActor
-    private func openSignatureAfterPaywallIfNeeded() {
-        guard shouldOpenSignatureAfterPaywall else { return }
-        shouldOpenSignatureAfterPaywall = false
-        Task {
-            await prepareUnsignedPreview()
-            isSignatureSheetPresented = true
+    private func runPostPaywallActionIfNeeded() {
+        guard shouldRunPostPaywallAction else { return }
+        shouldRunPostPaywallAction = false
+        let action = postPaywallAction ?? .sign
+        postPaywallAction = nil
+
+        switch action {
+        case .sign:
+            Task {
+                await prepareUnsignedPreview()
+                isSignatureSheetPresented = true
+            }
+        case .askSign:
+            isAskSignSheetPresented = true
         }
     }
 
@@ -1235,6 +1520,11 @@ private enum ExportScreenState {
     case almostReady
     case ready
     case generated(ExportPacket, URL)
+}
+
+private enum PostPaywallAction {
+    case sign
+    case askSign
 }
 
 private struct ExportSignatureConfiguration {

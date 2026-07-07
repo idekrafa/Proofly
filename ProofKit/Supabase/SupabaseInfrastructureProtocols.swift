@@ -58,3 +58,10 @@ protocol PDFSignatureValidationServicing {
     func finalizePDFSignatureToken(_ request: PDFSignatureTokenFinalizeRequest) async throws -> PDFSignatureTokenVerifyResponse
     func verifyPDFSignatureToken(_ request: PDFSignatureTokenVerifyRequest) async throws -> PDFSignatureTokenVerifyResponse
 }
+
+/// Ask Sign: request a counterparty's electronic signature through a shareable
+/// web link before the owner signs and exports the final PDF.
+protocol SignatureRequestServicing {
+    func createSignatureRequest(_ request: SignatureRequestCreateRequest) async throws -> SignatureRequestCreateResponse
+    func fetchSignatureRequestStatus(_ request: SignatureRequestStatusRequest) async throws -> SignatureRequestStatusResponse
+}

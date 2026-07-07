@@ -19,6 +19,7 @@ struct PDFExportRequest {
     let includeStatementPlaceholder: Bool
     let includeProofKitWatermark: Bool
     let signatureStamp: PDFSignatureStamp?
+    let counterpartySignatureStamp: PDFCounterpartySignatureStamp?
     let generatedAt: Date
 
     init(
@@ -28,6 +29,7 @@ struct PDFExportRequest {
         includeStatementPlaceholder: Bool = false,
         includeProofKitWatermark: Bool = true,
         signatureStamp: PDFSignatureStamp? = nil,
+        counterpartySignatureStamp: PDFCounterpartySignatureStamp? = nil,
         generatedAt: Date = .now
     ) {
         self.caseFile = caseFile
@@ -36,8 +38,21 @@ struct PDFExportRequest {
         self.includeStatementPlaceholder = includeStatementPlaceholder
         self.includeProofKitWatermark = includeProofKitWatermark
         self.signatureStamp = signatureStamp
+        self.counterpartySignatureStamp = counterpartySignatureStamp
         self.generatedAt = generatedAt
     }
+}
+
+/// Signature collected from another party through a Proofly Ask Sign link,
+/// stamped alongside (or independently of) the owner's own signature.
+struct PDFCounterpartySignatureStamp {
+    let image: UIImage
+    let signerName: String
+    let page: PDFSignaturePage
+    let placement: PDFSignaturePlacement
+    let signedAt: Date
+    let requestID: String
+    let signatureImageSHA256: String
 }
 
 struct PDFSignatureStamp {
@@ -329,6 +344,12 @@ private final class PDFCaseRenderer {
             documentInfo["ProoflySignatureManifestSHA256"] = signatureStamp.manifestSHA256
             documentInfo["ProoflySignatureManifestSignature"] = signatureStamp.manifestSignature
             documentInfo["ProoflySignatureEncryptedManifest"] = signatureStamp.encryptedManifest
+        }
+        if let counterpartyStamp = request.counterpartySignatureStamp {
+            documentInfo["ProoflyCounterpartySignerName"] = counterpartyStamp.signerName
+            documentInfo["ProoflyCounterpartySignedAt"] = ISO8601DateFormatter().string(from: counterpartyStamp.signedAt)
+            documentInfo["ProoflyCounterpartyRequestID"] = counterpartyStamp.requestID
+            documentInfo["ProoflyCounterpartySignatureImageSHA256"] = counterpartyStamp.signatureImageSHA256
         }
         format.documentInfo = documentInfo
 
@@ -1568,21 +1589,35 @@ private final class PDFCaseRenderer {
     }
 
     private func drawSignatureIfNeeded(isFinalPage: Bool) {
-        guard let signatureStamp = request.signatureStamp,
-              shouldDrawSignature(signatureStamp, isFinalPage: isFinalPage) else {
-            return
+        if let signatureStamp = request.signatureStamp,
+           shouldDrawSignature(on: signatureStamp.page, isFinalPage: isFinalPage) {
+            drawStamp(
+                image: signatureStamp.image,
+                caption: "Proofly signature token: \(signatureStamp.validationToken)",
+                in: signatureRect(placement: signatureStamp.placement, customOffset: signatureStamp.customOffset)
+            )
         }
 
-        let signatureRect = signatureRect(for: signatureStamp)
+        if let counterpartyStamp = request.counterpartySignatureStamp,
+           shouldDrawSignature(on: counterpartyStamp.page, isFinalPage: isFinalPage) {
+            drawStamp(
+                image: counterpartyStamp.image,
+                caption: "Signed by \(counterpartyStamp.signerName) · Proofly Ask Sign \(counterpartyStamp.requestID)",
+                in: signatureRect(placement: counterpartyStamp.placement, customOffset: nil)
+            )
+        }
+    }
+
+    private func drawStamp(image: UIImage, caption: String, in signatureRect: CGRect) {
         let imageBounds = signatureRect.insetBy(dx: 0, dy: 0)
             .divided(atDistance: 58, from: .minYEdge)
             .slice
-        let imageRect = aspectFitRect(imageSize: signatureStamp.image.size, in: imageBounds)
+        let imageRect = aspectFitRect(imageSize: image.size, in: imageBounds)
         guard imageRect.width > 0, imageRect.height > 0 else { return }
 
-        signatureStamp.image.draw(in: imageRect, blendMode: .normal, alpha: 0.96)
+        image.draw(in: imageRect, blendMode: .normal, alpha: 0.96)
         drawText(
-            "Proofly signature token: \(signatureStamp.validationToken)",
+            caption,
             in: CGRect(x: signatureRect.minX, y: imageBounds.maxY + 3, width: signatureRect.width, height: 18),
             font: .monospacedSystemFont(ofSize: 5.6, weight: .medium),
             color: UIColor.pdfSecondary.withAlphaComponent(0.82),
@@ -1590,8 +1625,8 @@ private final class PDFCaseRenderer {
         )
     }
 
-    private func shouldDrawSignature(_ signatureStamp: PDFSignatureStamp, isFinalPage: Bool) -> Bool {
-        switch signatureStamp.page {
+    private func shouldDrawSignature(on page: PDFSignaturePage, isFinalPage: Bool) -> Bool {
+        switch page {
         case .firstPage:
             pageNumber == 1
         case .lastPage:
@@ -1601,7 +1636,7 @@ private final class PDFCaseRenderer {
         }
     }
 
-    private func signatureRect(for signatureStamp: PDFSignatureStamp) -> CGRect {
+    private func signatureRect(placement: PDFSignaturePlacement, customOffset: CGPoint?) -> CGRect {
         let maxSize = CGSize(width: 176, height: 80)
         let horizontalInset = margin + 10
         let upperY = headerBottom + 22
@@ -1609,7 +1644,7 @@ private final class PDFCaseRenderer {
         let centerY = (pageRect.height - maxSize.height) / 2
         let centerX = (pageRect.width - maxSize.width) / 2
 
-        switch signatureStamp.placement {
+        switch placement {
         case .upperLeft:
             return CGRect(x: horizontalInset, y: upperY, width: maxSize.width, height: maxSize.height)
         case .upperRight:
@@ -1623,7 +1658,7 @@ private final class PDFCaseRenderer {
         case .custom:
             // Place by normalized center, clamped to the same content band the presets respect
             // so the signature never overlaps the header or footer.
-            let offset = signatureStamp.customOffset ?? PDFSignaturePlacement.center.normalizedCenter
+            let offset = customOffset ?? PDFSignaturePlacement.center.normalizedCenter
             let minX = horizontalInset
             let maxX = pageRect.maxX - horizontalInset - maxSize.width
             let originX = min(max(offset.x * pageRect.width - maxSize.width / 2, minX), maxX)
