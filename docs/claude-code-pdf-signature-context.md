@@ -63,7 +63,7 @@ Relevant files:
 4. User draws a signature on a blank PencilKit canvas.
 5. User selects:
    - signature page: first page, last page, every page
-   - signature placement: upper left, upper right, center, lower left, lower right
+   - signature placement: drags the signature anywhere on a rendered page preview (free-form only; sent as `custom` with a normalized offset)
 6. App hashes the rendered signature image.
 7. App calls Supabase Edge Function `create-signature-token`.
 8. Supabase returns:

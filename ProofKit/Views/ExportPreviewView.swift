@@ -117,11 +117,10 @@ struct ExportPreviewView: View {
         .sheet(isPresented: $isSignatureSheetPresented, onDismiss: cleanUpUnsignedPreview) {
             SignatureCaptureView(
                 initialPage: signatureConfiguration?.page ?? .lastPage,
-                initialPlacement: signatureConfiguration?.placement ?? .lowerRight,
-                initialCustomOffset: signatureConfiguration?.customOffset,
+                initialCustomOffset: signatureConfiguration.map { $0.customOffset ?? $0.placement.normalizedCenter },
                 documentURL: unsignedPreviewURL
-            ) { image, page, placement, customOffset in
-                Task { await completeSignature(image: image, page: page, placement: placement, customOffset: customOffset) }
+            ) { image, page, customOffset in
+                Task { await completeSignature(image: image, page: page, customOffset: customOffset) }
             }
         }
         .sheet(isPresented: $isSignaturePaywallPresented, onDismiss: runPostPaywallActionIfNeeded) {
@@ -1231,7 +1230,7 @@ struct ExportPreviewView: View {
     }
 
     @MainActor
-    private func completeSignature(image: UIImage, page: PDFSignaturePage, placement: PDFSignaturePlacement, customOffset: CGPoint?) async {
+    private func completeSignature(image: UIImage, page: PDFSignaturePage, customOffset: CGPoint) async {
         let signedAt = Date()
         let sourceExport = generatedExport
         let shouldGenerateSignedPDF = sourceExport != nil
@@ -1252,7 +1251,7 @@ struct ExportPreviewView: View {
                     sourcePDFSHA256: sourcePDFSHA256,
                     signatureImageSHA256: signatureImageSHA256,
                     signaturePage: page.rawValue,
-                    signaturePlacement: placement.rawValue,
+                    signaturePlacement: PDFSignaturePlacement.custom.rawValue,
                     signedAt: Self.exportOptionDateFormatter.string(from: signedAt),
                     appVersion: Self.appVersion,
                     pdfExportMode: exportMode.rawValue,
@@ -1263,7 +1262,7 @@ struct ExportPreviewView: View {
             signatureConfiguration = ExportSignatureConfiguration(
                 image: image,
                 page: page,
-                placement: placement,
+                placement: .custom,
                 customOffset: customOffset,
                 signedAt: signedAt,
                 validationToken: issueResponse.validationToken,

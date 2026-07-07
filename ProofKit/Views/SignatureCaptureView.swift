@@ -8,9 +8,7 @@ struct SignatureCaptureView: View {
 
     @State private var drawing = PKDrawing()
     @State private var page: PDFSignaturePage
-    @State private var placement: PDFSignaturePlacement
     /// Normalized page-relative center (x, y in 0...1, origin top-left) for free placement.
-    /// Mirrors the selected preset until the user drags the signature in the preview.
     @State private var customOffset: CGPoint
     /// Rendered image of the document page the signature will land on, shown behind the
     /// draggable signature so custom placement can target real content. Nil until loaded
@@ -22,19 +20,17 @@ struct SignatureCaptureView: View {
 
     /// Source PDF (pre-signature) used to render the placement preview background.
     let documentURL: URL?
-    let onComplete: (UIImage, PDFSignaturePage, PDFSignaturePlacement, CGPoint?) -> Void
+    let onComplete: (UIImage, PDFSignaturePage, CGPoint) -> Void
 
     init(
         initialPage: PDFSignaturePage,
-        initialPlacement: PDFSignaturePlacement,
         initialCustomOffset: CGPoint? = nil,
         documentURL: URL? = nil,
-        onComplete: @escaping (UIImage, PDFSignaturePage, PDFSignaturePlacement, CGPoint?) -> Void
+        onComplete: @escaping (UIImage, PDFSignaturePage, CGPoint) -> Void
     ) {
         _page = State(initialValue: initialPage)
-        _placement = State(initialValue: initialPlacement)
         _customOffset = State(
-            initialValue: initialCustomOffset ?? initialPlacement.normalizedCenter
+            initialValue: initialCustomOffset ?? PDFSignaturePlacement.lowerRight.normalizedCenter
         )
         self.documentURL = documentURL
         self.onComplete = onComplete
@@ -100,43 +96,6 @@ struct SignatureCaptureView: View {
                         }
                         .pickerStyle(.segmented)
 
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {
-                            ForEach(PDFSignaturePlacement.presets) { option in
-                                let isSelected = placement == option
-                                let selectedColor = ProofKitVisual.accentSecondary
-                                Button {
-                                    withAnimation(ProofKitMotion.standard) {
-                                        placement = option
-                                        customOffset = option.normalizedCenter
-                                    }
-                                } label: {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                                            .font(.footnote.weight(.semibold))
-                                            .foregroundStyle(isSelected ? selectedColor : ProofKitVisual.helperText)
-
-                                        Text(option.displayName)
-                                            .font(.subheadline.weight(.medium))
-                                            .foregroundStyle(.primary)
-                                            .lineLimit(1)
-                                            .minimumScaleFactor(0.82)
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 11)
-                                    .background {
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .fill(isSelected ? selectedColor.opacity(0.12) : ProofKitVisual.fieldBackground)
-                                    }
-                                    .overlay {
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .stroke(isSelected ? selectedColor.opacity(0.44) : ProofKitVisual.cardBorder, lineWidth: 1)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-
                         placementPreview
                     }
                 }
@@ -159,8 +118,7 @@ struct SignatureCaptureView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Apply") {
                         guard let signatureImage else { return }
-                        let offset = placement == .custom ? customOffset : nil
-                        onComplete(signatureImage, page, placement, offset)
+                        onComplete(signatureImage, page, customOffset)
                     }
                     .disabled(!canApplySignature)
                 }
@@ -179,19 +137,9 @@ struct SignatureCaptureView: View {
         let sigHeight = pageHeight * (80 / max(previewPageSize.height, 1))
 
         return VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Fine-tune position")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Spacer()
-
-                if placement == .custom {
-                    Text("Custom")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(ProofKitVisual.accentSecondary)
-                }
-            }
+            Text("Position")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
 
             Text(pagePreviewImage == nil
                 ? "Drag the signature to place it anywhere on the page."
@@ -311,9 +259,6 @@ struct SignatureCaptureView: View {
         // matching the clamp applied when the signature is stamped onto the PDF.
         let normalizedY = min(max(clampedY / pageSize.height, 0.12), 0.9)
 
-        if placement != .custom {
-            placement = .custom
-        }
         customOffset = CGPoint(x: clampedX / pageSize.width, y: normalizedY)
     }
 }

@@ -100,8 +100,8 @@ enum PDFSignaturePlacement: String, CaseIterable, Hashable, Identifiable {
 
     var id: String { rawValue }
 
-    /// The fixed preset positions offered as quick-select buttons. Excludes `.custom`,
-    /// which is driven by a free-form drag rather than a tappable option.
+    /// The fixed preset positions offered as quick-select buttons in the Ask Sign flow,
+    /// which has no free-form placement. The owner's own signature is always `.custom`.
     static var presets: [PDFSignaturePlacement] {
         [.upperLeft, .upperRight, .center, .lowerLeft, .lowerRight]
     }
