@@ -43,7 +43,13 @@ struct SignatureCaptureView: View {
     private var signatureImage: UIImage? {
         guard !drawing.bounds.isNull, !drawing.bounds.isEmpty else { return nil }
         let renderBounds = drawing.bounds.insetBy(dx: -18, dy: -18)
-        return drawing.image(from: renderBounds, scale: 3)
+        // PencilKit inverts dynamic ink colors per interface style; render under light
+        // traits so strokes stay black on the white canvas, preview, and PDF page.
+        var image: UIImage?
+        UITraitCollection(userInterfaceStyle: .light).performAsCurrent {
+            image = drawing.image(from: renderBounds, scale: 3)
+        }
+        return image
     }
 
     var body: some View {
@@ -269,6 +275,9 @@ private struct SignatureCanvas: UIViewRepresentable {
     func makeUIView(context: Context) -> PKCanvasView {
         let canvasView = PKCanvasView()
         canvasView.delegate = context.coordinator
+        // The canvas sits on a forced-white card; pin it to light mode so PencilKit
+        // doesn't render the black ink as white when the device is in dark mode.
+        canvasView.overrideUserInterfaceStyle = .light
         canvasView.backgroundColor = .clear
         canvasView.isOpaque = false
         canvasView.drawingPolicy = .anyInput

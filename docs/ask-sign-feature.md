@@ -26,7 +26,7 @@ Edge Functions (in `supabase/functions/`, shared helpers in `_shared/signatureRe
 - `sign-request` (public, `verify_jwt = false`) — GET serves the mobile-first HTML signing page (XSS-escaped, `noindex`, no-store); GET with `asset=pdf` streams the PDF; POST validates token/status/expiry, requires consent + name, verifies the PNG magic bytes and 2 MB limit, stores the signature image, and atomically flips `pending → signed` with signer IP/user-agent audit fields. Expired links are lazily marked `expired`.
 - `signature-request-status` (JWT required) — returns the owner's latest request by case (or by request ID), including the signature image base64 when signed; `cancel: true` cancels a pending request.
 
-Share URL defaults to `${SUPABASE_URL}/functions/v1/sign-request?token=…`; set the optional `PROOFKIT_SIGN_REQUEST_BASE_URL` secret to serve from a custom domain. No other new secrets are required.
+Share URL defaults to `https://www.proofly.me/sign?token=…`; the optional `PROOFKIT_SIGN_REQUEST_BASE_URL` secret overrides the base (e.g. for staging). The `www.proofly.me` Vercel project must rewrite `/sign` to `https://zvwixgdclmrhopsbuqld.supabase.co/functions/v1/sign-request` (before any SPA catch-all rule). The signing page fetches the PDF and submits the signature via relative URLs (`/sign?token=…`), so GET and POST both flow through the same rewrite. No other new secrets are required.
 
 ## iOS
 

@@ -1665,6 +1665,14 @@ private struct ExportDetailsRow: View {
 private struct PDFKitPreview: UIViewRepresentable {
     let url: URL
 
+    final class Coordinator {
+        var loadedURL: URL?
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
     func makeUIView(context: Context) -> PDFView {
         let pdfView = PDFView()
         pdfView.autoScales = true
@@ -1675,8 +1683,16 @@ private struct PDFKitPreview: UIViewRepresentable {
     }
 
     func updateUIView(_ pdfView: PDFView, context: Context) {
-        pdfView.document = PDFDocument(url: url)
-        pdfView.autoScales = true
+        // Replacing the document tears down PDFView's scroll view and churns the first
+        // responder chain, which re-enters the SwiftUI update and can cycle the attribute
+        // graph until the watchdog kills the app (0x8BADF00D). Export URLs are unique per
+        // generated file, so reload only when the URL changes — and outside the update pass.
+        guard context.coordinator.loadedURL != url else { return }
+        context.coordinator.loadedURL = url
+        DispatchQueue.main.async {
+            pdfView.document = PDFDocument(url: url)
+            pdfView.autoScales = true
+        }
     }
 }
 
