@@ -1566,8 +1566,17 @@ private struct ExportSignatureConfiguration {
             manifestSignature: manifestSignature,
             manifestSHA256: manifestSHA256,
             algorithm: algorithm,
-            keyVersion: keyVersion
+            keyVersion: keyVersion,
+            verificationURL: verificationURL ?? Self.fallbackVerificationURL(token: validationToken)
         )
+    }
+
+    /// Older token responses predate the server-issued `verificationURL`; build the
+    /// public verification page URL locally so the stamped QR code is never missing.
+    private static func fallbackVerificationURL(token: String) -> URL? {
+        var components = URLComponents(string: "https://www.proofly.me/verify")
+        components?.queryItems = [URLQueryItem(name: "token", value: token)]
+        return components?.url
     }
 }
 

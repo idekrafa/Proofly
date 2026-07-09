@@ -356,9 +356,14 @@ supabase secrets set \
   PROOFKIT_SIGNATURE_HMAC_KEY="$(openssl rand -base64 48)" \
   PROOFKIT_SIGNATURE_ENCRYPTION_KEY_B64="$(openssl rand -base64 32)" \
   PROOFKIT_SIGNATURE_KEY_VERSION="v1" \
-  PROOFKIT_SIGNATURE_VERIFICATION_BASE_URL="https://your-domain.com/signature/verify" \
   --project-ref zvwixgdclmrhopsbuqld
 ```
+
+`PROOFKIT_SIGNATURE_VERIFICATION_BASE_URL` is optional: the verification URL defaults to
+`https://www.proofly.me/verify?token=…`, which the Vercel site must rewrite to
+`https://zvwixgdclmrhopsbuqld.supabase.co/functions/v1/verify-signature-token`.
+`verify-signature-token` serves an HTML authenticity page to browsers (QR code scans) and
+JSON to API clients. The PDF signature stamp renders this URL as a "Scan to verify" QR code.
 
 Deploy functions:
 
@@ -522,9 +527,9 @@ Safer:
 
 ## Recommended Next Implementation Tasks
 
-1. Add a verification screen/page in the app or website.
+1. ~~Add a verification screen/page in the app or website.~~ Done: `verify-signature-token` serves the public authenticity page (HTML for browsers), linked from the QR code stamped next to each signature.
 2. Let users paste a token and optionally upload/provide a PDF hash.
-3. Add a public verification URL route matching `PROOFKIT_SIGNATURE_VERIFICATION_BASE_URL`.
+3. ~~Add a public verification URL route matching `PROOFKIT_SIGNATURE_VERIFICATION_BASE_URL`.~~ Done: defaults to `https://www.proofly.me/verify` via a Vercel rewrite.
 4. Add explicit consent text before opening or completing the signature canvas.
 5. Add locale-aware consent text for Brazil/Portuguese.
 6. Decide whether CPF collection is needed only for Brazil strong-signature mode.

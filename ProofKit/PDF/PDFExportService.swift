@@ -69,6 +69,9 @@ struct PDFSignatureStamp {
     let manifestSHA256: String
     let algorithm: String
     let keyVersion: String
+    /// Public authenticity page for the validation token, rendered as a QR code
+    /// next to the stamped signature so anyone holding the PDF can verify it.
+    let verificationURL: URL?
 }
 
 enum PDFSignaturePage: String, CaseIterable, Hashable, Identifiable {
@@ -1594,6 +1597,7 @@ private final class PDFCaseRenderer {
             drawStamp(
                 image: signatureStamp.image,
                 caption: "Proofly signature token: \(signatureStamp.validationToken)",
+                verificationURL: signatureStamp.verificationURL,
                 in: signatureRect(placement: signatureStamp.placement, customOffset: signatureStamp.customOffset)
             )
         }
@@ -1603,13 +1607,47 @@ private final class PDFCaseRenderer {
             drawStamp(
                 image: counterpartyStamp.image,
                 caption: "Signed by \(counterpartyStamp.signerName) · Proofly Ask Sign \(counterpartyStamp.requestID)",
+                verificationURL: nil,
                 in: signatureRect(placement: counterpartyStamp.placement, customOffset: nil)
             )
         }
     }
 
-    private func drawStamp(image: UIImage, caption: String, in signatureRect: CGRect) {
-        let imageBounds = signatureRect.insetBy(dx: 0, dy: 0)
+    private func drawStamp(image: UIImage, caption: String, verificationURL: URL?, in signatureRect: CGRect) {
+        var contentRect = signatureRect
+
+        if let verificationURL,
+           let qrImage = ProofKitQRCodeGenerator.image(for: verificationURL.absoluteString) {
+            let qrSide: CGFloat = 52
+            let labelHeight: CGFloat = 10
+            let qrRect = CGRect(
+                x: signatureRect.maxX - qrSide,
+                y: signatureRect.minY + (signatureRect.height - qrSide - labelHeight - 4) / 2,
+                width: qrSide,
+                height: qrSide
+            )
+
+            // White backdrop and crisp (non-interpolated) modules so the code stays
+            // scannable on paper and screens regardless of what's behind the stamp.
+            UIColor.white.setFill()
+            UIBezierPath(roundedRect: qrRect.insetBy(dx: -3, dy: -3), cornerRadius: 4).fill()
+            let cgContext = UIGraphicsGetCurrentContext()
+            cgContext?.interpolationQuality = .none
+            qrImage.draw(in: qrRect)
+            cgContext?.interpolationQuality = .default
+
+            drawText(
+                "Scan to verify",
+                in: CGRect(x: qrRect.minX - 8, y: qrRect.maxY + 4, width: qrSide + 16, height: labelHeight),
+                font: .systemFont(ofSize: 5.4, weight: .semibold),
+                color: UIColor.pdfSecondary.withAlphaComponent(0.82),
+                alignment: .center
+            )
+
+            contentRect.size.width -= qrSide + 10
+        }
+
+        let imageBounds = contentRect
             .divided(atDistance: 58, from: .minYEdge)
             .slice
         let imageRect = aspectFitRect(imageSize: image.size, in: imageBounds)
@@ -1618,7 +1656,7 @@ private final class PDFCaseRenderer {
         image.draw(in: imageRect, blendMode: .normal, alpha: 0.96)
         drawText(
             caption,
-            in: CGRect(x: signatureRect.minX, y: imageBounds.maxY + 3, width: signatureRect.width, height: 18),
+            in: CGRect(x: contentRect.minX, y: imageBounds.maxY + 3, width: contentRect.width, height: 18),
             font: .monospacedSystemFont(ofSize: 5.6, weight: .medium),
             color: UIColor.pdfSecondary.withAlphaComponent(0.82),
             alignment: .center

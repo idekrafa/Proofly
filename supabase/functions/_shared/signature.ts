@@ -27,8 +27,12 @@ export function configuredKeyVersion(): string {
   return Deno.env.get("PROOFKIT_SIGNATURE_KEY_VERSION")?.trim() || "v1";
 }
 
-export function configuredVerificationBaseURL(): string | null {
-  return Deno.env.get("PROOFKIT_SIGNATURE_VERIFICATION_BASE_URL")?.trim() || null;
+/// Public authenticity page. The marketing domain rewrites `/verify` to the
+/// `verify-signature-token` Edge Function, which serves HTML to browsers.
+const DEFAULT_VERIFICATION_BASE_URL = "https://www.proofly.me/verify";
+
+export function configuredVerificationBaseURL(): string {
+  return Deno.env.get("PROOFKIT_SIGNATURE_VERIFICATION_BASE_URL")?.trim() || DEFAULT_VERIFICATION_BASE_URL;
 }
 
 export function isSHA256Hex(value: unknown): value is string {
@@ -100,9 +104,8 @@ export async function makeValidationToken(manifestJSON: string): Promise<string>
   return `PK-SIG-${characters.match(/.{1,4}/g)?.join("-") ?? characters}`;
 }
 
-export function publicVerificationURL(token: string): string | null {
+export function publicVerificationURL(token: string): string {
   const baseURL = configuredVerificationBaseURL();
-  if (!baseURL) return null;
   const separator = baseURL.includes("?") ? "&" : "?";
   return `${baseURL}${separator}token=${encodeURIComponent(token)}`;
 }
