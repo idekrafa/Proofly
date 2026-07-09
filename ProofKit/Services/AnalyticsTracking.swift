@@ -50,10 +50,6 @@ protocol AnalyticsTracking {
     func trackSubscriptionCompleted(sourceScreen: AnalyticsScreen)
     func trackSubscriptionFailed(sourceScreen: AnalyticsScreen, errorType: AnalyticsErrorType)
 
-    func trackAIActionStarted(actionType: AnalyticsAIActionType)
-    func trackAIActionCompleted(actionType: AnalyticsAIActionType, creditsSpent: Int?, creditsRemaining: Int?, durationMS: Int)
-    func trackAIActionFailed(actionType: AnalyticsAIActionType, durationMS: Int, errorType: AnalyticsErrorType)
-    func trackAICreditsSpent(actionType: AnalyticsAIActionType, creditsSpent: Int, creditsRemaining: Int?)
 }
 
 struct PostHogAnalyticsConfiguration: Equatable {
@@ -391,48 +387,6 @@ final class AnalyticsService: AnalyticsTracking {
         capture(.subscriptionFailed, properties)
     }
 
-    func trackAIActionStarted(actionType: AnalyticsAIActionType) {
-        capture(.aiActionStarted, AnalyticsProperties(aiActionType: actionType))
-    }
-
-    func trackAIActionCompleted(actionType: AnalyticsAIActionType, creditsSpent: Int?, creditsRemaining: Int?, durationMS: Int) {
-        var properties = AnalyticsProperties(
-            aiActionType: actionType,
-            creditsSpent: creditsSpent.map { max(0, $0) },
-            creditsRemainingBucket: creditsRemaining.map(AnalyticsCreditBucket.init(remainingCredits:)),
-            durationMS: max(0, durationMS),
-            success: true
-        )
-        if properties.creditsSpent == 0 {
-            properties.creditsSpent = nil
-        }
-        capture(.aiActionCompleted, properties)
-    }
-
-    func trackAIActionFailed(actionType: AnalyticsAIActionType, durationMS: Int, errorType: AnalyticsErrorType = .unknown) {
-        capture(
-            .aiActionFailed,
-            AnalyticsProperties(
-                aiActionType: actionType,
-                durationMS: max(0, durationMS),
-                success: false,
-                errorType: errorType
-            )
-        )
-    }
-
-    func trackAICreditsSpent(actionType: AnalyticsAIActionType, creditsSpent: Int, creditsRemaining: Int?) {
-        guard creditsSpent > 0 else { return }
-        capture(
-            .aiCreditsSpent,
-            AnalyticsProperties(
-                aiActionType: actionType,
-                creditsSpent: creditsSpent,
-                creditsRemainingBucket: creditsRemaining.map(AnalyticsCreditBucket.init(remainingCredits:))
-            )
-        )
-    }
-
     private var isOptedOut: Bool {
         userDefaults.bool(forKey: Self.optOutStorageKey)
     }
@@ -567,10 +521,6 @@ enum AnalyticsEvent: String, CaseIterable {
     case subscriptionStarted = "subscription_started"
     case subscriptionCompleted = "subscription_completed"
     case subscriptionFailed = "subscription_failed"
-    case aiActionStarted = "ai_action_started"
-    case aiActionCompleted = "ai_action_completed"
-    case aiActionFailed = "ai_action_failed"
-    case aiCreditsSpent = "ai_credits_spent"
     case appOpened = "app_opened"
     case settingsOpened = "settings_opened"
     case supportOpened = "support_opened"
@@ -586,9 +536,6 @@ enum AnalyticsPropertyKey: String, CaseIterable {
     case readinessBucket = "readiness_bucket"
     case proofCountBucket = "proof_count_bucket"
     case timelineItemCountBucket = "timeline_item_count_bucket"
-    case aiActionType = "ai_action_type"
-    case creditsSpent = "credits_spent"
-    case creditsRemainingBucket = "credits_remaining_bucket"
     case durationMS = "duration_ms"
     case success
     case errorType = "error_type"
@@ -603,9 +550,6 @@ struct AnalyticsProperties {
     var readinessBucket: AnalyticsReadinessBucket?
     var proofCountBucket: AnalyticsCountBucket?
     var timelineItemCountBucket: AnalyticsCountBucket?
-    var aiActionType: AnalyticsAIActionType?
-    var creditsSpent: Int?
-    var creditsRemainingBucket: AnalyticsCreditBucket?
     var durationMS: Int?
     var success: Bool?
     var errorType: AnalyticsErrorType?
@@ -620,9 +564,6 @@ struct AnalyticsProperties {
         values[AnalyticsPropertyKey.readinessBucket.rawValue] = readinessBucket?.rawValue
         values[AnalyticsPropertyKey.proofCountBucket.rawValue] = proofCountBucket?.rawValue
         values[AnalyticsPropertyKey.timelineItemCountBucket.rawValue] = timelineItemCountBucket?.rawValue
-        values[AnalyticsPropertyKey.aiActionType.rawValue] = aiActionType?.rawValue
-        values[AnalyticsPropertyKey.creditsSpent.rawValue] = creditsSpent.map { max(0, $0) }
-        values[AnalyticsPropertyKey.creditsRemainingBucket.rawValue] = creditsRemainingBucket?.rawValue
         values[AnalyticsPropertyKey.durationMS.rawValue] = durationMS.map { max(0, $0) }
         values[AnalyticsPropertyKey.success.rawValue] = success
         values[AnalyticsPropertyKey.errorType.rawValue] = errorType?.rawValue
@@ -784,50 +725,6 @@ enum AnalyticsCountBucket: String {
             self = .sixToTen
         default:
             self = .elevenPlus
-        }
-    }
-}
-
-enum AnalyticsCreditBucket: String {
-    case zero = "0"
-    case oneToFive = "1_5"
-    case sixToTwenty = "6_20"
-    case twentyOneToFifty = "21_50"
-    case fiftyOnePlus = "51_plus"
-
-    nonisolated init(remainingCredits: Int) {
-        switch max(0, remainingCredits) {
-        case 0:
-            self = .zero
-        case 1...5:
-            self = .oneToFive
-        case 6...20:
-            self = .sixToTwenty
-        case 21...50:
-            self = .twentyOneToFifty
-        default:
-            self = .fiftyOnePlus
-        }
-    }
-}
-
-enum AnalyticsAIActionType: String {
-    case askAI = "ask_ai"
-    case timelineSummary = "timeline_summary"
-    case packetPolish = "packet_polish"
-    case deepReview = "deep_review"
-    case other
-
-    nonisolated init(_ taskType: AITaskType) {
-        switch taskType {
-        case .summarizeTimeline:
-            self = .timelineSummary
-        case .finalCaseNarrative:
-            self = .packetPolish
-        case .summarizeItem, .classifyEvidence:
-            self = .deepReview
-        case .rewriteNote, .suggestTitle:
-            self = .other
         }
     }
 }

@@ -29,9 +29,6 @@ final class CaseFile {
     @Relationship(deleteRule: .cascade, inverse: \ExportPacket.caseFile)
     var exportPackets: [ExportPacket]
 
-    @Relationship(deleteRule: .cascade, inverse: \AIResultCache.caseFile)
-    var aiResultCaches: [AIResultCache]
-
     init(
         id: UUID = UUID(),
         caseType: CaseType = .general,
@@ -47,8 +44,7 @@ final class CaseFile {
         updatedAt: Date = .now,
         archivedAt: Date? = nil,
         evidenceItems: [EvidenceItem] = [],
-        exportPackets: [ExportPacket] = [],
-        aiResultCaches: [AIResultCache] = []
+        exportPackets: [ExportPacket] = []
     ) {
         self.id = id
         self.caseTypeRawValue = caseType.rawValue
@@ -65,7 +61,6 @@ final class CaseFile {
         self.archivedAt = archivedAt
         self.evidenceItems = evidenceItems
         self.exportPackets = exportPackets
-        self.aiResultCaches = aiResultCaches
     }
 
     var caseType: CaseType {

@@ -725,5 +725,5 @@ private struct AddProofOptionButtonStyle: ButtonStyle {
         onManualEntryRequested: {},
         onImportComplete: { _ in }
     )
-    .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self, AIResultCache.self], inMemory: true)
+    .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self], inMemory: true)
 }

@@ -24,8 +24,6 @@ enum ProofKitPlan: String, CaseIterable, Codable, Identifiable {
             ProofKitPlanLimits(
                 activeCaseLimit: 1,
                 evidenceItemLimit: 20,
-                monthlyAICredits: 0,
-                aiCreditsRenewMonthly: true,
                 finalCaseExportLimit: nil,
                 exportsAreWatermarked: true
             )
@@ -33,8 +31,6 @@ enum ProofKitPlan: String, CaseIterable, Codable, Identifiable {
             ProofKitPlanLimits(
                 activeCaseLimit: 1,
                 evidenceItemLimit: 75,
-                monthlyAICredits: 0,
-                aiCreditsRenewMonthly: false,
                 finalCaseExportLimit: 1,
                 exportsAreWatermarked: false
             )
@@ -42,8 +38,6 @@ enum ProofKitPlan: String, CaseIterable, Codable, Identifiable {
             ProofKitPlanLimits(
                 activeCaseLimit: nil,
                 evidenceItemLimit: nil,
-                monthlyAICredits: 75,
-                aiCreditsRenewMonthly: true,
                 finalCaseExportLimit: nil,
                 exportsAreWatermarked: false
             )
@@ -101,8 +95,6 @@ enum ProofKitPlan: String, CaseIterable, Codable, Identifiable {
 struct ProofKitPlanLimits: Codable, Equatable {
     let activeCaseLimit: Int?
     let evidenceItemLimit: Int?
-    let monthlyAICredits: Int
-    let aiCreditsRenewMonthly: Bool
     let finalCaseExportLimit: Int?
     let exportsAreWatermarked: Bool
 
@@ -112,11 +104,6 @@ struct ProofKitPlanLimits: Codable, Equatable {
 
     var evidenceItemLimitText: String {
         evidenceItemLimit.map { "\($0) proof items" } ?? "Unlimited proof items"
-    }
-
-    var aiCreditLimitText: String {
-        guard monthlyAICredits > 0 else { return "No AI credits" }
-        return "\(monthlyAICredits) AI credit\(monthlyAICredits == 1 ? "" : "s")\(aiCreditsRenewMonthly ? "/month" : "")"
     }
 
     var exportLimitText: String {
@@ -176,14 +163,6 @@ enum ProofKitSubscriptionStatus: String, Codable, Equatable {
         }
     }
 
-    var allowsAI: Bool {
-        switch self {
-        case .trialing, .activeWeekly, .activeMonthly:
-            true
-        case .expired, .cancelled, .billingRetry, .revokedOrRefunded:
-            false
-        }
-    }
 }
 
 struct ProofKitEntitlementSnapshot: Equatable {
@@ -194,23 +173,6 @@ struct ProofKitEntitlementSnapshot: Equatable {
     let subscriptionStatus: ProofKitSubscriptionStatus
 
     var limits: ProofKitPlanLimits { plan.limits }
-    var includedAICredits: Int {
-        guard subscriptionStatus.allowsAI || plan == .pro else { return 0 }
-        if subscriptionStatus == .trialing { return ProofKitTrialPolicy.aiCreditAllowance }
-        return subscriptionProduct?.includedAICredits ?? limits.monthlyAICredits
-    }
-
-    var aiCreditRenewalText: String {
-        if subscriptionStatus == .trialing {
-            return "Trial, then weekly"
-        }
-
-        if let subscriptionProduct {
-            return subscriptionProduct.creditRenewalText
-        }
-
-        return limits.aiCreditsRenewMonthly ? "Monthly" : "One-time"
-    }
 
     var statusDisplayText: String {
         if plan == .pro {
@@ -259,39 +221,6 @@ struct PaywallAccessDecision: Equatable, Identifiable {
         message: "",
         suggestedPlan: nil
     )
-}
-
-extension ProofKitSubscriptionProduct {
-    var includedAICredits: Int {
-        switch self {
-        case .weekly:
-            15
-        case .monthly:
-            75
-        }
-    }
-
-    var creditRenewalText: String {
-        switch self {
-        case .weekly:
-            "Weekly"
-        case .monthly:
-            "Monthly"
-        }
-    }
-
-    var creditLineText: String {
-        switch self {
-        case .weekly:
-            "15 AI credits/week"
-        case .monthly:
-            "75 AI credits/month"
-        }
-    }
-}
-
-enum ProofKitTrialPolicy {
-    static let aiCreditAllowance = 3
 }
 
 struct ProofKitExportAccess: Equatable {

@@ -160,43 +160,6 @@ enum AttachmentType: String, CaseIterable, Codable, Identifiable {
     }
 }
 
-enum AITaskType: String, CaseIterable, Codable, Identifiable {
-    case rewriteNote
-    case suggestTitle
-    case classifyEvidence
-    case summarizeItem
-    case summarizeTimeline
-    case finalCaseNarrative
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .rewriteNote:
-            "Rewrite Note"
-        case .suggestTitle:
-            "Suggest Title"
-        case .classifyEvidence:
-            "Classify Evidence"
-        case .summarizeItem:
-            "Summarize Item"
-        case .summarizeTimeline:
-            "Summarize Timeline"
-        case .finalCaseNarrative:
-            "Final Case Narrative"
-        }
-    }
-
-    var isCaseLevelTask: Bool {
-        switch self {
-        case .summarizeTimeline, .finalCaseNarrative:
-            true
-        case .rewriteNote, .suggestTitle, .classifyEvidence, .summarizeItem:
-            false
-        }
-    }
-}
-
 enum DateSource: String, CaseIterable, Codable, Identifiable {
     case notSpecified
     case userEntered

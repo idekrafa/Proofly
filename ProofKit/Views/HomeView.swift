@@ -46,8 +46,7 @@ struct HomeView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
                     HomeStatusPillHost(
-                        healthMonitor: services.serviceHealth,
-                        queue: services.aiQueue
+                        healthMonitor: services.serviceHealth
                     ) {
                         isShowingAppStatus = true
                     }
@@ -148,8 +147,7 @@ struct HomeView: View {
             }
             .sheet(isPresented: $isShowingAppStatus) {
                 AppStatusView(
-                    healthMonitor: services.serviceHealth,
-                    queue: services.aiQueue
+                    healthMonitor: services.serviceHealth
                 )
             }
             .onChange(of: isShowingCreateCaseFlow) { _, isPresented in
@@ -1031,7 +1029,7 @@ private extension String {
 
 #Preview {
     HomePreview()
-        .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self, AIResultCache.self], inMemory: true)
+        .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self], inMemory: true)
 }
 
 private struct HomePreview: View {

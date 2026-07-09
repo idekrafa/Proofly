@@ -786,7 +786,7 @@ private extension String {
 
 #Preview {
     CasesPreview()
-        .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self, AIResultCache.self], inMemory: true)
+        .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self], inMemory: true)
 }
 
 private struct CasesPreview: View {

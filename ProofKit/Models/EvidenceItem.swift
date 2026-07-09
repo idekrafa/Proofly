@@ -49,9 +49,6 @@ final class EvidenceItem {
     @Relationship(deleteRule: .cascade, inverse: \Attachment.evidenceItem)
     var attachments: [Attachment]
 
-    @Relationship(deleteRule: .cascade, inverse: \AIResultCache.evidenceItem)
-    var aiResultCaches: [AIResultCache]
-
     init(
         id: UUID = UUID(),
         category: EvidenceCategory = .uncategorized,
@@ -82,8 +79,7 @@ final class EvidenceItem {
         updatedAt: Date = .now,
         sortIndex: Int = 0,
         caseFile: CaseFile? = nil,
-        attachments: [Attachment] = [],
-        aiResultCaches: [AIResultCache] = []
+        attachments: [Attachment] = []
     ) {
         self.id = id
         self.categoryRawValue = category.rawValue
@@ -115,7 +111,6 @@ final class EvidenceItem {
         self.sortIndex = sortIndex
         self.caseFile = caseFile
         self.attachments = attachments
-        self.aiResultCaches = aiResultCaches
     }
 
     var category: EvidenceCategory {

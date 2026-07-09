@@ -31,19 +31,6 @@ struct PaywallPlanCard: View {
                         }
                     }
 
-                    Label(plan.creditLine, systemImage: "sparkles")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(ProofKitPaywallStyle.teal)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background {
-                            Capsule(style: .continuous)
-                                .fill(ProofKitPaywallStyle.teal.opacity(isSelected ? 0.16 : 0.10))
-                        }
-                        .accessibilityLabel(plan.creditLine)
-
                     if let trialLine = plan.trialLine {
                         Text(trialLine)
                             .font(.caption.weight(.semibold))
@@ -150,9 +137,6 @@ struct PaywallLimitsCard: View {
                 PlanLimitRow(title: "Evidence", value: entitlement.limits.evidenceItemLimitText)
                 Divider()
                     .padding(.leading, 14)
-                PlanLimitRow(title: "AI credits", value: aiCreditLimitText)
-                Divider()
-                    .padding(.leading, 14)
                 PlanLimitRow(title: "Export", value: entitlement.limits.exportLimitText)
             }
             .background {
@@ -180,13 +164,6 @@ struct PaywallLimitsCard: View {
         }
     }
 
-    private var aiCreditLimitText: String {
-        guard entitlement.includedAICredits > 0 else {
-            return "Not included"
-        }
-
-        return "\(entitlement.includedAICredits) \(entitlement.aiCreditRenewalText.lowercased())"
-    }
 }
 
 private struct PlanLimitRow: View {

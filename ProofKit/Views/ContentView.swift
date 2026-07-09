@@ -84,20 +84,7 @@ struct ContentView: View {
         }
         .task {
             services.serviceHealth.start()
-            services.aiQueue.refreshSummary(in: modelContext)
             await services.serviceHealth.recheck()
-            await services.aiQueue.processPendingItems(in: modelContext)
-        }
-        .task {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 30_000_000_000)
-                await services.serviceHealth.recheck()
-                await services.aiQueue.processPendingItems(in: modelContext)
-            }
-        }
-        .onReceive(services.serviceHealth.$snapshot) { snapshot in
-            guard snapshot.state == .healthy else { return }
-            Task { await services.aiQueue.processPendingItems(in: modelContext) }
         }
         .task(id: firstCaseSeed?.id) {
             try? await Task.sleep(nanoseconds: 250_000_000)
@@ -921,5 +908,5 @@ private struct RootPlaceholderView: View {
 
 #Preview {
     ContentView()
-        .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self, AIResultCache.self], inMemory: true)
+        .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self], inMemory: true)
 }

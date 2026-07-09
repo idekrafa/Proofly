@@ -6,7 +6,6 @@ enum ServiceHealthState: String, CaseIterable, Equatable {
     case healthy
     case offline
     case supabaseDown
-    case aiProviderDown
     case degraded
     case checking
 
@@ -21,8 +20,6 @@ enum ServiceHealthState: String, CaseIterable, Equatable {
             "Proofly is offline"
         case .supabaseDown:
             "Supabase connection issue"
-        case .aiProviderDown:
-            "AI provider unavailable"
         case .degraded:
             "Services degraded"
         case .checking:
@@ -38,8 +35,6 @@ enum ServiceHealthState: String, CaseIterable, Equatable {
             "Offline"
         case .supabaseDown:
             "Server issues"
-        case .aiProviderDown:
-            "AI delayed"
         case .degraded:
             "Server issues"
         case .checking:
@@ -71,26 +66,24 @@ struct ServiceHealthSnapshot: Equatable {
 
 enum ServiceHealthIssueContext {
     case supabaseEdgeFunction
-    case aiProvider
     case auth
-    case credits
 }
 
 @MainActor
 final class ServiceHealthMonitor: ObservableObject {
     @Published private(set) var snapshot: ServiceHealthSnapshot = .checking
 
-    private let aiCredits: any AICreditTrackingServicing
+    private let purchaseEntitlements: any PurchaseEntitlementServicing
     private let account: any AccountServicing
     private let monitor = NWPathMonitor()
     private let monitorQueue = DispatchQueue(label: "proofly.service-health.network")
     private var didStartNetworkMonitoring = false
 
     init(
-        aiCredits: any AICreditTrackingServicing,
+        purchaseEntitlements: any PurchaseEntitlementServicing,
         account: any AccountServicing
     ) {
-        self.aiCredits = aiCredits
+        self.purchaseEntitlements = purchaseEntitlements
         self.account = account
     }
 
@@ -158,7 +151,7 @@ final class ServiceHealthMonitor: ObservableObject {
         )
 
         do {
-            _ = try await aiCredits.fetchAICreditBalance()
+            _ = try await purchaseEntitlements.fetchPurchaseEntitlements()
             snapshot = .healthy
         } catch {
             record(error, context: .supabaseEdgeFunction)
@@ -203,8 +196,6 @@ final class ServiceHealthMonitor: ObservableObject {
             text.contains("unavailable") ||
             text.contains("function") ||
             text.contains("supabase") ||
-            text.contains("anthropic") ||
-            text.contains("claude") ||
             text.contains("rate limit") ||
             text.contains("429") ||
             text.contains("503") ||
@@ -222,14 +213,6 @@ final class ServiceHealthMonitor: ObservableObject {
         }
 
         let text = errorText(error)
-        if context == .aiProvider ||
-            text.contains("anthropic") ||
-            text.contains("claude") ||
-            text.contains("rate limit") ||
-            text.contains("429") {
-            return .aiProviderDown
-        }
-
         if context == .auth || text.contains("auth") || text.contains("jwt") || text.contains("session") {
             return .degraded
         }
@@ -255,9 +238,7 @@ final class ServiceHealthMonitor: ObservableObject {
         case .offline:
             "No network connection is available. Local proof, OCR, notes, and exports remain on this device."
         case .supabaseDown:
-            "Proofly could not reach its server functions. AI and credit refreshes are queued or paused until services return."
-        case .aiProviderDown:
-            "The AI provider is temporarily unavailable or rate limited. AI requests will wait and retry."
+            "Proofly could not reach its server functions. Server-backed features are paused until services return."
         case .degraded:
             context == .auth
                 ? "Your server session may need a refresh. Local proof remains usable."
