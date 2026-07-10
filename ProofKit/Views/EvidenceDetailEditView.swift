@@ -22,10 +22,6 @@ struct EvidenceDetailEditView: View {
     @State private var userMarkedImportant: Bool
     @State private var saveMessage: String?
     @State private var saveErrorMessage: String?
-    @State private var aiCleanupMessage: String?
-    @State private var aiCleanupErrorMessage: String?
-    @State private var isCleaningNoteWithAI = false
-    @State private var showingAIPaywall = false
     @State private var isOriginalOCRExpanded = false
     @State private var originalFilePreviewURL: URL?
     @State private var isDeleteConfirmationPresented = false
@@ -211,9 +207,6 @@ struct EvidenceDetailEditView: View {
             bottomActionBar
         }
         .quickLookPreview($originalFilePreviewURL)
-        .sheet(isPresented: $showingAIPaywall) {
-            PaywallView()
-        }
         .confirmationDialog(
             "Delete proof from this case?",
             isPresented: $isDeleteConfirmationPresented,
@@ -229,9 +222,6 @@ struct EvidenceDetailEditView: View {
         }
         .animation(ProofKitMotion.standard, value: saveMessage)
         .animation(ProofKitMotion.standard, value: saveErrorMessage)
-        .animation(ProofKitMotion.standard, value: aiCleanupMessage)
-        .animation(ProofKitMotion.standard, value: aiCleanupErrorMessage)
-        .animation(ProofKitMotion.standard, value: isCleaningNoteWithAI)
     }
 
     private var evidenceSummarySection: some View {
@@ -375,77 +365,16 @@ struct EvidenceDetailEditView: View {
                 }
 
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
-                    HStack(alignment: .top, spacing: 12) {
-                        EvidenceDetailFieldHeader(
-                            title: String(localized: "AI-cleaned note"),
-                            subtitle: String(localized: "A tidy version you can use later in the case. AI cleanup does not change your note or OCR text.")
-                        )
-
-                        Spacer(minLength: 12)
-
-                        Button {
-                            Task {
-                                await cleanUpNoteWithAI()
-                            }
-                        } label: {
-                            HStack(spacing: 7) {
-                                if isCleaningNoteWithAI {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                        .transition(.opacity)
-                                } else {
-                                    Image(systemName: "sparkles")
-                                        .font(.footnote.weight(.semibold))
-                                        .transition(.opacity)
-                                }
-
-                                Text(isCleaningNoteWithAI ? "Cleaning…" : "Clean up with AI")
-                                    .font(.footnote.weight(.semibold))
-                                    .contentTransition(.opacity)
-                            }
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(isCleaningNoteWithAI || userNote.detailTrimmedText.isEmpty)
-                    }
+                    EvidenceDetailFieldHeader(
+                        title: String(localized: "Cleaned note"),
+                        subtitle: String(localized: "An optional tidy version you can use later in the case. It never changes your note or OCR text.")
+                    )
 
                     EvidenceDetailTextEditor(
                         text: $cleanedNote,
                         minHeight: 112,
-                        accessibilityLabel: String(localized: "AI-cleaned note")
+                        accessibilityLabel: String(localized: "Cleaned note")
                     )
-
-                    if userNote.detailTrimmedText.isEmpty {
-                        Text("Add a note to clean it up with AI.")
-                            .font(.caption)
-                            .foregroundStyle(ProofKitVisual.helperText)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    Text("AI only sees your note, selected OCR text, and basic details. Raw files stay on this device.")
-                        .font(.caption)
-                        .foregroundStyle(ProofKitVisual.helperText)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Text("Uses 1 AI credit. Local OCR and proof editing are free.")
-                        .font(.caption)
-                        .foregroundStyle(ProofKitVisual.helperText)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if let aiCleanupMessage {
-                        Text(aiCleanupMessage)
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(ProofKitVisual.helperText)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .transition(ProofKitMotion.compactInsertion)
-                    }
-
-                    if let aiCleanupErrorMessage {
-                        Text(aiCleanupErrorMessage)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .transition(ProofKitMotion.compactInsertion)
-                    }
                 }
 
                 VStack(alignment: .leading, spacing: ProofKitVisual.fieldSpacing) {
@@ -868,150 +797,6 @@ struct EvidenceDetailEditView: View {
         }
     }
 
-    private func cleanUpNoteWithAI() async {
-        let trimmedUserNote = userNote.detailTrimmedText
-        guard !trimmedUserNote.isEmpty else {
-            withAnimation(ProofKitMotion.standard) {
-                aiCleanupMessage = nil
-                aiCleanupErrorMessage = String(localized: "Add a note to clean it up with AI.")
-            }
-            return
-        }
-
-        let analyticsActionType = AnalyticsAIActionType.other
-        let analyticsStartedAt = Date()
-        services.analytics.trackAIActionStarted(actionType: analyticsActionType)
-
-        let planDecision = await services.paywall.canUseAI()
-        guard planDecision.isAllowed else {
-            services.analytics.trackAIActionFailed(
-                actionType: analyticsActionType,
-                durationMS: Self.analyticsDurationMS(since: analyticsStartedAt),
-                errorType: .subscriptionFailed
-            )
-            showingAIPaywall = true
-            return
-        }
-
-        withAnimation(ProofKitMotion.standard) {
-            isCleaningNoteWithAI = true
-            aiCleanupMessage = nil
-            aiCleanupErrorMessage = nil
-            saveMessage = nil
-            saveErrorMessage = nil
-        }
-
-        do {
-            withAnimation(ProofKitMotion.standard) {
-                aiCleanupMessage = String(localized: "Checking AI credits…")
-            }
-            _ = try await requireAvailableAICredits()
-            withAnimation(ProofKitMotion.standard) {
-                aiCleanupMessage = String(localized: "Cleaning note with the text-only AI proxy…")
-            }
-
-            let result = try await services.aiRouter.cleanUpNote(
-                for: evidenceItem,
-                userNote: trimmedUserNote,
-                in: modelContext,
-                userTriggered: true
-            )
-
-            let rewrittenNote = result.outputText.detailTrimmedText
-            guard !rewrittenNote.isEmpty else {
-                throw ProofKitError.remotePolicyViolation(String(localized: "The AI proxy returned an empty rewrite."))
-            }
-
-            withAnimation(ProofKitMotion.standard) {
-                cleanedNote = rewrittenNote
-            }
-            evidenceItem.userNotes = trimmedUserNote
-            evidenceItem.userCleanedNote = rewrittenNote
-
-            let now = Date()
-            evidenceItem.updatedAt = now
-            evidenceItem.caseFile?.updatedAt = now
-
-            try modelContext.save()
-
-            let durationMS = Self.analyticsDurationMS(since: analyticsStartedAt)
-            services.analytics.trackAIActionCompleted(
-                actionType: analyticsActionType,
-                creditsSpent: result.creditsUsed,
-                creditsRemaining: result.remainingCredits,
-                durationMS: durationMS
-            )
-            if let creditsUsed = result.creditsUsed, creditsUsed > 0 {
-                services.analytics.trackAICreditsSpent(
-                    actionType: analyticsActionType,
-                    creditsSpent: creditsUsed,
-                    creditsRemaining: result.remainingCredits
-                )
-            }
-
-            withAnimation(ProofKitMotion.standard) {
-                savedSnapshot.userNote = trimmedUserNote
-                savedSnapshot.cleanedNote = rewrittenNote
-                aiCleanupMessage = cleanupSuccessMessage(for: result)
-                aiCleanupErrorMessage = nil
-            }
-        } catch {
-            services.analytics.trackAIActionFailed(
-                actionType: analyticsActionType,
-                durationMS: Self.analyticsDurationMS(since: analyticsStartedAt),
-                errorType: AnalyticsErrorType(error)
-            )
-            if ServiceHealthMonitor.isServiceAvailabilityError(error) || services.serviceHealth.snapshot.state.isDegraded {
-                services.serviceHealth.record(error, context: .aiProvider)
-                do {
-                    evidenceItem.userNotes = trimmedUserNote
-                    evidenceItem.updatedAt = .now
-                    evidenceItem.caseFile?.updatedAt = .now
-                    try services.aiQueue.enqueueCleanUpNote(
-                        for: evidenceItem,
-                        in: modelContext
-                    )
-                    try modelContext.save()
-
-                    withAnimation(ProofKitMotion.standard) {
-                        savedSnapshot.userNote = trimmedUserNote
-                        aiCleanupMessage = String(localized: "Clean Up Note queued. AI will run when connection returns and credits are available.")
-                        aiCleanupErrorMessage = nil
-                    }
-                } catch {
-                    withAnimation(ProofKitMotion.standard) {
-                        aiCleanupMessage = nil
-                        aiCleanupErrorMessage = cleanupErrorMessage(for: error)
-                    }
-                }
-            } else {
-                withAnimation(ProofKitMotion.standard) {
-                    aiCleanupMessage = nil
-                    aiCleanupErrorMessage = cleanupErrorMessage(for: error)
-                }
-            }
-        }
-
-        withAnimation(ProofKitMotion.standard) {
-            isCleaningNoteWithAI = false
-        }
-    }
-
-    private func requireAvailableAICredits() async throws -> AICreditBalance {
-        guard services.account.isConfigured else {
-            throw ProofKitError.supabaseNotConfigured
-        }
-
-        let balance = try await services.aiCredits.fetchAICreditBalance()
-        guard balance.availableCredits > 0 else {
-            throw ProofKitError.remotePolicyViolation(
-                String(localized: "You’re out of AI credits. Clean Up Note needs 1 AI credit. Local OCR, importing, timeline editing, and free watermarked exports still work.")
-            )
-        }
-
-        return balance
-    }
-
     private var shouldPersistProofType: Bool {
         category != savedSnapshot.category ||
             Self.editableProofTypeCategories.contains(evidenceItem.category)
@@ -1031,10 +816,6 @@ struct EvidenceDetailEditView: View {
         return !Calendar.current.isDate(eventDate, inSameDayAs: currentPersistedEventDate)
     }
 
-    private static func analyticsDurationMS(since startDate: Date) -> Int {
-        max(0, Int(Date().timeIntervalSince(startDate) * 1_000))
-    }
-
     private func formattedFileSize(_ bytes: Int64?) -> String {
         guard let bytes else {
             return "—"
@@ -1043,43 +824,6 @@ struct EvidenceDetailEditView: View {
         return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
-    private func cleanupSuccessMessage(for result: AITaskRouteResult) -> String {
-        if result.wasCacheHit {
-            return String(localized: "AI-cleaned note restored from local cache. No new AI credits were used.")
-        }
-
-        if let remainingCredits = result.remainingCredits {
-            if let creditsUsed = result.creditsUsed {
-                let usedPhrase = String(localized: "\(creditsUsed) AI credit used server-side")
-                let remainingPhrase = String(localized: "\(remainingCredits) AI credit remaining")
-                return String(localized: "AI-cleaned note saved locally. \(usedPhrase). \(remainingPhrase).")
-            }
-
-            return String(localized: "AI-cleaned note saved locally. Credits were handled server-side. \(remainingCredits) remaining.")
-        }
-
-        return String(localized: "AI-cleaned note saved locally. Credits were handled server-side.")
-    }
-
-    private func cleanupErrorMessage(for error: Error) -> String {
-        if let proofKitError = error as? ProofKitError {
-            switch proofKitError {
-            case .supabaseNotConfigured:
-                return String(localized: "AI credits are not configured for this build. Local OCR and proof organization still work.")
-            case .supabaseSDKUnavailable:
-                return String(localized: "AI credits are unavailable in this build. Local OCR and proof organization still work.")
-            default:
-                break
-            }
-        }
-
-        if let localizedError = error as? LocalizedError,
-           let description = localizedError.errorDescription {
-            return description
-        }
-
-        return String(localized: "Proofly could not clean up this note. Please try again.")
-    }
 }
 
 private struct EvidenceEditSnapshot {
@@ -1421,5 +1165,5 @@ private enum EvidenceDetailEditPreviewData {
     NavigationStack {
         EvidenceDetailEditView(evidenceItem: evidenceItem)
     }
-    .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self, AIResultCache.self], inMemory: true)
+    .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self], inMemory: true)
 }

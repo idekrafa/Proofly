@@ -51,7 +51,6 @@ struct GlobalSettingsView: View {
     @State private var entitlement = ProofKitEntitlementSnapshot.placeholder()
     @State private var accountSession: ProofKitAccountSession?
     @State private var accountProfile = SettingsEditableAccountProfile.empty
-    @State private var aiCreditsText = String(localized: "Checking…")
     @State private var settingsNotice: SettingsNotice?
     @State private var exportFile: SettingsExportFile?
     @State private var infoSheet: SettingsInfoPresentation?
@@ -195,8 +194,7 @@ struct GlobalSettingsView: View {
             }
             .sheet(isPresented: $showingAppStatus) {
                 AppStatusView(
-                    healthMonitor: services.serviceHealth,
-                    queue: services.aiQueue
+                    healthMonitor: services.serviceHealth
                 )
             }
             .sheet(item: $infoSheet) { sheet in
@@ -294,7 +292,7 @@ struct GlobalSettingsView: View {
     private var planSection: some View {
         settingsSection(
             title: String(localized: "Plan"),
-            copy: String(localized: "AI tools will use credits once they launch. Your core proof timeline stays usable without AI."),
+            copy: String(localized: "Pro unlocks unlimited cases, unlimited proof, and clean exports."),
             delay: 0.06
         ) {
             SettingsGroup {
@@ -303,15 +301,6 @@ struct GlobalSettingsView: View {
                     iconColor: .yellow,
                     title: String(localized: "Current plan"),
                     value: planStatusText
-                )
-
-                SettingsDivider()
-
-                SettingsValueRow(
-                    icon: "sparkles",
-                    iconColor: ProofKitVisual.accentSecondary,
-                    title: String(localized: "AI credits"),
-                    value: aiCreditsText
                 )
 
                 SettingsDivider()
@@ -569,7 +558,6 @@ struct GlobalSettingsView: View {
     @MainActor
     private func loadSettings() async {
         entitlement = await services.paywall.currentEntitlement()
-        aiCreditsText = await currentAICreditsText(for: entitlement)
 
         guard services.account.isConfigured else {
             accountSession = nil
@@ -586,29 +574,6 @@ struct GlobalSettingsView: View {
         if let session = authResult?.session {
             SettingsAccountProfileStore.clear(for: session)
         }
-    }
-
-    @MainActor
-    private func currentAICreditsText(for entitlement: ProofKitEntitlementSnapshot) async -> String {
-        guard services.account.isConfigured else {
-            return Self.includedCreditsText(for: entitlement)
-        }
-
-        do {
-            let balance = try await services.aiCredits.fetchAICreditBalance()
-            return String(localized: "\(balance.availableCredits) available")
-        } catch {
-            return Self.includedCreditsText(for: entitlement)
-        }
-    }
-
-    private static func includedCreditsText(for entitlement: ProofKitEntitlementSnapshot) -> String {
-        let credits = entitlement.includedAICredits
-        if credits <= 0 {
-            return String(localized: "Not included")
-        }
-
-        return String(localized: "\(credits) \(entitlement.aiCreditRenewalText.lowercased()) included")
     }
 
     @MainActor
@@ -755,8 +720,7 @@ struct GlobalSettingsView: View {
                 for: caseFiles,
                 accountName: editableNameValue,
                 accountEmail: editableEmailValue,
-                plan: planStatusText,
-                aiCreditsText: aiCreditsText
+                plan: planStatusText
             )
             exportFile = file
         } catch {
@@ -826,7 +790,6 @@ struct GlobalSettingsView: View {
             "App version: \(SettingsAppVersionText.current)",
             "Account state: \(accountSession == nil ? "Signed out/local" : "Signed in")",
             "Plan: \(planStatusText)",
-            "AI credits: \(aiCreditsText)",
             "Local cases: \(localCaseCountText)",
             "Proof items: \(localProofItemCountText)",
             "Exports: \(localExportCountText)",
@@ -845,8 +808,7 @@ struct GlobalSettingsView: View {
         for caseFiles: [CaseFile],
         accountName: String,
         accountEmail: String,
-        plan: String,
-        aiCreditsText: String
+        plan: String
     ) throws -> SettingsExportFile {
         let snapshot = ProofKitSettingsDataExport(
             exportedAt: .now,
@@ -854,7 +816,6 @@ struct GlobalSettingsView: View {
             accountName: normalizedName(accountName),
             accountEmail: normalizedEmail(accountEmail),
             plan: plan,
-            aiCreditsText: aiCreditsText,
             caseCount: caseFiles.count,
             cases: caseFiles.map(ProofKitSettingsCaseExport.init(caseFile:))
         )
@@ -1641,7 +1602,6 @@ private struct ProofKitSettingsDataExport: Encodable {
     let accountName: String?
     let accountEmail: String?
     let plan: String
-    let aiCreditsText: String
     let caseCount: Int
     let cases: [ProofKitSettingsCaseExport]
 }
@@ -1786,5 +1746,5 @@ private struct ProofKitSettingsPDFExport: Encodable {
 
 #Preview {
     GlobalSettingsView()
-        .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self, AIResultCache.self], inMemory: true)
+        .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self], inMemory: true)
 }

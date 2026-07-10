@@ -5,7 +5,6 @@ protocol PaywallServicing {
     func currentEntitlement() async -> ProofKitEntitlementSnapshot
     func canCreateCase(existingCases: [CaseFile]) async -> PaywallAccessDecision
     func canAddEvidence(to caseFile: CaseFile, adding additionalItemCount: Int) async -> PaywallAccessDecision
-    func canUseAI() async -> PaywallAccessDecision
     func exportAccess(for caseFile: CaseFile) async -> ProofKitExportAccess
 }
 
@@ -94,20 +93,6 @@ final class PlaceholderPaywallService: PaywallServicing {
                 isAllowed: false,
                 title: String(localized: "Evidence limit reached"),
                 message: message,
-                suggestedPlan: .pro
-            )
-        }
-
-        return .allowed
-    }
-
-    func canUseAI() async -> PaywallAccessDecision {
-        let entitlement = await currentEntitlement()
-        guard entitlement.includedAICredits > 0, entitlement.subscriptionStatus.allowsAI || entitlement.plan == .pro else {
-            return PaywallAccessDecision(
-                isAllowed: false,
-                title: String(localized: "AI credits unavailable"),
-                message: String(localized: "\(entitlement.statusDisplayText) does not include available AI credits. Local OCR and organization still work."),
                 suggestedPlan: .pro
             )
         }

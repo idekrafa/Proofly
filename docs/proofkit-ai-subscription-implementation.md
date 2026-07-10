@@ -1,5 +1,11 @@
 # ProofKit / Proofly AI + Subscription Implementation Documentation
 
+> **Note (2026-07-09):** AI was removed from Proofly entirely — the `ai-proxy`,
+> `ai-credit-balance`, and `ai-credit-reserve` Edge Functions, the credit
+> tables/RPCs (migration `20260709120000_remove_ai_credit_system.sql`), and all
+> in-app AI features (Timeline Summary, Packet Polish, Clean Up Note). The Pro
+> plan no longer includes AI services. This document is historical.
+
 Date: 2026-05-11
 
 Status: first release-ready vertical slice implemented locally; Supabase database migrations applied via Supabase MCP; Edge Functions not deployed yet.

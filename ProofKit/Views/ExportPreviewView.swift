@@ -117,11 +117,10 @@ struct ExportPreviewView: View {
         .sheet(isPresented: $isSignatureSheetPresented, onDismiss: cleanUpUnsignedPreview) {
             SignatureCaptureView(
                 initialPage: signatureConfiguration?.page ?? .lastPage,
-                initialPlacement: signatureConfiguration?.placement ?? .lowerRight,
-                initialCustomOffset: signatureConfiguration?.customOffset,
+                initialCustomOffset: signatureConfiguration.map { $0.customOffset ?? $0.placement.normalizedCenter },
                 documentURL: unsignedPreviewURL
-            ) { image, page, placement, customOffset in
-                Task { await completeSignature(image: image, page: page, placement: placement, customOffset: customOffset) }
+            ) { image, page, customOffset in
+                Task { await completeSignature(image: image, page: page, customOffset: customOffset) }
             }
         }
         .sheet(isPresented: $isSignaturePaywallPresented, onDismiss: runPostPaywallActionIfNeeded) {
@@ -620,6 +619,20 @@ struct ExportPreviewView: View {
                 Label("Link expires \(Self.exportDateFormatter.string(from: expiresAt))", systemImage: "clock")
                     .font(.caption)
                     .foregroundStyle(ProofKitVisual.subduedText)
+            }
+
+            if let shareURL = status.shareURL {
+                VStack(spacing: 8) {
+                    ProofKitQRCodeView(content: shareURL.absoluteString, size: 150)
+
+                    Text("In person? They can scan this code to open the signing page.")
+                        .font(.caption)
+                        .foregroundStyle(ProofKitVisual.subduedText)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
             }
 
             HStack(spacing: 10) {
@@ -1217,7 +1230,7 @@ struct ExportPreviewView: View {
     }
 
     @MainActor
-    private func completeSignature(image: UIImage, page: PDFSignaturePage, placement: PDFSignaturePlacement, customOffset: CGPoint?) async {
+    private func completeSignature(image: UIImage, page: PDFSignaturePage, customOffset: CGPoint) async {
         let signedAt = Date()
         let sourceExport = generatedExport
         let shouldGenerateSignedPDF = sourceExport != nil
@@ -1238,7 +1251,7 @@ struct ExportPreviewView: View {
                     sourcePDFSHA256: sourcePDFSHA256,
                     signatureImageSHA256: signatureImageSHA256,
                     signaturePage: page.rawValue,
-                    signaturePlacement: placement.rawValue,
+                    signaturePlacement: PDFSignaturePlacement.custom.rawValue,
                     signedAt: Self.exportOptionDateFormatter.string(from: signedAt),
                     appVersion: Self.appVersion,
                     pdfExportMode: exportMode.rawValue,
@@ -1249,7 +1262,7 @@ struct ExportPreviewView: View {
             signatureConfiguration = ExportSignatureConfiguration(
                 image: image,
                 page: page,
-                placement: placement,
+                placement: .custom,
                 customOffset: customOffset,
                 signedAt: signedAt,
                 validationToken: issueResponse.validationToken,
@@ -1553,8 +1566,17 @@ private struct ExportSignatureConfiguration {
             manifestSignature: manifestSignature,
             manifestSHA256: manifestSHA256,
             algorithm: algorithm,
-            keyVersion: keyVersion
+            keyVersion: keyVersion,
+            verificationURL: verificationURL ?? Self.fallbackVerificationURL(token: validationToken)
         )
+    }
+
+    /// Older token responses predate the server-issued `verificationURL`; build the
+    /// public verification page URL locally so the stamped QR code is never missing.
+    private static func fallbackVerificationURL(token: String) -> URL? {
+        var components = URLComponents(string: "https://www.proofly.me/verify")
+        components?.queryItems = [URLQueryItem(name: "token", value: token)]
+        return components?.url
     }
 }
 
@@ -1652,6 +1674,14 @@ private struct ExportDetailsRow: View {
 private struct PDFKitPreview: UIViewRepresentable {
     let url: URL
 
+    final class Coordinator {
+        var loadedURL: URL?
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
     func makeUIView(context: Context) -> PDFView {
         let pdfView = PDFView()
         pdfView.autoScales = true
@@ -1662,8 +1692,16 @@ private struct PDFKitPreview: UIViewRepresentable {
     }
 
     func updateUIView(_ pdfView: PDFView, context: Context) {
-        pdfView.document = PDFDocument(url: url)
-        pdfView.autoScales = true
+        // Replacing the document tears down PDFView's scroll view and churns the first
+        // responder chain, which re-enters the SwiftUI update and can cycle the attribute
+        // graph until the watchdog kills the app (0x8BADF00D). Export URLs are unique per
+        // generated file, so reload only when the URL changes — and outside the update pass.
+        guard context.coordinator.loadedURL != url else { return }
+        context.coordinator.loadedURL = url
+        DispatchQueue.main.async {
+            pdfView.document = PDFDocument(url: url)
+            pdfView.autoScales = true
+        }
     }
 }
 
@@ -1689,5 +1727,5 @@ private struct PDFKitPreview: UIViewRepresentable {
     )
     .padding()
     .background(Color(.systemGroupedBackground))
-    .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self, AIResultCache.self], inMemory: true)
+    .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self], inMemory: true)
 }

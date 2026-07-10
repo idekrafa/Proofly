@@ -1,4 +1,3 @@
-import SwiftData
 import SwiftUI
 import UIKit
 
@@ -8,8 +7,6 @@ struct AppStatusView: View {
     @Environment(\.proofKitServices) private var services
 
     @ObservedObject var healthMonitor: ServiceHealthMonitor
-    @ObservedObject var queue: AIRequestQueueService
-    @Query(sort: \AIRequestQueueItem.createdAt, order: .forward) private var queuedAIRequests: [AIRequestQueueItem]
 
     @State private var secondsUntilRecheck = 10
     @State private var isRechecking = false
@@ -22,7 +19,6 @@ struct AppStatusView: View {
 
                     statusSection
                     detailsGrid
-                    queuedRequestsSection
                     worksSection
                     limitedSection
                 }
@@ -36,7 +32,6 @@ struct AppStatusView: View {
             .toolbar(.hidden, for: .navigationBar)
         }
         .task {
-            queue.refreshSummary(in: modelContext)
             await recheck()
             await countdownLoop()
         }
@@ -47,12 +42,12 @@ struct AppStatusView: View {
             statusIcon
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("App Status")
+                Text(String(localized: "App Status"))
                     .font(.system(size: 25, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
                     .accessibilityAddTraits(.isHeader)
 
-                Text("Local-first reliability")
+                Text(String(localized: "Local-first reliability"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(StatusPalette.secondaryText)
             }
@@ -60,7 +55,7 @@ struct AppStatusView: View {
             Spacer(minLength: 12)
 
             if healthMonitor.snapshot.state != .healthy {
-                Text("Rechecking in \(secondsUntilRecheck)s")
+                Text(String(localized: "Rechecking in \(secondsUntilRecheck)s"))
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(StatusPalette.secondaryText)
                     .padding(.horizontal, 9)
@@ -82,7 +77,7 @@ struct AppStatusView: View {
                     }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Close App Status")
+            .accessibilityLabel(String(localized: "Close App Status"))
         }
     }
 
@@ -108,7 +103,7 @@ struct AppStatusView: View {
                         .frame(width: 24)
 
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(primaryStatusTitle)
+                        Text(healthMonitor.snapshot.state.statusTitle)
                             .font(.headline.weight(.bold))
                             .foregroundStyle(.primary)
 
@@ -123,7 +118,7 @@ struct AppStatusView: View {
 
                 HStack(spacing: 10) {
                     Button {
-                        Task { await recheckAndProcess() }
+                        Task { await recheck() }
                     } label: {
                         HStack(spacing: 7) {
                             if isRechecking {
@@ -133,7 +128,7 @@ struct AppStatusView: View {
                                 Image(systemName: "arrow.clockwise")
                                     .font(.caption.weight(.bold))
                             }
-                            Text(isRechecking ? "Checking..." : "Check now")
+                            Text(isRechecking ? String(localized: "Checking...") : String(localized: "Check now"))
                                 .font(.footnote.weight(.bold))
                         }
                         .foregroundStyle(.white)
@@ -145,12 +140,6 @@ struct AppStatusView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(isRechecking)
-
-                    if queue.summary.hasPendingWork {
-                        Text(queueStatusText)
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(StatusPalette.secondaryText)
-                    }
                 }
             }
             .statusCard()
@@ -169,49 +158,9 @@ struct AppStatusView: View {
             StatusDetailCard(
                 icon: "arrow.triangle.2.circlepath",
                 tint: StatusPalette.retry,
-                title: String(localized: "Automatic retry"),
-                copy: String(localized: "Proofly will retry queued sync and AI requests automatically when services return.")
+                title: String(localized: "Automatic recheck"),
+                copy: String(localized: "Proofly rechecks server features automatically when the connection returns.")
             )
-
-            StatusDetailCard(
-                icon: "tray.full.fill",
-                tint: StatusPalette.pending,
-                title: String(localized: "Pending changes"),
-                copy: queue.summary.pendingCount == 1
-                    ? String(localized: "\(queue.summary.pendingCount) item waiting to sync.")
-                    : String(localized: "\(queue.summary.pendingCount) items waiting to sync.")
-            )
-        }
-    }
-
-    private var queuedRequestsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionTitle(String(localized: "Pending AI requests"))
-
-            if activeQueueItems.isEmpty {
-                Text("No AI requests are waiting. AI output remains separate from your original evidence and notes.")
-                    .font(.subheadline)
-                    .foregroundStyle(StatusPalette.secondaryText)
-                    .statusCard()
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(activeQueueItems) { item in
-                        QueuedAIRequestRow(item: item) {
-                            queue.cancel(item, in: modelContext)
-                        }
-
-                        if item.id != activeQueueItems.last?.id {
-                            Divider().padding(.leading, 48)
-                        }
-                    }
-                }
-                .statusCard(padding: 0)
-
-                Text("AI will run when connection returns and credits are available.")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(StatusPalette.secondaryText)
-                    .padding(.horizontal, 2)
-            }
         }
     }
 
@@ -236,53 +185,11 @@ struct AppStatusView: View {
             icon: "clock.badge.exclamationmark.fill",
             tint: StatusPalette.warning,
             items: [
-                String(localized: "AI timeline summary"),
-                String(localized: "Packet polish / Deep review"),
-                String(localized: "Subscription/credit refresh"),
+                String(localized: "Subscription refresh"),
+                String(localized: "Signature link creation and status"),
                 String(localized: "Cross-device/server sync if available")
             ]
         )
-    }
-
-    private var activeQueueItems: [AIRequestQueueItem] {
-        queuedAIRequests.filter { item in
-            item.status == .queued ||
-                item.status == .running ||
-                item.status == .waitingForCredits ||
-                item.status == .failed
-        }
-    }
-
-    private var primaryStatusTitle: String {
-        if queue.summary.waitingForCreditsCount > 0 {
-            return String(localized: "AI queue waiting for credits")
-        }
-
-        if queue.summary.runningCount > 0 {
-            return queue.summary.runningCount == 1
-                ? String(localized: "Syncing \(queue.summary.runningCount) AI request")
-                : String(localized: "Syncing \(queue.summary.runningCount) AI requests")
-        }
-
-        if queue.summary.queuedCount > 0, healthMonitor.snapshot.state == .healthy {
-            return queue.summary.queuedCount == 1
-                ? String(localized: "Syncing \(queue.summary.queuedCount) AI request")
-                : String(localized: "Syncing \(queue.summary.queuedCount) AI requests")
-        }
-
-        return healthMonitor.snapshot.state.statusTitle
-    }
-
-    private var queueStatusText: String {
-        if queue.summary.waitingForCreditsCount > 0 {
-            return String(localized: "\(queue.summary.waitingForCreditsCount) waiting for credits")
-        }
-
-        if queue.isProcessing {
-            return String(localized: "Processing one at a time")
-        }
-
-        return String(localized: "\(queue.summary.pendingCount) queued")
     }
 
     private func sectionTitle(_ title: String) -> some View {
@@ -298,14 +205,8 @@ struct AppStatusView: View {
         guard !isRechecking else { return }
         isRechecking = true
         await services.serviceHealth.recheck()
-        queue.refreshSummary(in: modelContext)
         isRechecking = false
         secondsUntilRecheck = 10
-    }
-
-    private func recheckAndProcess() async {
-        await recheck()
-        await queue.processPendingItems(in: modelContext)
     }
 
     private func countdownLoop() async {
@@ -314,7 +215,7 @@ struct AppStatusView: View {
             if secondsUntilRecheck > 0 {
                 secondsUntilRecheck -= 1
             } else {
-                await recheckAndProcess()
+                await recheck()
             }
         }
     }
@@ -327,8 +228,6 @@ struct AppStatusView: View {
             StatusPalette.offline
         case .supabaseDown, .degraded:
             StatusPalette.warning
-        case .aiProviderDown:
-            StatusPalette.aiDelayed
         case .checking:
             StatusPalette.pending
         }
@@ -342,8 +241,6 @@ struct AppStatusView: View {
             "wifi.slash"
         case .supabaseDown:
             "server.rack"
-        case .aiProviderDown:
-            "sparkles"
         case .degraded:
             "exclamationmark.triangle.fill"
         case .checking:
@@ -353,9 +250,7 @@ struct AppStatusView: View {
 }
 
 struct HomeStatusPillHost: View {
-    @Environment(\.modelContext) private var modelContext
     @ObservedObject var healthMonitor: ServiceHealthMonitor
-    @ObservedObject var queue: AIRequestQueueService
     let onTap: () -> Void
 
     var body: some View {
@@ -385,45 +280,21 @@ struct HomeStatusPillHost: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Open App Status")
-                .task {
-                    queue.refreshSummary(in: modelContext)
-                }
+                .accessibilityLabel(String(localized: "Open App Status"))
             }
         }
     }
 
     private var title: String? {
-        if queue.isProcessing || (healthMonitor.snapshot.state == .healthy && queue.summary.queuedCount > 0) {
-            let count = queue.summary.queuedCount + queue.summary.runningCount
-            return count == 1
-                ? String(localized: "Syncing \(count) AI request")
-                : String(localized: "Syncing \(count) AI requests")
-        }
-
-        if queue.summary.waitingForCreditsCount > 0 {
-            return String(localized: "AI delayed")
-        }
-
-        return healthMonitor.snapshot.state.shortPillTitle
+        healthMonitor.snapshot.state.shortPillTitle
     }
 
     private var tint: Color {
-        if queue.isProcessing {
-            return StatusPalette.pending
-        }
-
-        if queue.summary.waitingForCreditsCount > 0 {
-            return StatusPalette.aiDelayed
-        }
-
         switch healthMonitor.snapshot.state {
         case .offline:
             return StatusPalette.offline
         case .supabaseDown, .degraded:
             return StatusPalette.warning
-        case .aiProviderDown:
-            return StatusPalette.aiDelayed
         case .healthy, .checking:
             return StatusPalette.pending
         }
@@ -461,104 +332,6 @@ private struct StatusDetailCard: View {
             Spacer(minLength: 0)
         }
         .statusCard()
-    }
-}
-
-private struct QueuedAIRequestRow: View {
-    let item: AIRequestQueueItem
-    let onCancel: () -> Void
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: icon)
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(tint)
-                .frame(width: 36, height: 36)
-                .background {
-                    Circle().fill(tint.opacity(0.12))
-                }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.displayTitle)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.primary)
-
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(StatusPalette.secondaryText)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 8)
-
-            if item.status == .queued || item.status == .waitingForCredits || item.status == .failed {
-                Button("Cancel", action: onCancel)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(StatusPalette.secondaryText)
-                    .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-    }
-
-    private var icon: String {
-        switch item.status {
-        case .queued:
-            "clock.fill"
-        case .running:
-            "arrow.triangle.2.circlepath"
-        case .waitingForCredits:
-            "creditcard.fill"
-        case .failed:
-            "exclamationmark.triangle.fill"
-        case .completed:
-            "checkmark.circle.fill"
-        case .cancelled:
-            "xmark.circle.fill"
-        }
-    }
-
-    private var tint: Color {
-        switch item.status {
-        case .queued:
-            StatusPalette.pending
-        case .running:
-            StatusPalette.pending
-        case .waitingForCredits:
-            StatusPalette.aiDelayed
-        case .failed:
-            StatusPalette.warning
-        case .completed:
-            StatusPalette.safe
-        case .cancelled:
-            StatusPalette.secondaryText
-        }
-    }
-
-    private var subtitle: String {
-        if let lastErrorMessage = item.lastErrorMessage, !lastErrorMessage.isEmpty {
-            return lastErrorMessage
-        }
-
-        let cost = item.creditCostQuote ?? item.actionKind.defaultCreditCost
-        switch item.status {
-        case .queued:
-            return cost == 1
-                ? String(localized: "Queued • \(cost) AI credit")
-                : String(localized: "Queued • \(cost) AI credits")
-        case .running:
-            return String(localized: "Running now • credits checked server-side")
-        case .waitingForCredits:
-            return String(localized: "Waiting for credits • \(cost) needed")
-        case .failed:
-            return String(localized: "Needs attention before retrying")
-        case .completed:
-            return String(localized: "Completed")
-        case .cancelled:
-            return String(localized: "Cancelled")
-        }
     }
 }
 
@@ -638,10 +411,6 @@ private enum StatusPalette {
     static let offline = dynamicColor(
         light: UIColor(red: 0.86, green: 0.36, blue: 0.13, alpha: 1),
         dark: UIColor(red: 1.00, green: 0.52, blue: 0.30, alpha: 1)
-    )
-    static let aiDelayed = dynamicColor(
-        light: UIColor(red: 0.50, green: 0.30, blue: 0.76, alpha: 1),
-        dark: UIColor(red: 0.78, green: 0.58, blue: 1.00, alpha: 1)
     )
 
     private static func dynamicColor(light: UIColor, dark: UIColor) -> Color {

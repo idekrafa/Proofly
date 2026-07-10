@@ -306,114 +306,6 @@ extension SupabaseInfrastructureService: AccountServicing {
     }
 }
 
-extension SupabaseInfrastructureService: AICreditTrackingServicing {
-    func fetchAICreditBalance() async throws -> AICreditBalance {
-        #if canImport(Supabase)
-        return try await configuredClient.functions.invoke(
-            configuredFunctionNames.aiCreditBalance,
-            decoder: Self.remoteJSONDecoder
-        )
-        #else
-        throw ProofKitError.supabaseSDKUnavailable
-        #endif
-    }
-
-    func reserveAICredits(_ request: AICreditReservationRequest) async throws -> AICreditReservation {
-        #if canImport(Supabase)
-        guard request.estimatedCredits > 0 else {
-            throw ProofKitError.remotePolicyViolation("AI credit reservations must request at least one credit.")
-        }
-
-        return try await configuredClient.functions.invoke(
-            configuredFunctionNames.aiCreditReserve,
-            options: FunctionInvokeOptions(body: request),
-            decoder: Self.remoteJSONDecoder
-        )
-        #else
-        throw ProofKitError.supabaseSDKUnavailable
-        #endif
-    }
-}
-
-extension SupabaseInfrastructureService: AIProxyServicing {
-    func invokeTextOnlyAI(_ request: AIProxyTextRequest) async throws -> AIProxyTextResponse {
-        #if canImport(Supabase)
-        try Self.validateTextOnlyAIRequest(request)
-
-        return try await configuredClient.functions.invoke(
-            configuredFunctionNames.aiProxy,
-            options: FunctionInvokeOptions(body: request),
-            decoder: Self.remoteJSONDecoder
-        )
-        #else
-        throw ProofKitError.supabaseSDKUnavailable
-        #endif
-    }
-
-    func streamTextOnlyAI(_ request: AIProxyTextRequest) -> AsyncThrowingStream<AIProxyStreamEvent, Error> {
-        AsyncThrowingStream { continuation in
-            Task {
-                #if canImport(Supabase)
-                do {
-                    try Self.validateTextOnlyAIRequest(request)
-
-                    guard let configuration else {
-                        throw ProofKitError.supabaseNotConfigured
-                    }
-
-                    let client = try configuredClient
-                    guard let session = client.auth.currentSession else {
-                        throw ProofKitError.remotePolicyViolation(String(localized: "Sign in before using AI."))
-                    }
-
-                    var streamingRequest = request
-                    if request.stream != true {
-                        streamingRequest = AIProxyTextRequest(
-                            taskType: request.taskType,
-                            feature: request.feature,
-                            compressedTextInput: request.compressedTextInput,
-                            inputHash: request.inputHash,
-                            caseID: request.caseID,
-                            evidenceItemID: request.evidenceItemID,
-                            evidenceItemIDs: request.evidenceItemIDs,
-                            extractedTextSnippets: request.extractedTextSnippets,
-                            metadata: request.metadata,
-                            userTriggered: request.userTriggered,
-                            idempotencyKey: request.idempotencyKey,
-                            stream: true
-                        )
-                    }
-
-                    let url = configuration.projectURL
-                        .appendingPathComponent("functions")
-                        .appendingPathComponent("v1")
-                        .appendingPathComponent(try configuredFunctionNames.aiProxy)
-                    var urlRequest = URLRequest(url: url)
-                    urlRequest.httpMethod = "POST"
-                    urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    urlRequest.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-                    urlRequest.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
-                    urlRequest.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
-                    urlRequest.httpBody = try Self.remoteJSONEncoder.encode(streamingRequest)
-
-                    let (bytes, response) = try await URLSession.shared.bytes(for: urlRequest)
-                    if let httpResponse = response as? HTTPURLResponse,
-                       !(200..<300).contains(httpResponse.statusCode) {
-                        throw ProofKitError.remotePolicyViolation("AI proxy returned HTTP \(httpResponse.statusCode).")
-                    }
-
-                    try await Self.consumeAIProxySSE(bytes: bytes, continuation: continuation)
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-                #else
-                continuation.finish(throwing: ProofKitError.supabaseSDKUnavailable)
-                #endif
-            }
-        }
-    }
-}
-
 extension SupabaseInfrastructureService: PurchaseEntitlementServicing {
     func fetchPurchaseEntitlements() async throws -> [PurchaseEntitlementRecord] {
         #if canImport(Supabase)
@@ -724,61 +616,6 @@ private extension SupabaseInfrastructureService {
     }
     #endif
 
-    static func validateTextOnlyAIRequest(_ request: AIProxyTextRequest) throws {
-        guard request.userTriggered else {
-            throw ProofKitError.localOnlyViolation("AI proxy calls must be explicitly triggered by the user.")
-        }
-
-        guard !request.compressedTextInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw ProofKitError.remotePolicyViolation("AI proxy calls require extracted text. Raw files are not allowed.")
-        }
-
-        guard !request.inputHash.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw ProofKitError.remotePolicyViolation("AI proxy calls require an input hash for caching.")
-        }
-
-        guard request.caseID != nil || request.evidenceItemID != nil else {
-            throw ProofKitError.remotePolicyViolation("AI proxy calls require a case ID or proof item ID.")
-        }
-
-        guard request.extractedTextSnippets.contains(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
-            throw ProofKitError.remotePolicyViolation("AI proxy calls require text excerpts. Raw files are not allowed.")
-        }
-
-        let forbiddenMetadataKeys = request.metadata.keys.filter { key in
-            let normalized = key.lowercased()
-            return normalized.contains("path") ||
-                normalized.contains("filename") ||
-                normalized.contains("fileurl") ||
-                normalized.contains("file_url") ||
-                normalized.contains("localfile") ||
-                normalized.contains("thumbnail") ||
-                normalized.contains("pdf") ||
-                normalized.contains("image")
-        }
-
-        if !forbiddenMetadataKeys.isEmpty {
-            throw ProofKitError.remotePolicyViolation(
-                "AI proxy metadata must not include local file paths, image/PDF references, or thumbnail references."
-            )
-        }
-
-        let forbiddenMetadataValues = request.metadata.values.filter { value in
-            let normalized = value.lowercased()
-            return normalized.contains("file://") ||
-                normalized.contains("/var/mobile/") ||
-                normalized.contains("/private/var/") ||
-                normalized.contains("/users/") ||
-                normalized.contains("/documents/")
-        }
-
-        if !forbiddenMetadataValues.isEmpty {
-            throw ProofKitError.remotePolicyViolation(
-                "AI proxy metadata must not include local file paths or file URLs."
-            )
-        }
-    }
-
     static func validateSignatureIssueRequest(_ request: PDFSignatureTokenIssueRequest) throws {
         guard isSHA256Hex(request.signatureImageSHA256) else {
             throw ProofKitError.remotePolicyViolation("Signature validation requires a SHA-256 signature hash.")
@@ -805,60 +642,6 @@ private extension SupabaseInfrastructureService {
         return cleaned.allSatisfy { allowedCharacters.contains($0) }
     }
 
-    #if canImport(Supabase)
-    static func consumeAIProxySSE(
-        bytes: URLSession.AsyncBytes,
-        continuation: AsyncThrowingStream<AIProxyStreamEvent, Error>.Continuation
-    ) async throws {
-        var eventName = ""
-        var dataLines: [String] = []
-
-        func flushEvent() throws {
-            guard !dataLines.isEmpty else {
-                eventName = ""
-                return
-            }
-
-            let data = dataLines.joined(separator: "\n")
-            let eventData = Data(data.utf8)
-            switch eventName {
-            case "start":
-                let start = try remoteJSONDecoder.decode(AIProxyStreamStart.self, from: eventData)
-                continuation.yield(.started(start))
-            case "delta":
-                let delta = try remoteJSONDecoder.decode(AIProxyStreamDelta.self, from: eventData)
-                continuation.yield(.textDelta(delta.text))
-            case "done":
-                let response = try remoteJSONDecoder.decode(AIProxyTextResponse.self, from: eventData)
-                continuation.yield(.completed(response))
-                continuation.finish()
-            case "error":
-                let error = (try? remoteJSONDecoder.decode(AIProxyStreamError.self, from: eventData).error)
-                    ?? "AI proxy stream failed."
-                continuation.finish(throwing: ProofKitError.remotePolicyViolation(error))
-            default:
-                break
-            }
-
-            eventName = ""
-            dataLines.removeAll(keepingCapacity: true)
-        }
-
-        for try await rawLine in bytes.lines {
-            let line = rawLine.trimmingCharacters(in: CharacterSet(charactersIn: "\r"))
-            if line.isEmpty {
-                try flushEvent()
-            } else if line.hasPrefix("event:") {
-                eventName = String(line.dropFirst("event:".count)).trimmingCharacters(in: .whitespaces)
-            } else if line.hasPrefix("data:") {
-                dataLines.append(String(line.dropFirst("data:".count)).trimmingCharacters(in: .whitespaces))
-            }
-        }
-
-        try flushEvent()
-        continuation.finish()
-    }
-    #endif
 }
 
 private struct ProofKitRegisterProfileRequest: Encodable {
@@ -871,14 +654,6 @@ private struct ProofKitRegisterProfileRequest: Encodable {
         case onboardingCategory = "p_onboarding_category"
         case onboardingDisplayName = "p_display_name"
     }
-}
-
-private struct AIProxyStreamDelta: Decodable {
-    let text: String
-}
-
-private struct AIProxyStreamError: Decodable {
-    let error: String
 }
 
 private struct ProofKitUpdateProfileDisplayNameRequest: Encodable {

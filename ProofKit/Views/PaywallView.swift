@@ -148,9 +148,7 @@ struct PaywallView: View {
         VStack(alignment: .leading, spacing: 14) {
             PaywallBenefitRow(text: String(localized: "Organize screenshots, photos, notes, and documents"))
             PaywallBenefitRow(text: String(localized: "Turn messy proof into a clear timeline"))
-            PaywallBenefitRow(text: String(localized: "Full Pro access during trial, including unlimited cases, unlimited proof, clean exports, and 3 AI credits"))
-            PaywallBenefitRow(text: String(localized: "Weekly Pro includes 15 AI credits/week"))
-            PaywallBenefitRow(text: String(localized: "Monthly Pro includes 75 AI credits/month"))
+            PaywallBenefitRow(text: String(localized: "Full Pro access during trial, including unlimited cases, unlimited proof, and clean exports"))
             PaywallBenefitRow(text: String(localized: "Cancel anytime before the trial ends"))
             PaywallBenefitRow(text: String(localized: "Raw files stay on your device"))
         }
@@ -354,9 +352,9 @@ struct PaywallView: View {
                 String(localized: "Your free trial lasts \($0).")
             } ?? String(localized: "The App Store checkout shows your exact free-trial length.")
 
-            return String(localized: "\(trialText) Then \(selectedPlan.renewalPriceText) after trial. Trial includes full Pro access and 3 AI credits. Weekly Pro includes 15 AI credits/week.")
+            return String(localized: "\(trialText) Then \(selectedPlan.renewalPriceText) after trial. Trial includes full Pro access.")
         case .monthly:
-            return String(localized: "Monthly Pro is \(selectedPlan.renewalPriceText) and includes 75 AI credits/month.")
+            return String(localized: "Monthly Pro is \(selectedPlan.renewalPriceText).")
         }
     }
 }

@@ -99,7 +99,7 @@ struct ManualEvidenceEntryView: View {
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.primary)
 
-            Text("Capture what happened in your own words. This stays local and does not use OCR or AI.")
+            Text("Capture what happened in your own words. This stays local and does not use OCR.")
                 .font(.subheadline)
                 .foregroundStyle(ProofKitVisual.helperText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -113,7 +113,7 @@ struct ManualEvidenceEntryView: View {
             let currentCount = caseFile.evidenceItems.count
             let remainingCount = max(0, evidenceItemLimit - currentCount)
 
-            Text(remainingCount == 0 ? "\(entitlementSnapshot.plan.displayName) has reached \(currentCount)/\(evidenceItemLimit) proof items for this case. Upgrade to add more proof." : "\(currentCount)/\(evidenceItemLimit) proof items used. This manual record will stay local and does not use AI credits.")
+            Text(remainingCount == 0 ? "\(entitlementSnapshot.plan.displayName) has reached \(currentCount)/\(evidenceItemLimit) proof items for this case. Upgrade to add more proof." : "\(currentCount)/\(evidenceItemLimit) proof items used. This manual record stays local.")
                 .font(.footnote)
                 .foregroundStyle(ProofKitVisual.helperText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -360,5 +360,5 @@ private extension String {
             )
         ) { _ in }
     }
-    .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self, AIResultCache.self], inMemory: true)
+    .modelContainer(for: [CaseFile.self, EvidenceItem.self, Attachment.self, ExportPacket.self], inMemory: true)
 }

@@ -17,10 +17,6 @@ struct PaywallPlanOption: Equatable, Identifiable {
         }
     }
 
-    var creditLine: String {
-        product.creditLineText
-    }
-
     var priceText: String {
         package?.displayPrice ?? product.fallbackPrice
     }
@@ -41,10 +37,10 @@ struct PaywallPlanOption: Equatable, Identifiable {
         guard product == .weekly else { return nil }
 
         if let duration = package?.introductoryOfferDurationText {
-            return String(localized: "Start with a free trial for \(duration) and 3 AI credits. Then \(renewalPriceText) after trial.")
+            return String(localized: "Start with a free trial for \(duration). Then \(renewalPriceText) after trial.")
         }
 
-        return String(localized: "Start with the free trial shown at checkout and 3 AI credits. Then \(renewalPriceText) after trial.")
+        return String(localized: "Start with the free trial shown at checkout. Then \(renewalPriceText) after trial.")
     }
 
     var badgeText: String? {
@@ -52,7 +48,7 @@ struct PaywallPlanOption: Equatable, Identifiable {
     }
 
     var accessibilityDescription: String {
-        [title, renewalPriceText, creditLine, trialLine, subtitle, badgeText].compactMap { $0 }.joined(separator: ", ")
+        [title, renewalPriceText, trialLine, subtitle, badgeText].compactMap { $0 }.joined(separator: ", ")
     }
 }
 
@@ -247,7 +243,7 @@ final class PurchaseManager: ObservableObject {
         if outcome.customerInfo?.isProofKitProActive == true {
             notice = PurchaseManagerNotice(
                 title: String(localized: "Welcome to Proofly Pro"),
-                message: String(localized: "You’re all set. Unlimited cases, unlimited proof, clean exports, and your Pro AI credits are ready."),
+                message: String(localized: "You’re all set. Unlimited cases, unlimited proof, and clean exports are ready."),
                 buttonTitle: String(localized: "Start Organizing"),
                 action: .dismissPaywallForActiveEntitlement
             )

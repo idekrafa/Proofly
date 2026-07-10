@@ -1,5 +1,11 @@
 # Proofly AI Request Flow Audit
 
+> **Note (2026-07-09):** AI was removed from Proofly entirely — the `ai-proxy`,
+> `ai-credit-balance`, and `ai-credit-reserve` Edge Functions, the credit
+> tables/RPCs (migration `20260709120000_remove_ai_credit_system.sql`), and all
+> in-app AI features (Timeline Summary, Packet Polish, Clean Up Note). The Pro
+> plan no longer includes AI services. This document is historical.
+
 Read-only audit of how ProofKit/Proofly AI requests work.
 
 ## 1. Where AI Requests Start in Swift

@@ -33,14 +33,15 @@ export function makeRequestToken(): string {
   return base64URL(bytes);
 }
 
+/// Share links are served from the marketing domain, which rewrites `/sign` to the
+/// `sign-request` Edge Function (see docs/ask-sign-feature.md). The signing page uses
+/// relative URLs for its PDF asset and submit calls, so they flow through the same rewrite.
+const DEFAULT_SIGN_REQUEST_BASE_URL = "https://www.proofly.me/sign";
+
 export function signRequestPageURL(token: string): string {
-  const configured = Deno.env.get("PROOFKIT_SIGN_REQUEST_BASE_URL")?.trim();
-  if (configured) {
-    const separator = configured.includes("?") ? "&" : "?";
-    return `${configured}${separator}token=${encodeURIComponent(token)}`;
-  }
-  const projectURL = Deno.env.get("SUPABASE_URL")?.trim() ?? "";
-  return `${projectURL}/functions/v1/sign-request?token=${encodeURIComponent(token)}`;
+  const base = Deno.env.get("PROOFKIT_SIGN_REQUEST_BASE_URL")?.trim() || DEFAULT_SIGN_REQUEST_BASE_URL;
+  const separator = base.includes("?") ? "&" : "?";
+  return `${base}${separator}token=${encodeURIComponent(token)}`;
 }
 
 export async function tokenLookupHash(token: string): Promise<string> {

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Runtime Supabase configuration for account, AI credit, AI proxy, and
+/// Runtime Supabase configuration for account and
 /// purchase-entitlement infrastructure only.
 ///
 /// Values must be provided by build settings / Info.plist / environment. Do not
@@ -100,9 +100,6 @@ struct SupabaseConfiguration: Equatable {
 }
 
 struct SupabaseFunctionNames: Equatable {
-    let aiCreditBalance: String
-    let aiCreditReserve: String
-    let aiProxy: String
     let purchaseEntitlements: String
     let deleteAccount: String
     let createSignatureToken: String
@@ -116,24 +113,6 @@ struct SupabaseFunctionNames: Equatable {
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> SupabaseFunctionNames {
         SupabaseFunctionNames(
-            aiCreditBalance: configuredFunctionName(
-                key: "PROOFKIT_SUPABASE_FN_AI_CREDIT_BALANCE",
-                defaultValue: "ai-credit-balance",
-                bundle: bundle,
-                environment: environment
-            ),
-            aiCreditReserve: configuredFunctionName(
-                key: "PROOFKIT_SUPABASE_FN_AI_CREDIT_RESERVE",
-                defaultValue: "ai-credit-reserve",
-                bundle: bundle,
-                environment: environment
-            ),
-            aiProxy: configuredFunctionName(
-                key: "PROOFKIT_SUPABASE_FN_AI_PROXY",
-                defaultValue: "ai-proxy",
-                bundle: bundle,
-                environment: environment
-            ),
             purchaseEntitlements: configuredFunctionName(
                 key: "PROOFKIT_SUPABASE_FN_PURCHASE_ENTITLEMENTS",
                 defaultValue: "purchase-entitlements",
