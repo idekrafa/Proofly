@@ -80,9 +80,6 @@ Deno.serve(async (req) => {
       signedAt: row.signed_at,
       signatureImageSHA256: row.signature_image_sha256,
       signatureImageBase64,
-      signaturePositionPage: row.signature_position_page,
-      signaturePositionX: row.signature_position_x,
-      signaturePositionY: row.signature_position_y,
     });
   } catch (error) {
     if (error instanceof Response) return error;

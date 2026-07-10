@@ -50,13 +50,6 @@ struct PDFCounterpartySignatureStamp {
     let signerName: String
     let page: PDFSignaturePage
     let placement: PDFSignaturePlacement
-    /// Zero-based page chosen by the signer on the signing web page. When set it
-    /// wins over `page`; if the regenerated packet has fewer pages, the stamp
-    /// falls back to the last page so the signature is never dropped.
-    let pageIndex: Int?
-    /// Normalized page-relative center (x, y in 0...1, origin top-left) chosen by
-    /// the signer. Used when `placement == .custom`.
-    let customOffset: CGPoint?
     let signedAt: Date
     let requestID: String
     let signatureImageSHA256: String
@@ -1610,23 +1603,14 @@ private final class PDFCaseRenderer {
         }
 
         if let counterpartyStamp = request.counterpartySignatureStamp,
-           shouldDrawCounterpartySignature(counterpartyStamp, isFinalPage: isFinalPage) {
+           shouldDrawSignature(on: counterpartyStamp.page, isFinalPage: isFinalPage) {
             drawStamp(
                 image: counterpartyStamp.image,
                 caption: "Signed by \(counterpartyStamp.signerName) · Proofly Ask Sign \(counterpartyStamp.requestID)",
                 verificationURL: nil,
-                in: signatureRect(placement: counterpartyStamp.placement, customOffset: counterpartyStamp.customOffset)
+                in: signatureRect(placement: counterpartyStamp.placement, customOffset: nil)
             )
         }
-    }
-
-    private func shouldDrawCounterpartySignature(_ stamp: PDFCounterpartySignatureStamp, isFinalPage: Bool) -> Bool {
-        guard let pageIndex = stamp.pageIndex else {
-            return shouldDrawSignature(on: stamp.page, isFinalPage: isFinalPage)
-        }
-        // Signer-chosen page. If the packet ends before reaching it (content changed
-        // between the shared copy and this render), stamp the last page instead.
-        return pageNumber == pageIndex + 1 || (isFinalPage && pageNumber < pageIndex + 1)
     }
 
     private func drawStamp(image: UIImage, caption: String, verificationURL: URL?, in signatureRect: CGRect) {
