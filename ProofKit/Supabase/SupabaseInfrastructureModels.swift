@@ -174,6 +174,12 @@ struct SignatureRequestStatusResponse: Codable, Equatable {
     let signedAt: Date?
     let signatureImageSHA256: String?
     let signatureImageBase64: String?
+    /// Signer-chosen placement from the signing web page: zero-based page index and
+    /// the normalized center (0...1, origin top-left) of the signature on that page.
+    /// Nil for requests signed before free-form placement existed.
+    let signaturePositionPage: Int?
+    let signaturePositionX: Double?
+    let signaturePositionY: Double?
 }
 
 struct PurchaseEntitlementRecord: Codable, Equatable, Identifiable {

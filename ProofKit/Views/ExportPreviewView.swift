@@ -1396,11 +1396,22 @@ struct ExportPreviewView: View {
             return nil
         }
 
+        // A position chosen by the signer on the signing page wins over the
+        // requester's preset page/placement.
+        let signerOffset: CGPoint? = {
+            guard let x = askSignStatus.signaturePositionX, let y = askSignStatus.signaturePositionY else { return nil }
+            return CGPoint(x: x, y: y)
+        }()
+
         return PDFCounterpartySignatureStamp(
             image: counterpartySignatureImage,
             signerName: askSignStatus.signerName ?? "Requested signer",
             page: askSignStatus.signaturePage.flatMap(PDFSignaturePage.init(rawValue:)) ?? .lastPage,
-            placement: askSignStatus.signaturePlacement.flatMap(PDFSignaturePlacement.init(rawValue:)) ?? .lowerLeft,
+            placement: signerOffset != nil
+                ? .custom
+                : askSignStatus.signaturePlacement.flatMap(PDFSignaturePlacement.init(rawValue:)) ?? .lowerLeft,
+            pageIndex: signerOffset != nil ? askSignStatus.signaturePositionPage : nil,
+            customOffset: signerOffset,
             signedAt: askSignStatus.signedAt ?? .now,
             requestID: requestID.uuidString,
             signatureImageSHA256: askSignStatus.signatureImageSHA256 ?? ""

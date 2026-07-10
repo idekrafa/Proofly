@@ -27,8 +27,9 @@ export function configuredKeyVersion(): string {
   return Deno.env.get("PROOFKIT_SIGNATURE_KEY_VERSION")?.trim() || "v1";
 }
 
-/// Public authenticity page. The marketing domain rewrites `/verify` to the
-/// `verify-signature-token` Edge Function, which serves HTML to browsers.
+/// Public authenticity page: a static page on the marketing domain that POSTs the
+/// token to the `verify-signature-token` Edge Function (JSON, no auth). Supabase
+/// cannot serve HTML from `*.supabase.co`, so the page must live on proofly.me.
 const DEFAULT_VERIFICATION_BASE_URL = "https://www.proofly.me/verify";
 
 export function configuredVerificationBaseURL(): string {
